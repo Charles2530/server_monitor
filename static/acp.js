@@ -1,0 +1,500 @@
+"use strict";
+
+(() => {
+  const byId = (id) => document.getElementById(id);
+  const state = { options: null, snapshot: null, unavailable: false, selected: null, preview: null, stop: null, creating: false, stopping: false, createUnknown: false, stopUnknown: false, storageError: false };
+  const siteKey = (name) => window.MonitorSite?.key(name) || name;
+  const pendingKeys = { create: siteKey("charles-monitor.acp.create.pending"), stop: siteKey("charles-monitor.acp.stop.pending") };
+  const form = byId("acp-create-form");
+  const command = byId("acp-command");
+  let commandTouched = false, commandRevision = 0, pastePending = false;
+  const partitioned = window.MonitorSite?.id === "sensecore";
+  const partitionDrafts = new Map();
+  let partitionSelect = null, optionsRequest = 0, optionsLoading = false;
+  const createDialog = byId("acp-create-dialog"), stopDialog = byId("acp-stop-dialog");
+  const dateFormat = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+
+  function element(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function message(id, text) { byId(id).textContent = text || ""; byId(id).hidden = !text; }
+  function date(value) { const parsed = new Date(value); return value && Number.isFinite(parsed.getTime()) ? dateFormat.format(parsed) : "—"; }
+  function refresh() { document.dispatchEvent(new CustomEvent("monitor-refresh")); }
+  function pair(container, label, value, command = false) {
+    const dd = element("dd");
+    dd.append(element(command ? "pre" : "span", "", String(value ?? "—")));
+    container.append(element("dt", "", label), dd);
+  }
+
+  function updatePartitionLock() {
+    if (partitionSelect) partitionSelect.disabled = !partitionSelect.value || state.creating || state.createUnknown || state.storageError;
+  }
+
+  function pending(kind) {
+    const raw = localStorage.getItem(pendingKeys[kind]);
+    if (raw === null) return null;
+    const value = JSON.parse(raw), fields = kind === "create" ? ["preview_id"] : ["request_id", "task_id", "display_name"];
+    if (!value || Object.keys(value).length !== fields.length || !fields.every((field) => typeof value[field] === "string" && value[field].length > 0 && value[field].length <= 300)) throw new Error("请求恢复记录无法读取。请保留记录并核对云端结果。");
+    return value;
+  }
+
+  function pendingIdentity(kind, value) { return kind === "create" ? value?.preview_id : value?.request_id; }
+
+  function syncPending(kind) {
+    try {
+      const saved = pending(kind), wasUnknown = state[`${kind}Unknown`];
+      state[`${kind}Unknown`] = Boolean(saved);
+      if (saved) {
+        if (kind === "create") {
+          if (state.preview?.preview_id !== saved.preview_id) {
+            state.preview = saved;
+            byId("acp-preview-details").replaceChildren();
+            pair(byId("acp-preview-details"), "恢复的创建请求", saved.preview_id);
+          }
+          message("acp-create-message", "上次创建结果未知，已恢复原请求。核对会复用同一次请求，不会生成新的创建配置。");
+        } else {
+          state.stop = saved;
+          byId("acp-stop-target").replaceChildren();
+          pair(byId("acp-stop-target"), "任务名称", saved.display_name);
+          pair(byId("acp-stop-target"), "完整任务 ID", saved.task_id);
+          message("acp-stop-message", "上次停止结果未知，已恢复原请求。请核对原任务的停止结果。");
+        }
+        message("acp-message", "有尚未确认结果的请求。请通过下方核对入口继续原请求；相关新操作暂时锁定。");
+      } else if (wasUnknown && !state[kind === "create" ? "creating" : "stopping"]) {
+        if (kind === "create") { state.preview = null; createDialog.close(); }
+        else { state.stop = null; stopDialog.close(); }
+      }
+      byId(`acp-${kind}-resume`).hidden = !saved;
+      byId(`acp-${kind}-confirm`).textContent = saved ? `核对此次${kind === "create" ? "创建" : "停止"}结果` : kind === "create" ? "确认创建" : "确认停止";
+      byId(`acp-${kind}-cancel`).textContent = saved ? "暂时关闭" : kind === "create" ? "返回修改" : "取消";
+      byId("acp-preview-button").disabled = !state.options || state.createUnknown;
+    } catch {
+      state.storageError = true;
+      byId("acp-preview-button").disabled = true;
+      message("acp-message", "本地请求恢复记录不可用，已暂停新操作。请核对云端已有任务与浏览器存储状态。");
+    }
+    updatePartitionLock();
+    renderSelected(); renderWaiting();
+  }
+
+  async function remember(kind, value) {
+    if (!navigator.locks || state.storageError) throw new Error("浏览器暂时无法保护请求记录，未发送操作。请使用支持本地存储与 Web Locks 的浏览器。");
+    // Serialize the read-and-write claim across tabs; the network request uses the persisted identity.
+    await navigator.locks.request(siteKey("charles-monitor.acp.pending"), () => {
+      const existing = pending(kind);
+      if (existing && pendingIdentity(kind, existing) !== pendingIdentity(kind, value)) {
+        syncPending(kind);
+        throw Object.assign(new Error("另一标签页有尚未确认的请求，请通过核对入口继续。"), { conflict: true });
+      }
+      localStorage.setItem(pendingKeys[kind], JSON.stringify(value));
+    });
+  }
+
+  function forget(kind, value) {
+    try {
+      if (pendingIdentity(kind, pending(kind)) === pendingIdentity(kind, value)) localStorage.removeItem(pendingKeys[kind]);
+    } catch { state.storageError = true; }
+  }
+
+  function fresh(sourceKey = "ACP") {
+    const snapshot = state.snapshot, source = snapshot?.source_status?.[sourceKey];
+    if (state.unavailable || !snapshot?.connected || ["disconnected", "error"].includes(snapshot.status) || source?.status !== "ok") return false;
+    const limit = Math.max(180, (snapshot.interval_seconds || 60) * 3) * 1000;
+    const timestamps = [snapshot.updated_at, source.observed_at || source.updated_at || (sourceKey.endsWith("_queue") ? null : snapshot.updated_at)];
+    return timestamps.every((value) => value && Number.isFinite(new Date(value).getTime()) && Date.now() - new Date(value).getTime() <= limit);
+  }
+
+  function stopFresh(taskId) {
+    const queued = state.snapshot?.waiting_tasks?.some((task) => task.id === taskId);
+    return fresh() && (!queued || fresh("ACP_queue"));
+  }
+
+  async function request(path, body) {
+    const mutating = path.endsWith("/create") || path.endsWith("/stop");
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), mutating ? 90000 : 60000);
+    try {
+      const response = await (window.MonitorSite?.fetch || fetch)(path, { method: body ? "POST" : "GET", headers: body ? { "Content-Type": "application/json", "X-Monitor-Request": "1" } : {}, body: body ? JSON.stringify(body) : undefined, cache: "no-store", signal: controller.signal });
+      let data;
+      try { data = await response.json(); } catch { throw Object.assign(new Error("本地服务返回的数据无法读取。"), { unknown: mutating }); }
+      if (!response.ok) {
+        const codes = {
+          invalid_request: "请核对输入：名称须包含 charles 且不超过 128 字符，副本数须为正整数，命令须为有效文本。",
+          template_unavailable: "暂时无法确认可用模板，请连接云会话后重新读取配置。", unsupported_template: "当前最新模板暂不支持复制，请在云控制台核对模板。",
+          resources_unavailable: "可用集群或资源规格暂时无法确认，请稍后重新预览。", source_unavailable: "云端数据暂不可用，请检查连接后重试。",
+          target_mismatch: "任务身份或名称已变化，请刷新列表后重新核对。", state_changed: "任务状态已变化，当前无法停止，请刷新列表。",
+          request_conflict: "该请求标识已有其他用途，请刷新并核对操作结果。", cloud_rejected: "云平台拒绝了本次操作，请核对资源和任务配置。", auth_required: "云会话已失效或没有操作权限，请重新连接。",
+          partition_unavailable: "AFS 分区或模板已变化，请重新读取分区配置。",
+          cluster_unavailable: "指定集群已不可用或与模板挂载不兼容，请重新读取配置并选择。",
+          invalid_name: "任务名称必须包含 charles。", invalid_replicas: "请填写有效的正整数副本数。", invalid_gpu: "请选择模板支持的 GPU 规格。",
+          preview_expired: "预览已过期，请返回修改并重新预览。", preview_not_found: "预览已失效，请重新预览。",
+          not_connected: "请先连接云会话，再重新预览。", template_not_found: "未找到可用模板，请重新读取配置。",
+          task_not_found: "任务已不在可操作列表中，请刷新后核对。", task_not_stoppable: "任务当前状态不支持停止，请刷新后核对。",
+        };
+        throw Object.assign(new Error(codes[data.code] || "请求未完成，请刷新状态并核对任务配置或连接情况。"), { code: data.code, unknown: mutating && (response.status >= 500 || /unknown|uncertain|in_progress/i.test(data.code || "")), outcomeDetail: data.code === "outcome_unknown" && typeof data.error === "string" ? data.error : "" });
+      }
+      return data;
+    } catch (error) {
+      if (error.name === "AbortError" || error instanceof TypeError) throw Object.assign(new Error("本地服务连接中断或请求超时。"), { unknown: mutating });
+      throw error;
+    } finally { clearTimeout(timer); }
+  }
+
+  function total() {
+    const replicas = Number(byId("acp-replicas").value), gpus = Number(byId("acp-gpus").value);
+    byId("acp-total").textContent = Number.isSafeInteger(replicas) && replicas > 0 && gpus > 0 && Number.isSafeInteger(replicas * gpus) ? `${replicas * gpus} 张 GPU` : "—";
+  }
+
+  function gpuOptions() {
+    const choice = byId("acp-cluster").value, data = state.options;
+    if (!data) return;
+    const counts = choice ? (data.clusters || []).find(cluster => cluster.id === choice)?.gpu_options || [] : data.gpu_options;
+    const select = byId("acp-gpus"), previous = select.value;
+    select.replaceChildren(...counts.map(count => { const option = element("option", "", `${count} 张`); option.value = String(count); return option; }));
+    select.value = previous || String(data.default_gpus_per_replica);
+    if (!select.value && counts.length) select.value = String(counts[0]);
+    if (!counts.length) { const option = element("option", "", "所选集群不可用，请重新选择"); option.value = ""; select.append(option); }
+    select.disabled = !counts.length;
+    select.setCustomValidity(counts.length ? "" : "请选择可用集群。");
+    total();
+  }
+
+  function renderTemplateConfig(container, config) {
+    pair(container, "镜像", (config?.images || []).join("\n") || "—");
+    (config?.afs_mounts || []).forEach((mount, index) => {
+      pair(container, `AFS ${index + 1}`, `${mount.zone} · ${mount.id}\n${mount.subdir || "/"} → ${mount.mount_path}`);
+    });
+  }
+
+  function savePartitionDraft() {
+    if (!state.options?.partition?.id) return;
+    partitionDrafts.set(state.options.partition.id, { command: command.value, touched: commandTouched, cluster: byId("acp-cluster").value, gpu: byId("acp-gpus").value });
+  }
+
+  async function options(requestedPartition = partitionSelect?.value || "", switching = false) {
+    const revision = ++optionsRequest;
+    const previousCluster = byId("acp-cluster").value;
+    const previousGPU = byId("acp-gpus").value;
+    optionsLoading = true;
+    byId("acp-options-retry").hidden = true;
+    if (partitioned) {
+      state.options = null;
+      byId("acp-preview-button").disabled = true;
+      byId("acp-cluster").disabled = true;
+      byId("acp-gpus").disabled = true;
+      byId("acp-command-restore").disabled = true;
+      command.disabled = true;
+      byId("acp-command-paste").disabled = true;
+      byId("acp-options-status").textContent = "正在读取所选分区的镜像、AFS 与 GPU 规格…";
+      byId("acp-template-config").replaceChildren();
+    }
+    try {
+      const query = partitioned && requestedPartition ? `?partition_id=${encodeURIComponent(requestedPartition)}` : "";
+      const data = await request(`/api/acp/options${query}`);
+      if (revision !== optionsRequest) return;
+      if (!Array.isArray(data.gpu_options) || !data.gpu_options.length || !data.template?.id) throw new Error("模板配置暂不可用。");
+      if (partitioned && (!data.partition?.id || !Array.isArray(data.partitions) || (requestedPartition && data.partition.id !== requestedPartition))) throw new Error("分区配置不一致，请重新读取。");
+      state.options = data;
+      const draft = partitioned ? partitionDrafts.get(data.partition.id) : null;
+      if (partitioned) {
+        partitionSelect.replaceChildren(...data.partitions.map(partition => { const option = element("option", "", partition.name); option.value = partition.id; return option; }));
+        partitionSelect.value = data.partition.id;
+        updatePartitionLock();
+        if (draft) { command.value = draft.command; commandTouched = draft.touched; }
+        else if (switching) commandTouched = false;
+        const config = byId("acp-template-config");
+        const created = data.template.created_at ? new Date(data.template.created_at).toLocaleString("zh-CN", { hour12: false }) : "—";
+        pair(config, "模板创建时间", created);
+        renderTemplateConfig(config, data.template_config);
+      }
+      if (!commandTouched) command.value = typeof data.default_command === "string" && data.default_command.trim() ? data.default_command : "sleep inf";
+      byId("acp-command-source").textContent = data.command_source ? `来源：${data.command_source.name} · ${data.command_source.id}` : partitioned ? "所选分区模板未运行，默认 sleep inf" : "无可用的运行中任务命令，默认 sleep inf";
+      byId("acp-command-restore").disabled = false;
+      renderCommand();
+      const select = byId("acp-cluster"), previous = draft?.cluster ?? (switching ? "" : previousCluster);
+      const automatic = element("option", "", "自动选择（使用优先规则）"); automatic.value = "";
+      select.replaceChildren(automatic, ...(data.clusters || []).map(cluster => {
+        const option = element("option", "", `${cluster.name} · ${cluster.id}`); option.value = cluster.id; return option;
+      }));
+      if (previous && !(data.clusters || []).some(cluster => cluster.id === previous)) {
+        const unavailable = element("option", "", `${previous}（已不可用，请重新选择）`); unavailable.value = previous; select.append(unavailable);
+      }
+      select.value = previous;
+      select.disabled = false;
+      // Seed the GPU value before rebuilding the selected cluster's supported sizes.
+      const gpu = byId("acp-gpus"), desiredGPU = draft?.gpu ?? (switching ? String(data.default_gpus_per_replica) : previousGPU);
+      if (desiredGPU) { const value = element("option", "", desiredGPU); value.value = desiredGPU; gpu.replaceChildren(value); }
+      gpuOptions();
+      byId("acp-preview-button").disabled = state.createUnknown || state.storageError;
+      byId("acp-options-status").textContent = `当前模板：${data.template.name} · ${data.template.id}`;
+      total();
+    } catch (error) {
+      if (revision !== optionsRequest) return;
+      byId("acp-options-status").textContent = partitioned ? `分区配置读取失败：${error.message} 请重试或切换分区。` : "创建配置暂不可用，请连接云会话后重新读取。监控仍会继续更新。";
+      byId("acp-options-retry").hidden = false;
+    } finally {
+      if (revision === optionsRequest) {
+        optionsLoading = false;
+        command.disabled = partitioned && !state.options;
+        byId("acp-command-paste").disabled = pastePending || (partitioned && !state.options);
+      }
+    }
+  }
+
+  function renderSelected() {
+    const task = state.selected, button = byId("acp-stop-selected");
+    button.hidden = !(task?.kind === "ACP" && task.can_stop);
+    button.disabled = !fresh() || state.stopping || state.stopUnknown || state.storageError;
+    byId("acp-stop-confirm").disabled = state.stopping || state.storageError || !stopFresh(state.stop?.task_id);
+    byId("detail-action-note").textContent = task?.kind === "CCI" ? "CCI 任务仅提供只读监控" : task?.kind === "ACP" ? fresh() ? "ACP 支持停止；点击后需再次确认任务身份" : "当前为旧数据或连接不可用；成功采集后可停止任务" : "";
+  }
+
+  function openStop(task) {
+    if (!task?.can_stop || task.kind !== "ACP" || state.stopUnknown || state.storageError || !stopFresh(task.id)) return;
+    state.stop = { task_id: task.id, display_name: task.name, request_id: crypto.randomUUID() };
+    state.stopUnknown = false;
+    byId("acp-stop-target").replaceChildren();
+    pair(byId("acp-stop-target"), "云站点", window.MonitorSite?.id || "maoshanwang");
+    pair(byId("acp-stop-target"), "任务名称", task.name);
+    pair(byId("acp-stop-target"), "完整任务 ID", task.id);
+    message("acp-stop-message", "");
+    byId("acp-stop-confirm").textContent = "确认停止";
+    byId("acp-stop-cancel").disabled = false;
+    stopDialog.showModal();
+  }
+
+  function renderWaiting() {
+    const snapshot = state.snapshot, kinds = ["CCI", "ACP"];
+    const tasks = (Array.isArray(snapshot?.waiting_tasks) ? snapshot.waiting_tasks : []).filter((task) => task.state !== "SUSPENDING");
+    const missing = kinds.filter((kind) => !fresh(`${kind}_queue`));
+    const known = missing.length === 0;
+    byId("waiting-count").textContent = known ? String(tasks.length) : "—";
+    byId("waiting-summary").textContent = kinds.map((kind) => `${kind} ${fresh(`${kind}_queue`) ? tasks.filter((task) => task.kind === kind).length : "未知"}`).join(" · ");
+    message("waiting-notice", missing.length ? `${missing.join("、")} 全用户队列暂不可用或已过期；保留上次等待队列的旧数据，完整数量未知。` : "");
+    const fragment = document.createDocumentFragment();
+    for (const task of tasks) {
+      const row = element("tr"), name = element("td", "waiting-identity"), current = fresh(`${task.kind}_queue`);
+      name.append(element("strong", "", task.name || task.id), element("small", "", task.id));
+      row.append(name, element("td", "", task.kind || "—"), element("td", "", task.owner || "—"), element("td", "", task.cluster || "—"));
+      const status = element("td");
+      status.append(element("span", "queue-badge", task.state_label || task.state || "状态未知"));
+      if (!current) status.append(element("small", "", " · 旧数据"));
+      row.append(status, element("td", "", `${task.gpu_count ?? "—"} GPU / ${task.replicas ?? "—"} 副本`));
+      const time = element("td", "inventory-time");
+      time.append(element("div", "", `创建 ${date(task.created_at)}`), element("div", "", `观测 ${date(task.observed_at)}`));
+      row.append(time);
+      const action = element("td");
+      if (task.kind === "ACP" && task.can_stop && task.name?.toLowerCase().includes("charles")) {
+        const button = element("button", "button button-danger", "停止");
+        button.type = "button";
+        button.disabled = !current || !fresh() || state.stopping || state.stopUnknown || state.storageError;
+        button.setAttribute("aria-label", `停止 ${task.name || task.id}`);
+        button.addEventListener("click", () => openStop(task));
+        action.append(button);
+      } else action.textContent = "只读";
+      row.append(action);
+      fragment.append(row);
+    }
+    if (!tasks.length) {
+      const row = element("tr"), cell = element("td", "table-empty", known ? "当前没有等待或启动中的 CCI / ACP 任务" : "等待任务数量暂时未知；请等待成功采集后确认。");
+      cell.colSpan = 8;
+      row.append(cell); fragment.append(row);
+    }
+    byId("waiting-body").replaceChildren(fragment);
+  }
+
+  function renderCommand() {
+    const lines = command.value.split("\n").length;
+    byId("acp-command-lines").textContent = Array.from({ length: lines }, (_, index) => index + 1).join("\n");
+    byId("acp-command-lines").scrollTop = command.scrollTop;
+    byId("acp-command-stats").textContent = `${lines} 行 · ${command.value.length} 字符`;
+  }
+  command.addEventListener("input", () => { commandTouched = true; commandRevision += 1; renderCommand(); });
+  command.addEventListener("scroll", () => { byId("acp-command-lines").scrollTop = command.scrollTop; });
+  new ResizeObserver(() => {
+    if (command.clientHeight) byId("acp-command-lines").style.height = `${command.clientHeight}px`;
+  }).observe(command);
+  byId("acp-command-restore").addEventListener("click", () => {
+    if (!state.options) return;
+    commandTouched = true; commandRevision += 1;
+    command.value = state.options.default_command || "sleep inf";
+    renderCommand(); command.focus();
+    message("acp-command-notice", "已恢复读取到的模板命令，可继续修改。");
+  });
+  byId("acp-command-expand").addEventListener("click", () => {
+    const expanded = byId("acp-command-editor").classList.toggle("expanded");
+    command.style.height = "";
+    byId("acp-command-expand").setAttribute("aria-expanded", String(expanded));
+    byId("acp-command-expand").textContent = expanded ? "收起编辑" : "展开编辑";
+    command.focus();
+  });
+  byId("acp-command-copy").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(command.value); message("acp-command-notice", "启动命令已复制。"); }
+    catch { command.focus(); command.select(); message("acp-command-notice", "浏览器未允许复制，已选中命令，请按 Ctrl+C 或 ⌘C 复制。"); }
+  });
+  byId("acp-command-paste").addEventListener("click", async () => {
+    if (pastePending) return;
+    const draft = command.value, revision = commandRevision, start = command.selectionStart, end = command.selectionEnd;
+    commandTouched = true; pastePending = true;
+    byId("acp-command-paste").disabled = true;
+    try {
+      const text = await navigator.clipboard.readText();
+      if (commandRevision !== revision || command.value !== draft) {
+        message("acp-command-notice", "等待剪贴板期间命令已变化，未粘贴。请在需要的位置重新粘贴。");
+        return;
+      }
+      command.setRangeText(text, start, end, "end");
+      commandRevision += 1; renderCommand(); command.focus();
+      message("acp-command-notice", "已粘贴，可继续编辑。");
+    } catch { command.focus(); message("acp-command-notice", "浏览器未允许读取剪贴板，请在编辑框按 Ctrl+V 或 ⌘V 粘贴。"); }
+    finally { pastePending = false; byId("acp-command-paste").disabled = partitioned && (optionsLoading || !state.options); }
+  });
+  renderCommand();
+  byId("acp-cluster").addEventListener("change", gpuOptions);
+  form.addEventListener("input", total);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.options || optionsLoading || state.creating || state.createUnknown || state.storageError) return;
+    if (!byId("acp-gpus").value) { message("acp-message", "请选择可用集群和 GPU 规格。"); return; }
+    const button = byId("acp-preview-button");
+    button.disabled = true; button.textContent = "正在生成预览…";
+    message("acp-message", "");
+    try {
+      const context = state.options, revision = optionsRequest;
+      const submission = { display_name: byId("acp-name").value, replicas: Number(byId("acp-replicas").value), gpus_per_replica: Number(byId("acp-gpus").value), command: byId("acp-command").value, cluster_id: byId("acp-cluster").value };
+      if (partitioned) submission.partition_id = context.partition.id;
+      const data = await request("/api/acp/preview", submission);
+      if (revision !== optionsRequest || context !== state.options) return;
+      state.preview = data;
+      const details = byId("acp-preview-details"); details.replaceChildren();
+      pair(details, "云站点", window.MonitorSite?.id || "maoshanwang");
+      pair(details, "任务名称", submission.display_name);
+      pair(details, "来源模板", `${data.template.name} · ${data.template.id}`);
+      if (partitioned) {
+        pair(details, "AFS 分区", data.partition?.name || context.partition.name);
+        renderTemplateConfig(details, data.template_config);
+      }
+      pair(details, data.selection_mode === "manual" ? "指定集群" : "自动选择的集群", `${data.cluster.name} · ${data.cluster.id}`);
+      pair(details, "GPU 总量", `${data.replicas} 副本 × ${data.gpus_per_replica} GPU = ${data.total_gpus} 张`);
+      pair(details, "每副本实际资源", `${data.vcpu_per_replica} vCPU · ${data.memory_gib_per_replica} GiB 内存`);
+      pair(details, "调度预期", `${data.will_queue ? "将排队" : "按当前可用资源提交"} · ${data.message || "实际调度以云端状态为准。"}`);
+      pair(details, "最终启动命令", data.command, true);
+      pair(details, "预览有效期至", date(data.expires_at));
+      message("acp-create-message", "");
+      byId("acp-create-confirm").disabled = false;
+      byId("acp-create-confirm").textContent = "确认创建";
+      byId("acp-create-cancel").disabled = false;
+      byId("acp-create-cancel").textContent = "返回修改";
+      createDialog.showModal();
+    } catch (error) { message("acp-message", error.message); }
+    finally { button.disabled = optionsLoading || !state.options || state.createUnknown || state.storageError; button.textContent = "预览创建配置"; }
+  });
+
+  byId("acp-create-confirm").addEventListener("click", async () => {
+    if (state.creating || !state.preview || state.storageError) return;
+    const submission = { preview_id: state.preview.preview_id }, wasUnknown = state.createUnknown;
+    let remembered = false;
+    state.creating = true;
+    updatePartitionLock();
+    const button = byId("acp-create-confirm"); button.disabled = true; button.textContent = "正在提交…";
+    byId("acp-create-cancel").disabled = true;
+    message("acp-create-message", "正在提交此预览，请等待结果。");
+    try {
+      await remember("create", submission);
+      remembered = true;
+      const result = await request("/api/acp/create", submission);
+      forget("create", submission);
+      state.createUnknown = false;
+      createDialog.close();
+      message("acp-message", `已提交创建：${result.name} · ${result.id}。状态：${result.state}。任务列表将在采集后更新。`);
+      state.preview = null;
+      refresh();
+    } catch (error) {
+      state.createUnknown = Boolean(error.unknown || error.conflict || (!remembered && wasUnknown));
+      if (!state.createUnknown && remembered) { forget("create", submission); state.preview = null; }
+      const text = state.createUnknown ? `创建结果未知，请勿重新创建新任务。可核对此次请求，或暂时关闭弹窗查看监控；核对会复用同一次请求。${error.outcomeDetail || ""}` : error.message;
+      message("acp-create-message", text);
+      if (state.createUnknown) message("acp-message", text);
+    } finally {
+      state.creating = false; button.disabled = !state.preview || state.storageError;
+      button.textContent = state.createUnknown ? "核对此次创建结果" : "确认创建";
+      byId("acp-create-cancel").disabled = false;
+      byId("acp-create-cancel").textContent = state.createUnknown ? "暂时关闭" : "返回修改";
+      byId("acp-preview-button").disabled = state.createUnknown || state.storageError || !state.options;
+      byId("acp-create-resume").hidden = !state.createUnknown;
+      updatePartitionLock();
+    }
+  });
+
+  byId("acp-stop-confirm").addEventListener("click", async () => {
+    if (state.stopping || !state.stop || state.storageError || !stopFresh(state.stop.task_id)) return;
+    const submission = { ...state.stop }, wasUnknown = state.stopUnknown;
+    let remembered = false;
+    state.stopping = true;
+    const button = byId("acp-stop-confirm"); button.disabled = true; button.textContent = "正在停止…";
+    byId("acp-stop-cancel").disabled = true;
+    try {
+      await remember("stop", submission);
+      remembered = true;
+      const result = await request("/api/acp/stop", submission);
+      forget("stop", submission);
+      state.stopUnknown = false;
+      state.stop = null;
+      stopDialog.close();
+      message("acp-message", `已提交停止：${result.name} · ${result.id}。请等待采集确认最终状态。`);
+      refresh();
+    } catch (error) {
+      state.stopUnknown = Boolean(error.unknown || error.conflict || (!remembered && wasUnknown));
+      if (!state.stopUnknown && remembered) forget("stop", submission);
+      const text = state.stopUnknown ? `停止结果未知。请核对本次停止请求，勿另行重复操作；核对会复用同一次请求。${error.outcomeDetail || ""}` : error.message;
+      message("acp-stop-message", text);
+      if (state.stopUnknown) message("acp-message", text);
+    } finally {
+      state.stopping = false; button.disabled = false;
+      button.textContent = state.stopUnknown ? "核对此次停止结果" : "确认停止";
+      byId("acp-stop-cancel").disabled = false;
+      byId("acp-stop-cancel").textContent = state.stopUnknown ? "暂时关闭" : "取消";
+      byId("acp-stop-resume").hidden = !state.stopUnknown;
+      renderSelected(); renderWaiting();
+    }
+  });
+
+  byId("acp-create-cancel").addEventListener("click", () => createDialog.close());
+  byId("acp-stop-cancel").addEventListener("click", () => stopDialog.close());
+  createDialog.addEventListener("cancel", (event) => { if (state.creating) event.preventDefault(); });
+  stopDialog.addEventListener("cancel", (event) => { if (state.stopping) event.preventDefault(); });
+  byId("acp-create-resume").addEventListener("click", () => createDialog.showModal());
+  byId("acp-stop-resume").addEventListener("click", () => stopDialog.showModal());
+  byId("acp-stop-selected").addEventListener("click", () => openStop(state.selected));
+  byId("acp-options-retry").addEventListener("click", () => options());
+  document.addEventListener("monitor-selection", (event) => { state.selected = event.detail; renderSelected(); });
+  document.addEventListener("monitor-snapshot", (event) => { state.snapshot = event.detail.snapshot; state.unavailable = event.detail.unavailable; renderWaiting(); renderSelected(); });
+  window.addEventListener("storage", (event) => {
+    for (const kind of ["create", "stop"]) if (event.key === pendingKeys[kind] || event.key === null) syncPending(kind);
+  });
+  syncPending("create"); syncPending("stop");
+  setInterval(() => { renderSelected(); renderWaiting(); }, 10000);
+  if (partitioned) {
+    const controls = byId("acp-partition-controls"); controls.hidden = false;
+    byId("acp-command-help").textContent = "读取所选分区模板的启动命令；模板未运行时默认 sleep inf。提交时若末尾没有独立的 sleep inf，会自动补上。";
+    const label = element("label", "", "AFS 分区");
+    partitionSelect = element("select"); partitionSelect.id = "acp-partition"; partitionSelect.name = "partition_id"; partitionSelect.disabled = true;
+    const loading = element("option", "", "正在读取分区…"); loading.value = ""; partitionSelect.append(loading);
+    label.append(partitionSelect, element("small", "", "使用此 AFS 分区最近的 charles 挂载模板，镜像和存储配置随分区切换。"));
+    const config = element("dl", "acp-preview-details"); config.id = "acp-template-config";
+    controls.append(label, config);
+    partitionSelect.addEventListener("change", () => {
+      if (state.creating || state.createUnknown || state.storageError) return;
+      savePartitionDraft();
+      commandRevision += 1; commandTouched = false; command.value = "";
+      renderCommand();
+      byId("acp-cluster").value = "";
+      state.preview = null;
+      options(partitionSelect.value, true);
+    });
+  }
+  options();
+})();

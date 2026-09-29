@@ -1,0 +1,12 @@
+/* Keep both GPU measurements visible, including narrow task previews. */
+.overview-task-gpu{display:grid;grid-template-columns:repeat(2,minmax(64px,auto));gap:12px;flex-shrink:0}
+.overview-task-gpu>.overview-task-metric{display:block}
+.overview-task-gpu>[data-metric="gpu_memory"]:not(.is-stale) strong{color:#b17a15}
+@media(max-width:1250px){
+  .overview-task{display:grid;grid-template-columns:auto minmax(0,1fr) auto}
+  .overview-task>.service-icon{grid-column:1;grid-row:1/3}
+  .overview-task-info{grid-column:2;grid-row:1}
+  .overview-task-gpu{grid-column:2;grid-row:2;justify-content:start;gap:22px}
+  .overview-task-gpu>.overview-task-metric{text-align:left}
+  .overview-task>.row-arrow{grid-column:3;grid-row:1/3}
+}

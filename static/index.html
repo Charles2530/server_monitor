@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#f3f8f8">
+    <title>Charles · Cloud Monitor V2</title>
+    <link rel="stylesheet" href="/static/vendor/tabler.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/theme.css">
+    <script src="/static/vendor/echarts.min.js" defer></script>
+    <link rel="stylesheet" href="/static/sites.css">
+    <link rel="stylesheet" href="/static/metrics.css">
+    <link rel="stylesheet" href="/static/partitions.css">
+    <script src="/static/sites.js" defer></script>
+    <script src="/static/navigation.js" defer></script>
+    <script src="/static/app.js" defer></script>
+    <script src="/static/acp.js" defer></script>
+    <script src="/static/logs.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到主要内容</a>
+    <aside class="sidebar" aria-label="主导航">
+      <a class="brand" href="#overview"><span class="brand-mark" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span><span>Charles<small>CLOUD MONITOR</small></span></a>
+      <div class="sidebar-label">工作空间</div>
+      <nav>
+        <a class="nav-item active" href="#overview" aria-current="page"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>资源总览</a>
+        <a class="nav-item" href="#tasks"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>运行任务</a>
+        <a class="nav-item" href="#acp"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>ACP 任务</a>
+        <a class="nav-item" href="#waiting"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>等待队列</a>
+      </nav>
+      <div class="sidebar-bottom"><div class="site-switcher" role="group" aria-label="切换云站点"><button type="button" data-site-switch aria-label="切换站点">‹</button><strong id="current-site">maoshanwang</strong><button type="button" data-site-switch aria-label="切换站点">›</button></div><span class="local-indicator"></span>本地采集器<small>CCI · ACP · 标准集群</small><div class="profile"><span class="avatar-circle">C</span><span>charles<small>个人工作空间 · V2</small></span></div></div>
+    </aside>
+    <main id="main" class="main-content" tabindex="-1">
+      <header class="page-header">
+        <div><div class="eyebrow" id="page-eyebrow">WORKSPACE / OVERVIEW</div><h1><span id="page-title">资源总览</span><span class="heading-tag">charles</span></h1><p class="page-description" id="page-description">查看 charles 的任务与资源，支持 ACP 创建和停止。</p></div>
+        <div class="header-actions"><span class="refresh-cadence"><span class="pulse-dot"></span>每 60 秒采集</span><button class="button button-secondary" id="refresh-button" type="button"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-2l2 2M4 17l2 2a7 7 0 0 0 12-2"/></svg>立即刷新</button><button class="button button-primary" id="connect-button" type="button">连接会话<span aria-hidden="true">↗</span></button></div>
+      </header>
+      <div class="status-banner status-loading" id="status-banner" role="status" aria-live="polite"><span class="status-symbol" id="status-symbol" aria-hidden="true">◌</span><div><strong id="status-title">正在读取监控状态</strong><span id="status-description">首次连接后，将开始采集你的任务与资源数据。</span></div><time id="last-updated">等待首次采集</time></div>
+      <div class="action-message" id="action-message" role="status" aria-live="polite" hidden></div>
+      <div id="acp-message" class="acp-notice" role="status" aria-live="polite" hidden></div>
+      <div class="acp-resume-actions"><button id="acp-create-resume" class="button button-secondary" type="button" hidden>核对此次创建结果</button><button id="acp-stop-resume" class="button button-secondary" type="button" hidden>核对此次停止结果</button></div>
+      <div id="overview-view" class="workspace-view" data-page="overview">
+      <div class="overview-heading"><div><span class="section-kicker">YOUR COMPUTE, AT A GLANCE</span><h2>算力概况</h2></div><a class="button button-primary" href="#acp"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>创建 ACP 任务</a></div>
+      <section class="summary-grid" aria-label="资源概览">
+        <article class="summary-card"><div class="summary-label">运行任务<span class="summary-icon blue" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span></div><div class="summary-number"><span id="summary-tasks">—</span><small>个</small></div><div class="summary-foot" id="summary-services">CCI — <span>·</span> ACP —</div></article>
+        <article class="summary-card"><div class="summary-label">任务配置 GPU<span class="summary-icon purple" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg></span></div><div class="summary-number"><span id="summary-gpus">—</span><small>张</small></div><div class="summary-foot">当前运行任务的配置总量</div></article>
+        <article class="summary-card"><div class="summary-label">集群可用 GPU<span class="summary-icon teal" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6.5h.01M7 17.5h.01M15 6.5h3M15 17.5h3"/></svg></span></div><div class="summary-number"><span id="summary-available">—</span><small>张</small></div><div class="summary-foot" id="summary-clusters">等待标准集群资源数据</div></article>
+        <article class="summary-card"><div class="summary-label">历史观测窗口<span class="summary-icon amber" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span></div><div class="summary-number">7<small>天</small></div><div class="summary-foot">本地保留 · 每 60 秒采样</div></article>
+      </section>
+
+      <section id="clusters-section" class="section-block cluster-panel">
+        <div class="section-heading"><div><h2>标准集群资源</h2><p>可用资源与重点集群总卡数、节点健康</p></div><span class="subtle-badge">STANDARD CLUSTER</span></div>
+        <div id="inventory-notice" class="inventory-notice" role="status" hidden></div>
+        <div class="table-scroll"><table class="resource-table"><thead><tr><th scope="col">集群</th><th scope="col">总 GPU <span>张</span></th><th scope="col">可用 GPU <span>张</span></th><th scope="col">可用 vCPU <span>核</span></th><th scope="col">可用内存 <span>GiB</span></th><th scope="col">节点健康</th><th scope="col">采集时间</th></tr></thead><tbody id="cluster-body"><tr><td colspan="7" class="table-empty">正在读取集群资源…</td></tr></tbody></table></div>
+        <div class="table-note"><span class="note-dot"></span>总 GPU 为已接入集群所有关联节点的规格卡数之和，包含异常及禁用节点；可用资源来自工作空间标准配额，两者不相减估算占用。“—” 表示未知或未接入。</div>
+      </section>
+
+      <div class="overview-panels">
+        <section class="dashboard-panel allocation-panel" aria-labelledby="allocation-title">
+          <div class="panel-heading"><div><h2 id="allocation-title">任务 GPU 分布</h2><p>运行任务的配置卡数 · 按服务类型</p></div><span class="panel-label">ALLOCATION</span></div>
+          <div class="allocation-content"><div class="allocation-ring" id="allocation-ring" role="img" aria-label="等待 GPU 配置数据"><div><strong id="allocation-total">—</strong><span>配置 GPU / 张</span></div></div><div class="allocation-legend"><div><span class="legend-dot cci"></span><span>CCI 应用<small id="allocation-cci-tasks">— 个运行任务</small></span><strong id="allocation-cci">—<small>张</small></strong></div><div><span class="legend-dot acp"></span><span>ACP 任务<small id="allocation-acp-tasks">— 个运行任务</small></span><strong id="allocation-acp">—<small>张</small></strong></div><p id="allocation-note">配置数量不代表实时 GPU 利用率。</p></div></div>
+        </section>
+        <section class="dashboard-panel" aria-labelledby="resources-title"><div class="panel-heading"><div><h2 id="resources-title">集群可用资源</h2><p>工作空间标准配额 · GPU 余量</p></div><span class="panel-label">完整明细见上表</span></div><div id="overview-resources" class="overview-resources"><p class="overview-empty">等待集群数据</p></div><div class="panel-footnote">各行独立显示可用卡数，余量不代表调度保证。</div></section>
+        <section class="dashboard-panel recent-panel" aria-labelledby="recent-title"><div class="panel-heading"><div><h2 id="recent-title">运行任务速览</h2><p>最近创建的任务 · GPU 利用率与显存占用</p></div><a class="panel-link" href="#tasks">全部任务 <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a></div><div id="overview-task-list" class="overview-task-list"><p class="overview-empty">正在读取任务快照</p></div></section>
+        <section class="dashboard-panel quick-panel" aria-labelledby="quick-title"><div class="panel-heading"><div><h2 id="quick-title">快捷操作</h2><p>从这里开始管理你的算力</p></div></div><div class="quick-links">
+          <a href="#acp"><span class="quick-icon teal"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><span><strong>创建 ACP 任务</strong><small>配置资源，预览后提交</small></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a>
+          <a href="#tasks"><span class="quick-icon blue"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span><span><strong>查看资源监控</strong><small>使用率曲线与任务日志</small></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a>
+          <a href="#waiting"><span class="quick-icon amber"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span><strong>查看等待队列</strong><small>关注任务排队与启动状态</small></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a>
+        </div><div class="collection-note"><span class="local-indicator"></span>本地保留历史，最长可查看 7 天</div></section>
+      </div>
+      </div>
+      <section id="acp-section" class="section-block acp-panel workspace-view" data-page="acp" hidden>
+        <div class="section-heading"><div><h2>创建 ACP 任务</h2><p>复制已确认的任务模板；提交前核对实际资源和最终命令</p></div><span class="subtle-badge">ACP</span></div>
+        <p class="acp-helper" id="acp-options-status" role="status">正在读取模板与 GPU 规格…</p>
+        <button id="acp-options-retry" class="button button-secondary" type="button" hidden>重新读取配置</button>
+        <form id="acp-create-form" class="acp-form">
+          <div id="acp-partition-controls" hidden></div>
+          <label class="acp-name-field">任务显示名<input id="acp-name" name="display_name" value="kill_before_notice_grh_charles_test" required autocomplete="off"><small>名称必须包含 charles</small></label>
+          <label>节点数（副本）<input id="acp-replicas" name="replicas" type="number" min="1" max="1024" step="1" value="1" required></label>
+          <label>每副本 GPU<select id="acp-gpus" name="gpus_per_replica" required disabled><option value="">读取中</option></select></label>
+          <label class="acp-cluster-field" style="grid-column:1/-1">集群 <span class="optional-label">可选</span><select id="acp-cluster" name="cluster_id" disabled><option value="">自动选择（使用优先规则）</option></select><small>不指定时按优先规则选择；指定后固定使用该集群，资源不足时排队。</small></label>
+          <div class="acp-command-field" id="acp-command-editor">
+            <div class="command-heading"><label for="acp-command">启动命令 <span class="optional-label">Shell</span></label><span id="acp-command-source">正在读取运行任务命令…</span></div>
+            <div class="command-editor">
+              <div class="command-toolbar"><span class="command-language">$ SHELL</span><div class="command-tools"><button id="acp-command-copy" type="button">复制</button><button id="acp-command-paste" type="button">粘贴</button><button id="acp-command-restore" type="button" disabled>恢复模板命令</button><button id="acp-command-expand" type="button" aria-expanded="false">展开编辑</button></div></div>
+              <div class="command-code"><pre id="acp-command-lines" aria-hidden="true">1</pre><textarea id="acp-command" name="command" rows="7" wrap="off" placeholder="留空使用 sleep inf" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="acp-command-help acp-command-notice"></textarea></div>
+              <div class="command-editor-footer"><span id="acp-command-stats">1 行</span><span>纯文本 · 支持键盘复制 / 粘贴</span></div>
+            </div>
+            <p class="command-help" id="acp-command-help">默认读取最新运行中 charles ACP 任务的启动命令；留空使用 sleep inf。提交时若末尾没有独立的 sleep inf，会自动补上。</p>
+            <p class="command-help" id="acp-command-notice" role="status" hidden></p>
+          </div>
+          <div class="acp-form-footer"><p>配置总量 <strong id="acp-total">—</strong><small id="acp-cluster-policy">标准资源自动选集群：modeltoolchain_test → modeltoolchain → vigen</small></p><button id="acp-preview-button" class="button button-primary" type="submit" disabled>预览创建配置</button></div>
+        </form>
+      </section>
+      <div id="tasks-view" class="workspace-view tasks-view" data-page="tasks" hidden>
+      <section id="tasks-section" class="section-block">
+        <div class="section-heading"><div><h2>运行中的任务<span class="count-badge" id="task-count">—</span></h2><p>查看 CPU、内存、GPU 利用率与显存占用</p></div><div class="task-tools"><div class="filter-group" role="group" aria-label="筛选服务"><button type="button" class="filter-button selected" data-kind="all" aria-pressed="true">全部</button><button type="button" class="filter-button" data-kind="CCI" aria-pressed="false">CCI</button><button type="button" class="filter-button" data-kind="ACP" aria-pressed="false">ACP</button></div><label class="search-field"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input id="task-search" type="search" placeholder="搜索任务或集群" aria-label="搜索任务名称或集群"></label></div></div>
+        <div id="task-list" class="task-grid" aria-label="任务列表"><div class="empty-state"><span class="empty-icon" aria-hidden="true">◌</span><h3>正在加载任务</h3><p>正在读取本地采集器的最新快照。</p></div></div>
+      </section>
+      <section class="detail-panel" id="detail-panel" aria-labelledby="detail-title" hidden>
+        <div class="detail-heading"><div><div class="eyebrow">UTILIZATION HISTORY</div><h2 id="detail-title">任务历史</h2><p id="detail-meta"></p></div><div id="history-ranges" class="filter-group" role="group" aria-label="历史时间范围"><button class="range-button selected" type="button" data-hours="1" aria-pressed="true">1 小时</button><button class="range-button" type="button" data-hours="24" aria-pressed="false">24 小时</button><button class="range-button" type="button" data-hours="168" aria-pressed="false">7 天</button></div></div>
+        <div class="detail-tabs" role="tablist" aria-label="任务详情"><button id="detail-tab-monitor" type="button" role="tab" aria-selected="true" aria-controls="detail-monitor">资源监控</button><button id="detail-tab-logs" type="button" role="tab" aria-selected="false" aria-controls="detail-logs" tabindex="-1">任务日志</button></div>
+        <div id="detail-monitor" role="tabpanel" aria-labelledby="detail-tab-monitor"><div class="chart-wrap"><div id="history-chart" role="img" aria-label="所选任务的资源使用率历史曲线"></div><div class="chart-message" id="chart-message" role="status" hidden></div></div></div>
+        <div id="detail-logs" role="tabpanel" aria-labelledby="detail-tab-logs" hidden>
+          <div class="logs-toolbar"><label>Worker<select id="logs-worker" disabled></select></label><label>Container<select id="logs-container" disabled></select></label><button id="logs-refresh" class="button button-secondary" type="button">刷新日志</button></div>
+          <div class="logs-options"><label><input id="logs-auto" type="checkbox" checked> 每 10 秒刷新</label><label><input id="logs-follow" type="checkbox" checked> 跟随底部</label><button id="logs-copy" type="button">复制日志</button></div>
+          <p id="logs-message" class="logs-message" role="status" hidden></p>
+          <pre id="logs-output" class="logs-output" tabindex="0" aria-label="任务日志纯文本"></pre>
+          <p id="logs-status" class="logs-status" role="status">选择任务查看日志</p>
+        </div>
+        <div class="detail-task-actions"><span id="detail-action-note"></span><button id="acp-stop-selected" class="button button-danger" type="button" hidden>停止此 ACP 任务</button></div>
+        <div class="chart-footer"><p id="history-note">单位为使用率 % · 每条曲线保留来源标签，多个 worker 的百分比不累加。</p><a id="task-console-link" class="text-link" target="_blank" rel="noopener noreferrer" hidden>在云控制台查看 <span aria-hidden="true">↗</span></a></div>
+      </section>
+      </div>
+      <section id="waiting-section" class="section-block cluster-panel waiting-panel workspace-view" data-page="waiting" hidden>
+        <div class="section-heading"><div><h2>CCI / ACP 等待与启动队列<span class="count-badge" id="waiting-count">—</span></h2><p>当前工作空间所有用户的等待与启动任务，不按名称或账号过滤</p><p id="waiting-summary">CCI 未知 · ACP 未知</p></div></div>
+        <div id="waiting-notice" class="inventory-notice" role="status" hidden></div>
+        <div class="table-scroll"><table class="resource-table waiting-table"><thead><tr><th scope="col">任务 / ID</th><th scope="col">类型</th><th scope="col">提交者</th><th scope="col">集群</th><th scope="col">状态</th><th scope="col">GPU / 副本</th><th scope="col">创建 / 观测时间</th><th scope="col">操作</th></tr></thead><tbody id="waiting-body"><tr><td colspan="8" class="table-empty">正在读取等待任务…</td></tr></tbody></table></div>
+        <div class="table-note">任务运行或结束后退出队列；只有 charles 的运行任务进入监控区。其他用户及 CCI 队列仅供查看，此处不采集监控曲线。</div>
+      </section>
+      <footer class="page-footer"><span>Charles Cloud Monitor V2<span class="footer-divider">/</span>运行监控：charles · 等待队列：所有用户</span><span>CCI 只读 · ACP 创建 / 停止</span></footer>
+    </main>
+    <dialog id="acp-create-dialog" class="acp-dialog" aria-labelledby="acp-create-title">
+      <h2 id="acp-create-title">确认创建 ACP 任务</h2><p class="acp-helper">以下为服务端计算的只读预览。确认后将提交云端创建。</p>
+      <dl id="acp-preview-details" class="acp-preview-details"></dl>
+      <div id="acp-create-message" class="acp-notice" role="status" aria-live="polite" hidden></div>
+      <div class="dialog-actions"><button id="acp-create-cancel" class="button button-secondary" type="button">返回修改</button><button id="acp-create-confirm" class="button button-primary" type="button">确认创建</button></div>
+    </dialog>
+    <dialog id="acp-stop-dialog" class="acp-dialog" aria-labelledby="acp-stop-title">
+      <h2 id="acp-stop-title">确认停止 ACP 任务</h2><p class="acp-helper">停止会结束该任务的运行或排队。请核对完整名称和 ID。</p>
+      <dl id="acp-stop-target" class="acp-preview-details"></dl>
+      <div id="acp-stop-message" class="acp-notice" role="status" aria-live="polite" hidden></div>
+      <div class="dialog-actions"><button id="acp-stop-cancel" class="button button-secondary" type="button">取消</button><button id="acp-stop-confirm" class="button button-danger" type="button">确认停止</button></div>
+    </dialog>
+  </body>
+</html>

@@ -1,0 +1,4 @@
+#acp-partition-controls { grid-column: 1 / -1; min-width: 0; }
+#acp-partition-controls[hidden] { display: none; }
+#acp-template-config { margin: 14px 0 0; padding: 14px; border: 1px solid var(--line); border-radius: 8px; }
+#acp-template-config dd { white-space: pre-line; overflow-wrap: anywhere; }
