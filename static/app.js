@@ -11,6 +11,8 @@
   const model = { snapshot: null, kind: "all", search: "", selected: null, hours: 1, unavailable: false, fetching: false, historyRequest: 0, chart: null };
   const numberFormat = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 });
   const timeFormat = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+  const chartClock = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const chartDay = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" });
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -98,6 +100,9 @@
     byId("summary-gpus").textContent = !listsKnown ? "—" : list.length === 0 ? "0" : count(sumAvailable(list, "gpu_count"));
     byId("summary-available").textContent = count(sumAvailable(clusters().filter((cluster) => known(cluster.available_gpus)), "available_gpus"));
     byId("summary-clusters").textContent = clusterList.length ? `${clusterList.filter((cluster) => known(cluster.available_gpus)).length} 个显示池的已知余量合计 · ${clusterList.filter((cluster) => !known(cluster.available_gpus)).length} 个未知` : clusters().length ? "暂无有 GPU 的标准资源" : "等待标准集群资源数据";
+    const queueKnown = hasSnapshot && ["CCI_queue", "ACP_queue"].every((key) => model.snapshot?.source_status?.[key]?.status === "ok");
+    byId("summary-waiting").textContent = queueKnown && Array.isArray(model.snapshot?.waiting_tasks) ? count(model.snapshot.waiting_tasks.length) : "—";
+    byId("summary-queue-note").textContent = queueKnown ? "CCI / ACP · 工作空间全部用户" : "等待队列尚未完整采集";
     renderOverview(listsKnown);
   }
 
@@ -122,22 +127,8 @@
     ring.setAttribute("aria-label", total === null ? "配置 GPU 总量未知" : `配置 GPU 共 ${count(total)} 张，CCI ${count(totals[0])} 张，ACP ${count(totals[1])} 张`);
     byId("allocation-note").textContent = total === null ? "部分任务来源或配置未知，暂不计算分布。" : "配置数量不代表实时 GPU 利用率。";
 
-    const resources = byId("overview-resources");
-    const clusterList = visibleClusters().slice().sort((a, b) => (b.available_gpus ?? -1) - (a.available_gpus ?? -1));
-    const fragment = document.createDocumentFragment();
-    for (const cluster of clusterList.slice(0, 4)) {
-      const row = element("div", "resource-preview");
-      const name = element("span", "resource-preview-name", cluster.name || cluster.id || "未命名集群");
-      const value = element("strong", "", count(cluster.available_gpus));
-      value.append(element("small", "", "张可用"));
-      row.append(element("span", "resource-preview-icon", "GPU"), name, value);
-      fragment.append(row);
-    }
-    if (!clusterList.length) fragment.append(element("p", "overview-empty", model.snapshot?.connected ? "暂无可展示的 GPU 资源" : "连接后查看集群资源"));
-    resources.replaceChildren(fragment);
-
     const recent = document.createDocumentFragment();
-    for (const task of list.slice().sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0)).slice(0, 4)) {
+    for (const task of list.slice().sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0)).slice(0, 6)) {
       const row = element("button", "overview-task");
       row.type = "button";
       row.setAttribute("aria-label", `查看 ${task.name || task.id} 的监控`);
@@ -154,6 +145,10 @@
         const sampledAt = Date.parse(task.metric_updated_at?.[key] || task.updated_at);
         const stale = model.unavailable || !model.snapshot?.connected || task.failed_metrics?.includes(key) || model.snapshot?.source_status?.[task.kind]?.status !== "ok" || (Number.isFinite(sampledAt) && Date.now() - sampledAt > 300000);
         metric.append(element("strong", "", value === null ? "—" : `${count(value)}%`), element("small", "", `${label}${stale ? " · 旧快照" : ""}`));
+        const meter = element("span", `preview-meter${value === null ? " metric-unknown" : ""}`);
+        const fill = element("span");
+        fill.style.width = `${value ?? 0}%`;
+        meter.append(fill); metric.append(meter);
         if (stale) metric.classList.add("is-stale");
         gpuMetrics.append(metric);
       }
@@ -287,7 +282,8 @@
     if (!task) return;
     byId("detail-title").textContent = task.name || task.id;
     const workers = Array.isArray(task.workers) ? task.workers : [];
-    byId("detail-meta").textContent = `${task.kind} · ${task.cluster || "集群未知"}${workers.length ? ` · Worker：${workers.join("、")}` : ""} · ${task.kind === "CCI" ? "卡片为应用平均值" : "卡片为各 worker 最新值的算术平均"}`;
+    byId("detail-meta").textContent = `${task.kind} · ${task.cluster || "集群未知"}${workers.length ? ` · ${workers.length} Workers` : ""} · ${task.kind === "CCI" ? "应用平均值" : "卡片为各 Worker 最新值均值"}`;
+    byId("detail-meta").title = workers.length ? workers.join("\n") : "应用平均值";
     const link = byId("task-console-link");
     link.hidden = true;
     link.removeAttribute("href");
@@ -311,23 +307,70 @@
     if (!model.chart) { chartMessage("图表组件暂不可用，请确认本地 ECharts 文件已就绪。"); return; }
     const selectedSeries = Array.isArray(series) ? series.filter((item) => METRICS.some((metric) => metric.key === item.metric)) : [];
     const hasValues = selectedSeries.some((item) => Array.isArray(item.points) && item.points.some((point) => Array.isArray(point) && percent(point[1]) !== null));
+    model.chartSeries = series;
+    model.chartTaskId = model.selected;
+    // All metrics use the same observed time window, including gaps in a worker's samples.
+    let firstSample = Infinity, lastSample = -Infinity;
+    for (const item of selectedSeries) {
+      for (const point of Array.isArray(item.points) ? item.points : []) {
+        if (!Array.isArray(point) || !Number.isFinite(point[0])) continue;
+        firstSample = Math.min(firstSample, point[0] * 1000);
+        lastSample = Math.max(lastSample, point[0] * 1000);
+      }
+    }
+    const singleSample = firstSample === lastSample;
+    const names = selectedSeries.map((item) => item.label ? item.label.replace(/^GPU(?= ·|$)/, "GPU 利用率").replace(/^显存(?= ·|$)/, "显存占用") : METRICS.find((metric) => metric.key === item.metric).label);
+    const shortNames = names.map((name) => name.replace(/^(.*?) · .+-(master|worker)-(\d+)$/, "$1 · $2-$3"));
+    // Keep ambiguous labels intact. Shortening never changes a series' source identity.
+    const legendNames = new Map(names.map((name, index) => [name, shortNames.filter((short) => short === shortNames[index]).length === 1 ? shortNames[index] : name]));
+    const columns = model.chart.getWidth() < 420 || window.matchMedia("(max-width: 620px)").matches ? 1 : 2;
+    const rows = 4 / columns;
+    const rowGap = model.hours > 1 ? 64 : 54;
+    const plotHeight = Math.max(32, (model.chart.getHeight() - 32 - 52 - (rows - 1) * rowGap) / rows);
+    const grids = METRICS.map((metric, index) => ({
+      left: columns === 1 || index % 2 === 0 ? 40 : "56%",
+      right: columns === 1 || index % 2 === 1 ? 14 : "54%",
+      top: 32 + Math.floor(index / columns) * (plotHeight + rowGap),
+      height: plotHeight,
+    }));
     model.chart.setOption({
       animation: false,
       aria: { enabled: true },
-      textStyle: { fontFamily: 'Inter, -apple-system, "PingFang SC", sans-serif' },
+      textStyle: { fontFamily: '-apple-system, "PingFang SC", sans-serif' },
+      title: METRICS.map((metric, index) => ({
+        text: metric.label, left: grids[index].left, top: grids[index].top - 28,
+        textStyle: { fontSize: 12, fontWeight: 600, color: metric.color },
+      })),
       color: selectedSeries.map((item) => METRICS.find((metric) => metric.key === item.metric).color),
       tooltip: { trigger: "axis", renderMode: "richText", confine: true, valueFormatter: (value) => value === null || value === undefined ? "—" : `${numberFormat.format(value)}%` },
-      legend: { type: "scroll", bottom: 5, left: "center", icon: "roundRect", itemWidth: 12, itemHeight: 3, itemGap: 20, textStyle: { color: "#758598", fontSize: 10 } },
-      grid: { left: 40, right: 16, top: 25, bottom: 64 },
-      xAxis: { type: "time", boundaryGap: false, axisLine: { lineStyle: { color: "#e5edeb" } }, axisTick: { show: false }, axisLabel: { color: "#85959f", fontSize: 10, hideOverlap: true }, splitLine: { show: false } },
-      yAxis: { type: "value", min: 0, max: 100, interval: 25, axisLabel: { formatter: "{value}%", color: "#85959f", fontSize: 10 }, splitLine: { lineStyle: { color: "#edf2f0", type: "dashed" } } },
-      series: selectedSeries.map((item, index) => ({
-        id: `${item.metric}-${index}`,
-        name: item.label ? item.label.replace(/^GPU(?= ·|$)/, "GPU 利用率").replace(/^显存(?= ·|$)/, "显存占用") : METRICS.find((metric) => metric.key === item.metric).label,
-        type: "line", showSymbol: false, connectNulls: false, smooth: false,
-        lineStyle: { width: 2 }, emphasis: { focus: "series" },
-        data: (Array.isArray(item.points) ? item.points : []).filter((point) => Array.isArray(point) && Number.isFinite(point[0])).map((point) => [point[0] * 1000, percent(point[1])]),
+      legend: { type: "scroll", bottom: 0, left: 16, right: 16, icon: "roundRect", itemWidth: 12, itemHeight: 3, itemGap: 15, formatter: (name) => legendNames.get(name) || name, textStyle: { color: "#536b62", fontSize: 10 } },
+      axisPointer: { link: [{ xAxisIndex: "all" }], lineStyle: { color: "#97b4aa", type: "dashed" } },
+      grid: grids,
+      xAxis: METRICS.map((metric, index) => ({
+        gridIndex: index, type: "time", boundaryGap: false, splitNumber: columns === 1 ? 4 : 3,
+        min: Number.isFinite(firstSample) ? firstSample - (singleSample ? 30000 : 0) : undefined,
+        max: Number.isFinite(lastSample) ? lastSample + (singleSample ? 30000 : 0) : undefined,
+        axisLine: { lineStyle: { color: "#e5edeb" } }, axisTick: { show: false },
+        axisLabel: { color: "#62776e", fontSize: 10, hideOverlap: true, formatter: (value) => model.hours > 1 ? `${chartDay.format(value)}\n${chartClock.format(value)}` : chartClock.format(value) }, splitLine: { show: false },
       })),
+      yAxis: METRICS.map((metric, index) => ({
+        gridIndex: index, type: "value", min: 0, max: 100, interval: 50,
+        axisLabel: { formatter: "{value}%", color: "#62776e", fontSize: 10 },
+        splitLine: { lineStyle: { color: "#eaf0ef", type: "dashed" } },
+      })),
+      series: selectedSeries.map((item, index) => {
+        const metricIndex = METRICS.findIndex((metric) => metric.key === item.metric);
+        const workerIndex = selectedSeries.slice(0, index).filter((other) => other.metric === item.metric).length;
+        return {
+          id: `${item.metric}-${index}`,
+          name: names[index],
+          type: "line", xAxisIndex: metricIndex, yAxisIndex: metricIndex,
+          showSymbol: false, connectNulls: false, smooth: false,
+          lineStyle: { width: 2, type: ["solid", "dashed", "dotted"][workerIndex % 3], opacity: 1 - (workerIndex % 3) * 0.15 },
+          emphasis: { focus: "series" },
+          data: (Array.isArray(item.points) ? item.points : []).filter((point) => Array.isArray(point) && Number.isFinite(point[0])).map((point) => [point[0] * 1000, percent(point[1])]),
+        };
+      }),
     }, true);
     chartMessage(hasValues ? "" : "所选时间范围还没有有效采样。采集完成后，历史曲线将在这里出现。");
   }
@@ -342,6 +385,7 @@
       renderChart(history.series);
     } catch {
       if (requestId !== model.historyRequest) return;
+      model.chartSeries = null;
       model.chart?.clear();
       chartMessage("历史采样暂时无法读取，请稍后重试。任务卡片保留最近快照。");
     }
@@ -409,7 +453,10 @@
     model.historyRequest += 1;
     if (event.detail === "monitor") { model.chart?.resize(); loadHistory(); }
   });
-  window.addEventListener("resize", () => model.chart?.resize());
+  window.addEventListener("resize", () => {
+    model.chart?.resize();
+    if (model.chartSeries && model.chartTaskId === model.selected) renderChart(model.chartSeries);
+  });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { poll(); model.chart?.resize(); } });
   poll();
   setInterval(() => { if (!document.hidden) poll(); }, 10000);

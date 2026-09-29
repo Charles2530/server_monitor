@@ -1,0 +1,61 @@
+/* Native select semantics and events remain intact for every cloud-site form. */
+.acp-form select, .logs-toolbar select {
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23608070' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+  appearance: none;
+  width: 100%; min-width: 0; min-height: 43px;
+  padding: 10px 38px 10px 13px;
+  border: 1px solid #cfded5; border-radius: 9px;
+  background: #fff var(--select-chevron) no-repeat right 12px center / 16px;
+  color: #284c3d; font-size: 12px; font-weight: 500; line-height: 1.5;
+  text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
+  box-shadow: 0 1px 2px #143c2905;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, background-color .15s;
+}
+.logs-toolbar select { min-height: 38px; padding-top: 8px; padding-bottom: 8px; font-size: 11px; }
+.acp-form select:hover:not(:disabled), .logs-toolbar select:hover:not(:disabled) { border-color: #7fae96; background-color: #fbfdfb; }
+.acp-form select:focus-visible, .logs-toolbar select:focus-visible { outline: 2px solid #399b7a; outline-offset: 2px; border-color: #399b7a; box-shadow: 0 0 0 4px #168a6a12; }
+.acp-form select:disabled, .logs-toolbar select:disabled { background-color: #f2f5f3; color: #83958b; border-color: #e0e8e2; box-shadow: none; cursor: not-allowed; opacity: 1; }
+
+/* Supporting browsers also render the popup with the shared iLab theme. */
+@supports (appearance: base-select) {
+  .acp-form select, .logs-toolbar select {
+    appearance: base-select;
+    background-image: none;
+    padding-right: 12px;
+    align-items: center; gap: 10px;
+  }
+  .acp-form select::picker(select), .logs-toolbar select::picker(select) {
+    appearance: base-select;
+    padding: 6px; margin-block: 6px;
+    border: 1px solid #d4e2d9; border-radius: 12px;
+    background: #fff; color: #284c3d;
+    box-shadow: 0 14px 35px #183e2e1a, 0 3px 8px #183e2e0a;
+    max-block-size: min(320px, 55dvh);
+    max-inline-size: calc(100vw - 24px);
+    overflow: auto; scrollbar-width: thin; scrollbar-color: #b8cec3 transparent;
+  }
+  .acp-form select::picker-icon, .logs-toolbar select::picker-icon {
+    content: ""; flex-shrink: 0; width: 16px; height: 16px;
+    background: var(--select-chevron) center / 16px no-repeat;
+    transition: transform .15s;
+  }
+  .acp-form select:open:not(:disabled), .logs-toolbar select:open:not(:disabled) { border-color: #399b7a; box-shadow: 0 0 0 3px #168a6a10; }
+  .acp-form select:open::picker-icon, .logs-toolbar select:open::picker-icon { transform: rotate(180deg); }
+  .acp-form select option, .logs-toolbar select option {
+    display: flex; align-items: center; gap: 12px;
+    min-height: 39px; padding: 9px 11px; border-radius: 7px;
+    color: #3f5c4d; font-size: 12px; font-weight: 400; line-height: 1.6;
+    white-space: normal; overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+  .acp-form select option:hover, .logs-toolbar select option:hover { background: #f0f6f2; }
+  .acp-form select option:checked, .logs-toolbar select option:checked { color: #106848; background: #e6f4eb; font-weight: 600; }
+  .acp-form select option:focus-visible, .logs-toolbar select option:focus-visible { outline: 2px solid #65b596; outline-offset: -2px; }
+  .acp-form select option::checkmark, .logs-toolbar select option::checkmark { order: 1; margin-left: auto; padding-left: 8px; color: #11815b; }
+  .acp-form select option:disabled, .logs-toolbar select option:disabled { color: #91a097; cursor: not-allowed; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .acp-form select, .logs-toolbar select,
+  .acp-form select::picker-icon, .logs-toolbar select::picker-icon { transition: none; }
+}

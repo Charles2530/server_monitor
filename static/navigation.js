@@ -22,7 +22,7 @@
     document.getElementById("page-title").textContent = title;
     document.getElementById("page-eyebrow").textContent = `WORKSPACE / ${eyebrow}`;
     document.getElementById("page-description").textContent = description;
-    document.title = `${title} · Charles Cloud Monitor V2`;
+    document.title = "iLab Server Monitor";
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     document.dispatchEvent(new CustomEvent("workspace-page", { detail: route }));
   }
