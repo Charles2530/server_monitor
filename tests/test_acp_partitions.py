@@ -106,7 +106,9 @@ async def test_maoshanwang_cannot_accept_partition_selection(tmp_path):
     with pytest.raises(ActionError):await m.options(partition_id='b')
     with pytest.raises(ActionError):await m.preview({'display_name':'charles_copy','replicas':1,'gpus_per_replica':1,'command':'','partition_id':'b'})
     options=await m.options()
-    assert 'partitions' not in options and 'template_config' not in options
+    assert 'partitions' not in options
+    assert options['template_config']['images']==['private/image:v13']
+    assert options['template_config']['afs_mounts'][0]['mount_path']=='/mnt/data'
     assert options['cluster_order']==['modeltoolchain_test','modeltoolchain','vigen']
     assert not cloud.writes
 

@@ -1,0 +1,23 @@
+.storage-actions, .storage-filters { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.storage-filters { margin: 18px 0; }
+.storage-filters label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; min-width: 0; }
+.storage-filters select, .storage-filters input[type="search"] { border: 1px solid var(--line); border-radius: 8px; background: var(--surface, #fff); color: inherit; padding: 9px 12px; min-width: 0; max-width: 100%; }
+.storage-search { flex: 1; min-width: 220px !important; }
+.storage-filters .storage-related { flex-direction: row; align-items: center; padding-top: 20px; }
+#storage-status { color: var(--muted, #64748b); font-size: 12px; }
+.storage-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 16px 0 22px; }
+.storage-summary > div { border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 8px; }
+.storage-summary strong { font-size: 25px; font-variant-numeric: tabular-nums; }
+.storage-summary small, .storage-table small { color: var(--muted, #64748b); }
+.storage-table { min-width: 880px; }
+.storage-table td { vertical-align: top; white-space: normal; }
+.storage-table td:first-child { width: 26%; }
+.storage-table td:last-child { width: 36%; }
+.storage-table strong, .storage-table small, .storage-table code, .storage-mount span { display: block; margin: 0 0 7px; overflow-wrap: anywhere; }
+.storage-table code { white-space: pre-wrap; font-size: 12px; background: transparent; color: inherit; padding: 0; }
+.storage-table progress { width: 150px; max-width: 100%; height: 7px; accent-color: var(--primary, #168b7a); }
+.storage-mount + .storage-mount { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+@media (max-width: 600px) { .storage-summary { grid-template-columns: 1fr; gap: 8px; } .storage-summary > div { padding: 12px; } .storage-filters > label { width: 100%; } }
+#storage-section .storage-filters, #storage-status, #storage-section .storage-summary { margin-left: 20px; margin-right: 20px; }
+#storage-section .table-scroll { max-height: 60vh; overflow: auto; }
+#storage-section th { position: sticky; top: 0; background: var(--surface, #fff); z-index: 1; }

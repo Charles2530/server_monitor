@@ -2,6 +2,7 @@
 import json
 import re
 from datetime import datetime, timezone
+from urllib.parse import urlencode
 from .domain import finite_number, merge_series
 from .acp_states import STOPPABLE_STATES, is_charles
 from .queue_states import QUEUE_LABELS
@@ -92,3 +93,15 @@ def cluster_from_raw(raw, now):
             'available_vcpu': None if public else finite_number(raw.get('reserved_cpu')),
             'available_memory_gib': None if public or not match else finite_number(match[1]),
             'updated_at':iso(now)}
+
+
+def task_console_url(task,site):
+    kind=task.get('kind')
+    task_id=task.get('id','')
+    if kind not in ('CCI','ACP') or not isinstance(task_id,str) or not task_id.startswith(kind+':'):
+        return None
+    name=task_id.split(':',1)[1]
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,62}',name):return None
+    if kind=='CCI':
+        return site.console+'/cci/app/detail?'+urlencode({'workspace':site.workspace,'name':name})
+    return site.console+'/acp/list/detail?'+urlencode({'id':site.workspace+'/trainingJobs/'+name,'workspace':site.workspace,'tab':'detail'})

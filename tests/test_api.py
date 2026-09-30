@@ -10,7 +10,7 @@ def test_local_boundaries_and_state_redaction(tmp_path):
     with TestClient(create_app(monitor,background=False),base_url='http://localhost:8765') as client:
         assert client.get('/').status_code==200
         task=client.get('/api/state').json()['tasks'][0]
-        assert task=={'id':'CCI:x'}
+        assert task=={'id':'CCI:x','url':None}
         assert client.get('/data/session.json').status_code==404
         assert client.get('/static/../data/session.json').status_code==404
         assert client.get('/api/state',headers={'Host':'evil.test'}).status_code==403
@@ -62,3 +62,20 @@ def test_log_routes_validate_queries_and_keep_errors_private(tmp_path):
         r=client.get('/api/logs',params=params)
         assert r.status_code==503 and 'PRIVATE' not in r.text
         assert client.get('/api/logs',params=params,headers={'Origin':'https://evil.test'}).status_code==403
+
+
+def test_restart_routes_validate_readonly_preparation_and_preview(tmp_path):
+    class Actions:
+        async def restart_options(self,task_id):return {'task_id':task_id,'command':'private-command'}
+        async def restart_preview(self,data):return {'preview_id':'prepared','command':data['command']}
+    monitor=Monitor(Store(tmp_path/'db'),None)
+    with TestClient(create_app(monitor,background=False,actions=Actions()),base_url='http://localhost:8765') as client:
+        response=client.get('/api/acp/restart-options?task_id=ACP:old')
+        assert response.json()['task_id']=='ACP:old' and response.headers['cache-control']=='no-store'
+        assert client.get('/api/acp/restart-options').status_code==422
+        body={'task_id':'ACP:old','revision':'old','command':'python retry.py'}
+        assert client.post('/api/acp/restart-preview',json=body).status_code==403
+        headers={'X-Monitor-Request':'1'}
+        assert client.post('/api/acp/restart-preview',json=body,headers=headers).json()['preview_id']=='prepared'
+        assert client.post('/api/acp/restart-preview',json={**body,'payload':{}},headers=headers).status_code==400
+        assert client.post('/api/acp/restart-preview',json=body,headers={**headers,'Origin':'https://evil.test'}).status_code==403

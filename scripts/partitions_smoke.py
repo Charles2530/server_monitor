@@ -40,6 +40,7 @@ async def main():
             base=f'http://127.0.0.1:{server.server_port}/'
             await page.goto(base+'?site=sensecore#acp',wait_until='networkidle')
             await expect(page.locator('#acp-partition')).to_have_value('a')
+            await expect(page.locator('#acp-template-config')).to_be_visible()
             await expect(page.locator('#acp-template-config')).to_contain_text('/mnt/a')
             await page.locator('#acp-command').fill('echo my a draft')
             await page.locator('#acp-cluster').select_option('a-gpu')
@@ -98,6 +99,9 @@ async def main():
             await expect(page.locator('#acp-partition')).to_be_enabled()
             await page.goto(base+'?site=maoshanwang#acp',wait_until='networkidle')
             await expect(page.locator('#acp-partition')).to_have_count(0)
+            await expect(page.locator('#acp-template-config')).to_be_visible()
+            await expect(page.locator('#acp-template-config')).to_contain_text('registry/image:a')
+            await expect(page.locator('#acp-template-config')).to_contain_text('/mnt/a')
             assert await page.locator('#acp-create-form input, #acp-create-form select, #acp-create-form textarea').count()==5
             assert not errors,errors
             assert not any(path.endswith(('/create','/stop')) for path,_ in calls)

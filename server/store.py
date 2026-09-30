@@ -22,12 +22,14 @@ class Store:
                     PRIMARY KEY (task, metric, label, timestamp)
                 );
                 CREATE INDEX IF NOT EXISTS samples_time ON samples(timestamp);
+                CREATE TABLE IF NOT EXISTS task_runs (task TEXT PRIMARY KEY);
                 CREATE TABLE IF NOT EXISTS operations (
                     key TEXT PRIMARY KEY, kind TEXT NOT NULL, target TEXT NOT NULL,
                     display_name TEXT NOT NULL, status TEXT NOT NULL,
                     result TEXT, error TEXT, created REAL NOT NULL
                 );
             """)
+            db.execute("INSERT OR IGNORE INTO task_runs SELECT DISTINCT task FROM samples")
         os.chmod(self.path, 0o600)
 
     def connect(self):
@@ -54,6 +56,10 @@ class Store:
             db.execute('UPDATE operations SET status=?,result=?,error=? WHERE key=?',
                        (status,json.dumps(result,ensure_ascii=False) if result else None,error,key))
 
+    def running_task_ids(self):
+        with self.connect() as db:
+            return {row[0] for row in db.execute("SELECT task FROM task_runs")}
+
     def latest(self):
         with self.connect() as db:
             row = db.execute("SELECT payload FROM snapshots ORDER BY id DESC LIMIT 1").fetchone()
@@ -68,6 +74,7 @@ class Store:
             db.execute("INSERT INTO snapshots(captured,payload) VALUES (?,?)",
                        (now, json.dumps(compact, ensure_ascii=False, allow_nan=False)))
             for task in snapshot.get("tasks", []):
+                if task.get("state")=="running":db.execute("INSERT OR IGNORE INTO task_runs VALUES (?)",(task["id"],))
                 for item in task.get("series", []):
                     db.executemany("INSERT OR REPLACE INTO samples VALUES (?,?,?,?,?)", [
                         (task["id"], item["metric"], item["label"], t, v)

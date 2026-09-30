@@ -10,3 +10,12 @@
   .overview-task-gpu>.overview-task-metric{text-align:left}
   .overview-task>.row-arrow{grid-column:3;grid-row:1/3}
 }
+
+.detail-heading-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; margin-left: auto; }
+#task-console-link { font-size: 11px; padding: 6px 10px; min-height: 28px; }
+#task-console-link[hidden] { display: none; }
+@media(min-width:1101px) {
+  .tasks-view .detail-heading { flex-direction: row; }
+  .detail-heading > div:first-child { min-width: 0; }
+  .detail-heading h2 { overflow-wrap: anywhere; }
+}

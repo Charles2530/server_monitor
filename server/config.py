@@ -11,6 +11,7 @@ WORKSPACE = os.environ.get('MONITOR_WORKSPACE', '/subscriptions/a14649f0-2e3e-4a
 INTERVAL = max(30, int(os.environ.get('MONITOR_INTERVAL', '60')))
 CONSOLE = 'https://console.ms-sc-01.maoshanwangtech.com'
 SERVICES = {
+    'AFS': 'https://afs.ms-sc-01.maoshanwangtechapi.com',
     'CCI': 'https://cci.ms-sc-01.maoshanwangtech.com',
     'AEC2': 'https://aec2.ms-sc-01.maoshanwangtechapi.com',
     'MONITOR': 'https://monitor.ms-sc-01.maoshanwangtechapi.com',

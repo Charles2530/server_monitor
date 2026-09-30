@@ -17,12 +17,17 @@
     <link rel="stylesheet" href="/static/sites.css">
     <link rel="stylesheet" href="/static/metrics.css">
     <link rel="stylesheet" href="/static/partitions.css">
+    <link rel="stylesheet" href="/static/storage.css">
     <link rel="stylesheet" href="/static/selects.css">
+    <link rel="stylesheet" href="/static/workspace.css">
     <script src="/static/sites.js" defer></script>
     <script src="/static/navigation.js" defer></script>
     <script src="/static/app.js" defer></script>
     <script src="/static/acp.js" defer></script>
     <script src="/static/logs.js" defer></script>
+    <script src="/static/storage.js" defer></script>
+    <script src="/static/task-history.js" defer></script>
+    <link rel="stylesheet" href="/static/task-history.css">
   </head>
   <body>
     <a class="skip-link" href="#main">跳到主要内容</a>
@@ -35,6 +40,8 @@
         <a class="nav-item" href="#tasks"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>运行任务</a>
         <a class="nav-item" href="#acp"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>ACP 任务</a>
         <a class="nav-item" href="#waiting"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>等待队列</a>
+        <a class="nav-item" href="#storage"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/></svg>存储管理</a>
+        <a class="nav-item" href="#history"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v5l3 2"/></svg>任务历史</a>
       </nav>
       <div class="sidebar-bottom"><span class="local-indicator"></span>本地采集器<small>CCI · ACP · 标准集群</small><div class="profile"><span class="avatar-circle">C</span><span>charles<small>个人工作空间</small></span></div></div>
     </aside>
@@ -82,13 +89,18 @@
         <p class="acp-helper" id="acp-options-status" role="status">正在读取模板与 GPU 规格…</p>
         <button id="acp-options-retry" class="button button-secondary" type="button" hidden>重新读取配置</button>
         <form id="acp-create-form" class="acp-form">
-          <div id="acp-partition-controls" hidden></div>
+          <div class="acp-config-block">
+            <div class="form-block-heading"><span class="form-step" aria-hidden="true">01</span><div><h3>任务与资源</h3><p>配置任务名称、分区与算力</p></div></div>
+            <div id="acp-partition-controls" hidden></div>
+            <div class="acp-resource-fields">
           <label class="acp-name-field">任务显示名<input id="acp-name" name="display_name" value="kill_before_notice_grh_charles_test" required autocomplete="off"><small>名称必须包含 charles</small></label>
           <label>节点数（副本）<input id="acp-replicas" name="replicas" type="number" min="1" max="1024" step="1" value="1" required></label>
           <label>每副本 GPU<select id="acp-gpus" name="gpus_per_replica" required disabled><option value="">读取中</option></select></label>
-          <label class="acp-cluster-field" style="grid-column:1/-1">集群 <span class="optional-label">可选</span><select id="acp-cluster" name="cluster_id" disabled><option value="">自动选择（使用优先规则）</option></select><small>不指定时按优先规则选择；指定后固定使用该集群，资源不足时排队。</small></label>
+          <label class="acp-cluster-field"><span class="field-label">集群 <span class="optional-label">可选</span></span><select id="acp-cluster" name="cluster_id" disabled><option value="">自动选择（使用优先规则）</option></select><small>不指定时按优先规则选择；指定后固定使用该集群，资源不足时排队。</small></label>
+            </div>
+          </div>
           <div class="acp-command-field" id="acp-command-editor">
-            <div class="command-heading"><label for="acp-command">启动命令 <span class="optional-label">Shell</span></label><span id="acp-command-source">正在读取运行任务命令…</span></div>
+            <div class="command-heading"><div class="form-block-heading"><span class="form-step" aria-hidden="true">02</span><label for="acp-command">启动命令 <span class="optional-label">Shell</span></label></div><span id="acp-command-source">正在读取运行任务命令…</span></div>
             <div class="command-editor">
               <div class="command-toolbar"><span class="command-language">$ SHELL</span><div class="command-tools"><button id="acp-command-copy" type="button">复制</button><button id="acp-command-paste" type="button">粘贴</button><button id="acp-command-restore" type="button" disabled>恢复模板命令</button><button id="acp-command-expand" type="button" aria-expanded="false">展开编辑</button></div></div>
               <div class="command-code"><pre id="acp-command-lines" aria-hidden="true">1</pre><textarea id="acp-command" name="command" rows="7" wrap="off" placeholder="留空使用 sleep inf" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="acp-command-help acp-command-notice"></textarea></div>
@@ -97,7 +109,7 @@
             <p class="command-help" id="acp-command-help">默认读取最新运行中 charles ACP 任务的启动命令；留空使用 sleep inf。提交时若末尾没有独立的 sleep inf，会自动补上。</p>
             <p class="command-help" id="acp-command-notice" role="status" hidden></p>
           </div>
-          <div class="acp-form-footer"><p>配置总量 <strong id="acp-total">—</strong><small id="acp-cluster-policy">标准资源自动选集群：modeltoolchain_test → modeltoolchain → vigen</small></p><button id="acp-preview-button" class="button button-primary" type="submit" disabled>预览创建配置</button></div>
+          <div class="acp-form-footer"><div class="acp-submit-summary"><span class="form-step" aria-hidden="true">03</span><p>配置总量 <strong id="acp-total">—</strong><small id="acp-cluster-policy">标准资源自动选集群：modeltoolchain_test → modeltoolchain → vigen</small></p></div><button id="acp-preview-button" class="button button-primary" type="submit" disabled>预览创建配置</button></div>
         </form>
       </section>
       <div id="tasks-view" class="workspace-view tasks-view" data-page="tasks" hidden>
@@ -106,7 +118,7 @@
         <div id="task-list" class="task-grid" aria-label="任务列表"><div class="empty-state"><span class="empty-icon" aria-hidden="true">◌</span><h3>正在加载任务</h3><p>正在读取本地采集器的最新快照。</p></div></div>
       </section>
       <section class="detail-panel" id="detail-panel" aria-labelledby="detail-title" hidden>
-        <div class="detail-heading"><div><div class="eyebrow">任务资源监控</div><h2 id="detail-title">任务历史</h2><p id="detail-meta"></p></div><div id="history-ranges" class="filter-group" role="group" aria-label="历史时间范围"><button class="range-button selected" type="button" data-hours="1" aria-pressed="true">1 小时</button><button class="range-button" type="button" data-hours="24" aria-pressed="false">24 小时</button><button class="range-button" type="button" data-hours="168" aria-pressed="false">7 天</button></div></div>
+        <div class="detail-heading"><div><div class="eyebrow">任务资源监控</div><h2 id="detail-title">任务历史</h2><p id="detail-meta"></p></div><div class="detail-heading-actions"><a id="task-console-link" class="button button-secondary" target="_blank" rel="noopener noreferrer" hidden>跳转至该任务 <span aria-hidden="true">↗</span></a><div id="history-ranges" class="filter-group" role="group" aria-label="历史时间范围"><button class="range-button selected" type="button" data-hours="1" aria-pressed="true">1 小时</button><button class="range-button" type="button" data-hours="24" aria-pressed="false">24 小时</button><button class="range-button" type="button" data-hours="168" aria-pressed="false">7 天</button></div></div></div>
         <div class="detail-tabs" role="tablist" aria-label="任务详情"><button id="detail-tab-monitor" type="button" role="tab" aria-selected="true" aria-controls="detail-monitor">资源监控</button><button id="detail-tab-logs" type="button" role="tab" aria-selected="false" aria-controls="detail-logs" tabindex="-1">任务日志</button></div>
         <div id="detail-monitor" role="tabpanel" aria-labelledby="detail-tab-monitor"><div class="chart-wrap"><div id="history-chart" role="img" aria-label="所选任务的资源使用率历史曲线"></div><div class="chart-message" id="chart-message" role="status" hidden></div></div></div>
         <div id="detail-logs" role="tabpanel" aria-labelledby="detail-tab-logs" hidden>
@@ -117,7 +129,7 @@
           <p id="logs-status" class="logs-status" role="status">选择任务查看日志</p>
         </div>
         <div class="detail-task-actions"><span id="detail-action-note"></span><button id="acp-stop-selected" class="button button-danger" type="button" hidden>停止此 ACP 任务</button></div>
-        <div class="chart-footer"><p id="history-note">单位 % · 四类指标独立展示，保留各 Worker 来源；虚线区分同一指标的不同 Worker。</p><a id="task-console-link" class="text-link" target="_blank" rel="noopener noreferrer" hidden>在云控制台查看 <span aria-hidden="true">↗</span></a></div>
+        <div class="chart-footer"><p id="history-note">单位 % · 四类指标独立展示，保留各 Worker 来源；虚线区分同一指标的不同 Worker。</p></div>
       </section>
       </div>
       <section id="waiting-section" class="section-block cluster-panel waiting-panel workspace-view" data-page="waiting" hidden>
@@ -126,8 +138,36 @@
         <div class="table-scroll"><table class="resource-table waiting-table"><thead><tr><th scope="col">任务 / ID</th><th scope="col">类型</th><th scope="col">提交者</th><th scope="col">集群</th><th scope="col">状态</th><th scope="col">GPU / 副本</th><th scope="col">创建 / 观测时间</th><th scope="col">操作</th></tr></thead><tbody id="waiting-body"><tr><td colspan="8" class="table-empty">正在读取等待任务…</td></tr></tbody></table></div>
         <div class="table-note">任务运行或结束后退出队列；只有 charles 的运行任务进入监控区。其他用户及 CCI 队列仅供查看，此处不采集监控曲线。</div>
       </section>
+      <section id="storage-section" class="section-block cluster-panel workspace-view" data-page="storage" hidden>
+        <div class="section-heading"><div><h2>AFS 存储管理 <span class="count-badge" id="storage-count">—</span></h2><p>当前站点可访问的存储卷，以及 charles 任务最近使用的挂载路径</p></div><div class="storage-actions"><a id="storage-console" class="button button-secondary" target="_blank" rel="noopener noreferrer">云控制台 ↗</a><button id="storage-refresh" class="button button-secondary" type="button">刷新存储</button></div></div>
+        <div class="storage-filters"><label>分区<select id="storage-zone"><option value="">全部分区</option></select></label><label class="storage-search">搜索<input id="storage-search" type="search" placeholder="名称、卷 ID、任务或挂载路径" autocomplete="off"></label><label class="storage-related"><input id="storage-related" type="checkbox"> 仅 charles 有挂载记录</label></div>
+        <p id="storage-status" role="status" aria-live="polite">进入页面后读取存储信息</p>
+        <div id="storage-warning" class="inventory-notice" role="status" hidden></div>
+        <div id="storage-summary" class="storage-summary" aria-label="当前筛选容量汇总"></div>
+        <div class="table-scroll" role="region" aria-label="AFS 存储卷，可横向滚动" tabindex="0"><table class="resource-table storage-table"><thead><tr><th scope="col">存储卷 / 分区</th><th scope="col">容量 / 使用率</th><th scope="col">状态 / 到期时间</th><th scope="col">charles 最近挂载记录</th></tr></thead><tbody id="storage-body"><tr><td colspan="4" class="table-empty">等待读取存储信息</td></tr></tbody></table></div>
+        <div class="table-note">只读查看，容量每 60 秒刷新，挂载记录后台补齐并缓存 5 分钟。容量为整个共享存储卷的用量，非 charles 独占用量；按 1000 进制展示 GB / TB。挂载记录包含历史任务，按服务类型和路径保留最新一条；无记录不代表存储卷未使用。“—” 表示未知。</div>
+      </section>
+      <section id="task-history-section" class="section-block cluster-panel workspace-view" data-page="history" hidden>
+        <div class="section-heading"><div><h2>任务历史 <span id="task-history-count" class="count-badge">—</span></h2><p>charles 的 CCI / ACP 已结束任务</p></div><button id="task-history-refresh" class="button button-secondary" type="button">刷新历史</button></div>
+        <div class="task-history-filters"><label>任务类型<select id="task-history-kind"><option value="">全部类型</option><option value="ACP">ACP</option><option value="CCI">CCI</option></select></label><label>状态<select id="task-history-state"><option value="">全部状态</option><option value="succeeded">成功</option><option value="failed">失败</option><option value="stopped">已停止</option></select></label><label class="task-history-search">搜索<input id="task-history-search" type="search" placeholder="任务名称、ID 或集群" autocomplete="off"></label></div>
+        <p id="task-history-status" role="status" aria-live="polite">进入页面后读取任务历史</p>
+        <div id="task-history-warning" class="inventory-notice" role="status" hidden></div>
+        <div class="table-scroll" role="region" aria-label="任务历史，可横向滚动" tabindex="0"><table class="resource-table task-history-table"><thead><tr><th scope="col">任务名称 / ID</th><th scope="col">类型 / 状态</th><th scope="col">集群 / 资源</th><th scope="col">创建 / 开始时间</th><th scope="col">结束时间 / 运行时长</th><th scope="col">操作</th></tr></thead><tbody id="task-history-body"><tr><td colspan="6" class="table-empty">等待读取任务历史</td></tr></tbody></table></div>
+        <div class="task-history-pagination"><label>每页<select id="task-history-size"><option value="20">20 条</option><option value="50">50 条</option><option value="100">100 条</option></select></label><span id="task-history-page">第 1 / 1 页</span><button id="task-history-prev" class="button button-secondary" type="button" disabled>上一页</button><button id="task-history-next" class="button button-secondary" type="button" disabled>下一页</button></div>
+        <p id="task-history-filter-note" class="table-note">已停止任务仅保留有实际开始时间或本机曾观测到运行的记录。没有运行依据的旧 CCI 任务暂不列入；成功、失败按平台最终状态显示。不展示历史曲线。</p>
+      </section>
       <footer class="page-footer"><span>iLab Server Monitor<span class="footer-divider">/</span>运行监控：charles · 等待队列：所有用户</span><span>本地历史保留 7 天 · 60 秒采样</span></footer>
     </main>
+    <dialog id="acp-restart-dialog" class="acp-dialog" aria-labelledby="acp-restart-title">
+      <h2 id="acp-restart-title">重新启动 ACP 任务</h2>
+      <p class="acp-helper">沿用原任务名称、集群、资源、镜像和 AFS 配置，提交一个新任务，原历史记录保留。可在下方修改启动命令。</p>
+      <dl id="acp-restart-details" class="acp-preview-details"></dl>
+      <label for="acp-restart-command">启动命令</label>
+      <textarea id="acp-restart-command" class="restart-command" rows="10" maxlength="65536" spellcheck="false" autocomplete="off" disabled></textarea>
+      <p class="acp-helper">空命令使用 sleep inf；其他命令按现有规则补充末尾 sleep inf。</p>
+      <div id="acp-restart-message" class="acp-notice" role="status" aria-live="polite" hidden></div>
+      <div class="dialog-actions"><button id="acp-restart-cancel" class="button button-secondary" type="button">取消</button><button id="acp-restart-restore" class="button button-secondary" type="button" disabled>恢复原命令</button><button id="acp-restart-preview" class="button button-primary" type="button" disabled>预览重新启动</button></div>
+    </dialog>
     <dialog id="acp-create-dialog" class="acp-dialog" aria-labelledby="acp-create-title">
       <h2 id="acp-create-title">确认创建 ACP 任务</h2><p class="acp-helper">以下为服务端计算的只读预览。确认后将提交云端创建。</p>
       <dl id="acp-preview-details" class="acp-preview-details"></dl>

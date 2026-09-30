@@ -1,6 +1,7 @@
 """Explicit ACP mutations. Read previews are separate; cloud writes never retry."""
 import asyncio
 import copy
+import hashlib
 import json
 import re
 import time
@@ -164,7 +165,7 @@ class ACPManager:
             cache[zone]=set(zones)
         return all(m['zone'] in cache[zone] for m in mismatched)
 
-    async def catalog(self,client,include_all=False,template=None):
+    async def catalog(self,client,include_all=False,template=None,cluster_id=None):
         if template is None:template,_=await self.template_context(client)
         bindings=await self.reader.paginate(client,'AEC2','/compute/workspace/data/v1'+self.workspace+'/workspaceAEC2Bindings','aec2s')
         selected=[];mount_zones={}
@@ -175,6 +176,7 @@ class ACPManager:
                 key=lambda name:(name!=template_cluster,name))
         if include_all:
             priority=list(priority)+sorted({b['name'] for b in bindings if b.get('name') and b['name'] not in priority})
+        if cluster_id is not None:priority=[cluster_id]
         for name in priority:
             matches=[b for b in bindings if b.get('name')==name and b.get('state')=='ACTIVE' and b.get('type','').lower()!='public' and name!='public']
             if len(matches)>1:raise ActionError('集群标识不唯一，请检查工作空间绑定。','resources_unavailable',409)
@@ -218,8 +220,8 @@ class ACPManager:
             if script and script.strip():
                 command=script.replace('\r\n','\n')
                 command_source={'id':'ACP:'+template['name'],'name':template['display_name']}
-        return {**({'partitions':partitions,'partition':public_partition(template),'template_config':template_config(template)} if self.partitioned else {}),
-                'template':public_template(template),'gpu_options':gpu_options,'default_gpus_per_replica':gpu_options[0],
+        return {**({'partitions':partitions,'partition':public_partition(template)} if self.partitioned else {}),
+                'template_config':template_config(template),'template':public_template(template),'gpu_options':gpu_options,'default_gpus_per_replica':gpu_options[0],
                 'default_command':command,'command_source':command_source,
                 'clusters':[{'id':b['name'],'name':b.get('display_name') or b['name'],
                              'gpu_options':sorted({int(s['device']['number']) for s in specs})} for b,specs in catalog],
@@ -250,8 +252,8 @@ class ACPManager:
         binding,spec,enough=next((c for c in candidates if c[2]),candidates[0])
         token=uuid.uuid4().hex;now=time.time();name='cm-'+token[:24]
         payload=build_payload(template,binding,spec,form,name)
-        preview={**({'partition':public_partition(template),'template_config':template_config(template)} if self.partitioned else {}),
-                 'preview_id':token,'expires_at':iso(now+PREVIEW_TTL),'template':public_template(template),
+        preview={**({'partition':public_partition(template)} if self.partitioned else {}),
+                 'preview_id':token,'expires_at':iso(now+PREVIEW_TTL),'template_config':template_config(template),'template':public_template(template),
                  'selection_mode':'manual' if cluster_id else 'auto',
                  'cluster':{'id':binding['name'],'name':binding.get('display_name') or binding['name']},
                  'replicas':form['replicas'],'gpus_per_replica':form['gpus_per_replica'],
@@ -261,6 +263,74 @@ class ACPManager:
         self.previews={k:v for k,v in self.previews.items() if v['expires']>now}
         if len(self.previews)>=100:self.previews.pop(next(iter(self.previews)))
         self.previews[token]={'expires':now+PREVIEW_TTL,'payload':payload,'preview':preview}
+        return copy.deepcopy(preview)
+
+    async def restart_source(self,client,task_id,revision=None):
+        name=job_name(task_id)
+        if not any(j.get('name')==name and is_charles(j.get('display_name')) for j in await self.own_jobs(client)):
+            raise ActionError('没有找到可操作的本人 ACP 任务。','target_mismatch',403)
+        raw=await self.detail(client,name)
+        if raw.get('state') not in ('FAILED','SUCCEEDED','SUSPENDED'):
+            raise ActionError('只能重新启动已结束的 ACP 任务，请刷新历史。','restart_state_changed',409)
+        # Only configuration and terminal state participate; live timestamps must not invalidate a preview.
+        config={k:raw.get(k) for k in (*COPY_FIELDS,'roles','resource_pool','framework','fine_tuning_specs','display_name','state')}
+        current=hashlib.sha256(json.dumps(config,sort_keys=True).encode()).hexdigest()
+        if revision is not None and revision!=current:
+            raise ActionError('原任务配置已变化，请关闭并重新打开重新启动窗口。','restart_source_changed',409)
+        roles=raw.get('roles') or []
+        if len(roles)!=1 or roles[0].get('name')!='Worker' or len(roles[0].get('resource_spec') or [])!=1:
+            raise ActionError('当前任务不是支持的单 Worker、单资源规格配置。','unsupported_template',409)
+        integer(roles[0].get('total_replicas'),'副本数')
+        validate_form({'display_name':raw['display_name'],'replicas':1,'gpus_per_replica':1,'command':roles[0].get('startup_script') or ''})
+        return raw,current
+
+    async def restart_options(self,task_id):
+        async with self.client() as client:
+            raw,revision=await self.restart_source(client,task_id)
+        return {'template':public_template(raw),'template_config':template_config(raw),'revision':revision,
+                'command':raw['roles'][0].get('startup_script') or 'sleep inf',
+                'cluster':(raw.get('resource_pool') or {}).get('name'),
+                'replicas':raw['roles'][0]['total_replicas'],'resource_spec':raw['roles'][0]['resource_spec'][0]['name']}
+
+    async def restart_preview(self,data):
+        if not isinstance(data,dict) or set(data)!={'task_id','revision','command'} or not isinstance(data['revision'],str):
+            raise ActionError('请重新读取原任务配置。')
+        async with self.client() as client:
+            template,revision=await self.restart_source(client,data['task_id'],data['revision'])
+            pool=template.get('resource_pool') or {}
+            if not pool.get('name'):raise ActionError('原任务缺少集群配置。','restart_resources_unavailable',409)
+            _,catalog=await self.catalog(client,template=template,cluster_id=pool['name'])
+        role=template['roles'][0];pool=template.get('resource_pool') or {}
+        matches=[(b,s) for b,specs in catalog for s in specs if b['name']==pool.get('name')
+                 and b['id'].split('/zones/')[1].split('/')[0]==pool.get('zone')
+                 and b['vpc_id']==pool.get('vpc_id') and s['name']==role['resource_spec'][0].get('name')]
+        if len(matches)!=1:raise ActionError('原集群或原资源规格已不可用，无法保持原配置重新启动。','restart_resources_unavailable',409)
+        binding,spec=matches[0]
+        form=validate_form({'display_name':template['display_name'],'replicas':role['total_replicas'],
+                            'gpus_per_replica':int(spec['device']['number']),'command':data['command']})
+        token=uuid.uuid4().hex;now=time.time()
+        payload=build_payload(template,binding,spec,form,'cm-'+token[:24])
+        # Retain the exact original framework, scheduling, network and resource allocation.
+        payload['framework']=template['framework']
+        payload['resource_pool']={k:pool[k] for k in ('name','zone','vpc_id')}
+        if 'scheduling' in template:payload['scheduling']=copy.deepcopy(template['scheduling'])
+        else:payload.pop('scheduling',None)
+        payload['roles'][0]['resource_spec']=[{k:v for k,v in role['resource_spec'][0].items() if k in ('name','replicas')}]
+        quota=cluster_from_raw(binding,now)
+        demand={'available_gpus':form['replicas']*form['gpus_per_replica'],
+                'available_vcpu':form['replicas']*spec['cpu']['vcpu_allocatable'],
+                'available_memory_gib':form['replicas']*spec['memory']['allocatable']}
+        enough=all(quota[k] is not None and quota[k]>=v for k,v in demand.items())
+        preview={'preview_id':token,'expires_at':iso(now+PREVIEW_TTL),'restart':True,
+                 'template':public_template(template),'template_config':template_config(template),'selection_mode':'manual',
+                 'cluster':{'id':binding['name'],'name':binding.get('display_name') or binding['name']},
+                 'replicas':form['replicas'],'gpus_per_replica':form['gpus_per_replica'],'total_gpus':demand['available_gpus'],
+                 'vcpu_per_replica':spec['cpu']['vcpu_allocatable'],'memory_gib_per_replica':spec['memory']['allocatable'],
+                 'command':form['command'],'will_queue':not enough,'message':'沿用原任务配置提交新任务；原历史记录保留，资源不足时排队。'}
+        if self.partitioned and afs_partition(template):preview['partition']=public_partition(template)
+        self.previews={k:v for k,v in self.previews.items() if v['expires']>now}
+        if len(self.previews)>=100:self.previews.pop(next(iter(self.previews)))
+        self.previews[token]={'expires':now+PREVIEW_TTL,'payload':payload,'preview':preview,'restart_source':(data['task_id'],revision)}
         return copy.deepcopy(preview)
 
     async def write_once(self,client,path,body=None,params=None):
@@ -299,6 +369,8 @@ class ACPManager:
             if not prepared or prepared['expires']<time.time():raise ActionError('预览已过期，请重新预览配置。','preview_expired',409)
             payload=prepared['payload'];name=payload['name'];display=payload['display_name']
             async with self.client() as client:
+                if prepared.get('restart_source'):
+                    await self.restart_source(client,*prepared['restart_source'])
                 if not self.store.begin_operation(preview_id,'create',name,display):
                     return await self.previous_result(self.store.operation(preview_id),'create')
                 try:

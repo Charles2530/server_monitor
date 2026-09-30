@@ -127,6 +127,9 @@
           resources_unavailable: "可用集群或资源规格暂时无法确认，请稍后重新预览。", source_unavailable: "云端数据暂不可用，请检查连接后重试。",
           target_mismatch: "任务身份或名称已变化，请刷新列表后重新核对。", state_changed: "任务状态已变化，当前无法停止，请刷新列表。",
           request_conflict: "该请求标识已有其他用途，请刷新并核对操作结果。", cloud_rejected: "云平台拒绝了本次操作，请核对资源和任务配置。", auth_required: "云会话已失效或没有操作权限，请重新连接。",
+          restart_state_changed: "任务已不处于结束状态，请刷新历史后重试。",
+          restart_source_changed: "原任务配置已变化，请关闭并重新打开重新启动窗口。",
+          restart_resources_unavailable: "原集群或原资源规格已不可用，请到创建 ACP 任务页面选择新资源。",
           partition_unavailable: "AFS 分区或模板已变化，请重新读取分区配置。",
           cluster_unavailable: "指定集群已不可用或与模板挂载不兼容，请重新读取配置并选择。",
           invalid_name: "任务名称必须包含 charles。", invalid_replicas: "请填写有效的正整数副本数。", invalid_gpu: "请选择模板支持的 GPU 规格。",
@@ -164,6 +167,7 @@
 
   function renderTemplateConfig(container, config) {
     pair(container, "镜像", (config?.images || []).join("\n") || "—");
+    if (!config?.afs_mounts?.length) pair(container, "AFS", "未配置 AFS 挂载");
     (config?.afs_mounts || []).forEach((mount, index) => {
       pair(container, `AFS ${index + 1}`, `${mount.zone} · ${mount.id}\n${mount.subdir || "/"} → ${mount.mount_path}`);
     });
@@ -205,11 +209,11 @@
         updatePartitionLock();
         if (draft) { command.value = draft.command; commandTouched = draft.touched; }
         else if (switching) commandTouched = false;
-        const config = byId("acp-template-config");
-        const created = data.template.created_at ? new Date(data.template.created_at).toLocaleString("zh-CN", { hour12: false }) : "—";
-        pair(config, "模板创建时间", created);
-        renderTemplateConfig(config, data.template_config);
       }
+      const config = byId("acp-template-config"); config.replaceChildren();
+      const created = data.template.created_at ? new Date(data.template.created_at).toLocaleString("zh-CN", { hour12: false }) : "—";
+      pair(config, "模板创建时间", created);
+      renderTemplateConfig(config, data.template_config);
       if (!commandTouched) command.value = typeof data.default_command === "string" && data.default_command.trim() ? data.default_command : "sleep inf";
       byId("acp-command-source").textContent = data.command_source ? `来源：${data.command_source.name} · ${data.command_source.id}` : partitioned ? "所选分区模板未运行，默认 sleep inf" : "无可用的运行中任务命令，默认 sleep inf";
       byId("acp-command-restore").disabled = false;
@@ -368,15 +372,23 @@
       if (partitioned) submission.partition_id = context.partition.id;
       const data = await request("/api/acp/preview", submission);
       if (revision !== optionsRequest || context !== state.options) return;
+      showCreatePreview(data, submission.display_name);
+    } catch (error) { message("acp-message", error.message); }
+    finally { button.disabled = optionsLoading || !state.options || state.createUnknown || state.storageError; button.textContent = "预览创建配置"; }
+  });
+
+  function showCreatePreview(data, displayName) {
       state.preview = data;
+      byId("acp-create-title").textContent = data.restart ? "确认重新启动 ACP 任务" : "确认创建 ACP 任务";
       const details = byId("acp-preview-details"); details.replaceChildren();
       pair(details, "云站点", window.MonitorSite?.id || "maoshanwang");
-      pair(details, "任务名称", submission.display_name);
+      pair(details, "任务名称", displayName);
       pair(details, "来源模板", `${data.template.name} · ${data.template.id}`);
       if (partitioned) {
-        pair(details, "AFS 分区", data.partition?.name || context.partition.name);
-        renderTemplateConfig(details, data.template_config);
+        pair(details, "AFS 分区", data.partition?.name || state.options?.partition?.name || "—");
       }
+      if (data.restart) pair(details, "重新启动方式", "提交新任务，保留原任务记录；名称与原任务相同，任务 ID 不同。");
+      renderTemplateConfig(details, data.template_config);
       pair(details, data.selection_mode === "manual" ? "指定集群" : "自动选择的集群", `${data.cluster.name} · ${data.cluster.id}`);
       pair(details, "GPU 总量", `${data.replicas} 副本 × ${data.gpus_per_replica} GPU = ${data.total_gpus} 张`);
       pair(details, "每副本实际资源", `${data.vcpu_per_replica} vCPU · ${data.memory_gib_per_replica} GiB 内存`);
@@ -385,12 +397,54 @@
       pair(details, "预览有效期至", date(data.expires_at));
       message("acp-create-message", "");
       byId("acp-create-confirm").disabled = false;
-      byId("acp-create-confirm").textContent = "确认创建";
+      byId("acp-create-confirm").textContent = data.restart ? "确认重新启动" : "确认创建";
       byId("acp-create-cancel").disabled = false;
       byId("acp-create-cancel").textContent = "返回修改";
       createDialog.showModal();
-    } catch (error) { message("acp-message", error.message); }
-    finally { button.disabled = optionsLoading || !state.options || state.createUnknown || state.storageError; button.textContent = "预览创建配置"; }
+  }
+
+  const restartDialog = byId("acp-restart-dialog"), restartCommand = byId("acp-restart-command");
+  let restartSource = null, restartSerial = 0, restartLoading = false;
+  function restartBlocked() {
+    syncPending("create");
+    return state.creating || state.createUnknown || state.storageError;
+  }
+  document.addEventListener("acp-restart", async (event) => {
+    if (restartBlocked()) { if (state.createUnknown) createDialog.showModal(); return; }
+    const serial = ++restartSerial; restartSource = null;
+    restartCommand.value = ""; restartCommand.disabled = true;
+    byId("acp-restart-preview").disabled = true; byId("acp-restart-restore").disabled = true;
+    const details = byId("acp-restart-details"); details.replaceChildren();
+    pair(details, "原任务", `${event.detail.name} · ${event.detail.id}`);
+    message("acp-restart-message", "正在读取原任务配置…"); restartDialog.showModal();
+    try {
+      const data = await request(`/api/acp/restart-options?task_id=${encodeURIComponent(event.detail.id)}`);
+      if (serial !== restartSerial || !restartDialog.open) return;
+      restartSource = data;
+      restartCommand.value = data.command; restartCommand.disabled = false;
+      pair(details, "原集群 / 资源", `${data.cluster} · ${data.replicas} 副本 · ${data.resource_spec}`);
+      renderTemplateConfig(details, data.template_config);
+      byId("acp-restart-preview").disabled = false; byId("acp-restart-restore").disabled = false;
+      message("acp-restart-message", "已填入原启动命令，可直接编辑后预览。");
+    } catch (error) { if (serial === restartSerial) message("acp-restart-message", error.message); }
+  });
+  byId("acp-restart-restore").addEventListener("click", () => { if (restartSource) restartCommand.value = restartSource.command; });
+  byId("acp-restart-cancel").addEventListener("click", () => restartDialog.close());
+  restartDialog.addEventListener("close", () => {
+    restartSerial += 1; restartSource = null; restartCommand.value = "";
+  });
+  byId("acp-restart-preview").addEventListener("click", async () => {
+    if (!restartSource || restartLoading || restartBlocked()) return;
+    const source = restartSource, serial = restartSerial;
+    restartLoading = true; byId("acp-restart-preview").disabled = true;
+    message("acp-restart-message", "正在核对原任务与资源…");
+    try {
+      const data = await request("/api/acp/restart-preview", { task_id: source.template.id, revision: source.revision, command: restartCommand.value });
+      if (serial !== restartSerial || !restartDialog.open || restartBlocked()) return;
+      message("acp-restart-message", "可继续修改命令并重新预览。");
+      showCreatePreview(data, source.template.name);
+    } catch (error) { if (serial === restartSerial) message("acp-restart-message", error.message); }
+    finally { restartLoading = false; byId("acp-restart-preview").disabled = !restartSource; }
   });
 
   byId("acp-create-confirm").addEventListener("click", async () => {
@@ -409,6 +463,7 @@
       forget("create", submission);
       state.createUnknown = false;
       createDialog.close();
+      restartDialog.close();
       message("acp-message", `已提交创建：${result.name} · ${result.id}。状态：${result.state}。任务列表将在采集后更新。`);
       state.preview = null;
       refresh();
@@ -477,15 +532,14 @@
   });
   syncPending("create"); syncPending("stop");
   setInterval(() => { renderSelected(); renderWaiting(); }, 10000);
+  const controls = byId("acp-partition-controls"); controls.hidden = false;
   if (partitioned) {
-    const controls = byId("acp-partition-controls"); controls.hidden = false;
     byId("acp-command-help").textContent = "读取所选分区模板的启动命令；模板未运行时默认 sleep inf。提交时若末尾没有独立的 sleep inf，会自动补上。";
     const label = element("label", "", "AFS 分区");
     partitionSelect = element("select"); partitionSelect.id = "acp-partition"; partitionSelect.name = "partition_id"; partitionSelect.disabled = true;
     const loading = element("option", "", "正在读取分区…"); loading.value = ""; partitionSelect.append(loading);
     label.append(partitionSelect, element("small", "", "使用此 AFS 分区最近的 charles 挂载模板，镜像和存储配置随分区切换。"));
-    const config = element("dl", "acp-preview-details"); config.id = "acp-template-config";
-    controls.append(label, config);
+    controls.append(label);
     partitionSelect.addEventListener("change", () => {
       if (state.creating || state.createUnknown || state.storageError) return;
       savePartitionDraft();
@@ -496,5 +550,7 @@
       options(partitionSelect.value, true);
     });
   }
+  const config = element("dl", "acp-preview-details"); config.id = "acp-template-config";
+  controls.append(config);
   options();
 })();

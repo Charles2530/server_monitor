@@ -35,7 +35,10 @@
   }
 
   function tasks() { return Array.isArray(model.snapshot?.tasks) ? model.snapshot.tasks : []; }
-  function clusters() { return Array.isArray(model.snapshot?.clusters) ? model.snapshot.clusters : []; }
+  function clusters() {
+    const list = Array.isArray(model.snapshot?.clusters) ? model.snapshot.clusters : [];
+    return list.filter((cluster) => !(cluster.id === "public" || cluster.id?.startsWith("/subscriptions/public/") || /^public aec2$/i.test(cluster.name || "")));
+  }
   function visibleClusters() {
     return clusters().filter((cluster) => cluster.available_gpus !== 0 || cluster.inventory?.total_gpus > 0 || cluster.inventory_error);
   }

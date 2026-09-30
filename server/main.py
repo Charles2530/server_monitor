@@ -14,6 +14,9 @@ from .collector import Collector
 from .auth import connect_browser, AuthRequired
 from .acp_actions import ACPManager, ActionError
 from .task_logs import TaskLogs
+from .storage import StorageManager
+from .task_history import TaskHistory
+from .normalize import task_console_url
 from .config import DATA, ROOT
 from .service import Monitor
 from .store import Store
@@ -26,6 +29,8 @@ class SiteRuntime:
     actions: object
     logs: object
     site: object = MAOSHANWANG
+    storage: object = None
+    task_history: object = None
 
 
 def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=None):
@@ -39,6 +44,9 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
                 store=Store(site.data/'monitor.sqlite3')
                 instance=Monitor(store,Collector(site),renew=partial(connect_browser,site=site))
                 runtimes[site.id]=SiteRuntime(instance,ACPManager(store,site=site),TaskLogs(site=site),site)
+    for runtime in runtimes.values():
+        if runtime.storage is None:runtime.storage=StorageManager(runtime.site)
+        if runtime.task_history is None:runtime.task_history=TaskHistory(runtime.monitor.store,runtime.site)
     def current_site(request: Request):
         site_id=request.headers.get('x-monitor-site','maoshanwang')
         if site_id not in runtimes:
@@ -62,6 +70,8 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         finally:
             for runtime in runtimes.values():
                 await runtime.monitor.close()
+                if hasattr(runtime.storage,"close"):await runtime.storage.close()
+                if hasattr(runtime.task_history,"close"):await runtime.task_history.close()
             if lock_file:
                 lock_file.close()
     app=FastAPI(lifespan=lifespan,docs_url=None,redoc_url=None,openapi_url=None)
@@ -94,6 +104,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         snapshot=copy.deepcopy(runtime.monitor.state)
         snapshot["site"]={"id":runtime.site.id,"console":runtime.site.console,"workspace":runtime.site.workspace}
         for task in snapshot['tasks']:
+            task['url']=task_console_url(task,runtime.site)
             task.pop('series',None)
             task.pop('uid',None)
             task.pop('source_id',None)
@@ -131,6 +142,14 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         except AuthRequired:return JSONResponse({'error':'请重新连接云会话。','code':'auth_required'},status_code=403)
         except Exception:return JSONResponse({'error':'操作暂不可用，请检查连接并核对云端任务状态。','code':'source_unavailable'},status_code=503)
 
+    @app.get('/api/task-history')
+    async def task_history(runtime=Depends(current_site)):
+        return await perform(runtime.task_history.snapshot)
+
+    @app.get('/api/storage')
+    async def storage(runtime=Depends(current_site)):
+        return await perform(runtime.storage.snapshot)
+
     @app.get('/api/logs/targets')
     async def log_targets(task_id: str=Query(max_length=100),runtime=Depends(current_site)):
         return await perform(lambda:runtime.logs.targets(task_id))
@@ -150,6 +169,17 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         async def run():
             data=await action_body(request,('display_name','replicas','gpus_per_replica','command'),optional=('cluster_id','partition_id'))
             return await actions.preview(data)
+        return await perform(run)
+
+    @app.get('/api/acp/restart-options')
+    async def acp_restart_options(task_id: str=Query(max_length=100),runtime=Depends(current_site)):
+        return await perform(lambda:runtime.actions.restart_options(task_id))
+
+    @app.post('/api/acp/restart-preview')
+    async def acp_restart_preview(request:Request,runtime=Depends(current_site)):
+        async def run():
+            data=await action_body(request,('task_id','revision','command'))
+            return await runtime.actions.restart_preview(data)
         return await perform(run)
 
     @app.post('/api/acp/create')

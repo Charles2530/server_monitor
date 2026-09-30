@@ -75,6 +75,8 @@ async def test_options_and_preview_are_read_only_and_redacted(setup):
     preview=await manager.preview({'display_name':'new_charles_test','replicas':2,'gpus_per_replica':2,'command':'python train.py'})
     assert preview['total_gpus']==4 and preview['cluster']['name']=='modeltoolchain_test'
     assert preview['command']=='python train.py\nsleep inf' and not preview['will_queue']
+    assert preview['template_config']==options['template_config']
+    assert preview['template_config']['images']==['private/image:v13']
     assert cloud.writes==[]
     assert 'private-env' not in json.dumps(preview) and 'SECRET' not in json.dumps(options)
 
@@ -279,4 +281,66 @@ async def test_selected_cluster_specs_are_enforced(setup):
     assert next(b for b in options['clusters'] if b['id']=='vigen')['gpu_options']==[8]
     with pytest.raises(ActionError):
         await m.preview({'display_name':'charles_manual','replicas':1,'gpus_per_replica':1,'command':'','cluster_id':'vigen'})
+    assert not c.writes
+
+@pytest.mark.asyncio
+async def test_restart_uses_exact_history_config_and_original_failed_command(setup):
+    m,c,store=setup
+    source=c.jobs[0];source['state']='FAILED'
+    source['roles'][0]['resource_spec'][0]['name']='custom-small'
+    c.specs.append({**spec(1,cpu=7,memory=60),'name':'custom-small'})
+    c.jobs.append(job('pt-newer','charles_newer','2026-10-01T00:00:00Z','RUNNING'))
+    options=await m.restart_options('ACP:pt-template')
+    assert options['command']=='SECRET_OLD_SCRIPT'
+    assert not c.writes and 'private-env' not in json.dumps(options)
+    p=await m.restart_preview({'task_id':'ACP:pt-template','revision':options['revision'],'command':'python retry.py'})
+    assert p['vcpu_per_replica']==7 and p['memory_gib_per_replica']==60
+    assert p['template']['id']=='ACP:pt-template' and p['command']=='python retry.py\nsleep inf'
+    assert not c.writes
+    a,b=await asyncio.gather(m.create(p['preview_id']),m.create(p['preview_id']))
+    assert a==b and len(c.writes)==1
+    body=json.loads(c.writes[0].content)
+    assert body['name']!=source['name'] and body['display_name']==source['display_name']
+    for key in ('framework','mount','env','scheduling','resource_pool'):
+        assert body[key]==source[key]
+    assert body['roles'][0]['image_path']==source['roles'][0]['image_path']
+    assert body['roles'][0]['resource_spec']==[{'name':'custom-small','replicas':1}]
+    assert body['roles'][0]['startup_script']=='python retry.py\nsleep inf'
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('state',['FAILED','SUSPENDED','SUCCEEDED'])
+async def test_restart_terminal_tasks_and_blank_command(setup,state):
+    m,c,_=setup;c.jobs[0]['state']=state
+    o=await m.restart_options('ACP:pt-template')
+    p=await m.restart_preview({'task_id':'ACP:pt-template','revision':o['revision'],'command':''})
+    assert p['command']=='sleep inf' and not c.writes
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('target',['CCI:pt-template','ACP:pt-other','ACP:missing'])
+async def test_restart_rejects_foreign_or_non_acp(setup,target):
+    from server.acp_actions import ActionError
+    m,c,_=setup
+    with pytest.raises(ActionError):await m.restart_options(target)
+    assert not c.writes
+
+@pytest.mark.asyncio
+async def test_restart_revalidates_source_and_preserves_cluster_when_full(setup):
+    from server.acp_actions import ActionError
+    m,c,_=setup
+    o=await m.restart_options('ACP:pt-template')
+    c.jobs[0]['roles'][0]['image_path']='changed'
+    with pytest.raises(ActionError):await m.restart_preview({'task_id':'ACP:pt-template','revision':o['revision'],'command':''})
+    o=await m.restart_options('ACP:pt-template');c.bindings[0]['reserved_number']='0'
+    p=await m.restart_preview({'task_id':'ACP:pt-template','revision':o['revision'],'command':''})
+    assert p['will_queue'] and p['cluster']['id']=='modeltoolchain-test'
+    c.jobs[0]['state']='RUNNING'
+    with pytest.raises(ActionError):await m.create(p['preview_id'])
+    assert not c.writes
+
+@pytest.mark.asyncio
+async def test_restart_missing_original_spec_does_not_substitute(setup):
+    from server.acp_actions import ActionError
+    m,c,_=setup;c.jobs[0]['roles'][0]['resource_spec'][0]['name']='removed-spec'
+    o=await m.restart_options('ACP:pt-template')
+    with pytest.raises(ActionError):await m.restart_preview({'task_id':'ACP:pt-template','revision':o['revision'],'command':''})
     assert not c.writes
