@@ -18,6 +18,8 @@ AGENT_LABEL = 'charles.server-monitor'
 AGENT_PLIST = Path.home() / 'Library/LaunchAgents' / (AGENT_LABEL+'.plist')
 AGENT_DOMAIN = 'gui/'+str(os.getuid())
 AGENT_TARGET = AGENT_DOMAIN+'/'+AGENT_LABEL
+SYSTEM_PLIST = Path('/Library/LaunchDaemons')/(AGENT_LABEL+'.plist')
+SYSTEM_TARGET = 'system/'+AGENT_LABEL
 COMMAND = [str(ROOT/'.venv/bin/python'), '-m', 'uvicorn', 'server.main:app', '--app-dir', str(ROOT), '--host', '127.0.0.1', '--port', str(PORT), '--no-access-log']
 
 def agent_loaded():
@@ -28,7 +30,36 @@ def agent_loaded():
 def launchctl(*args):
     result=subprocess.run(['/bin/launchctl',*args],capture_output=True,text=True)
     if result.returncode:
-        raise SystemExit('LaunchAgent 操作失败：'+result.stderr.strip())
+        raise SystemExit('launchd 操作失败：'+result.stderr.strip())
+
+
+def system_loaded():
+    return subprocess.run(['/bin/launchctl','print',SYSTEM_TARGET],
+                          stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode == 0
+
+
+def system_action(action):
+    if sys.platform!='darwin' or not SYSTEM_PLIST.exists():
+        return False
+    loaded=system_loaded()
+    if action=='status':
+        print('LaunchDaemon: '+('loaded' if loaded else 'not loaded')+'（系统启动，无需登录）')
+    elif action=='start':
+        if not loaded:
+            if os.geteuid()!=0:
+                raise SystemExit('请执行 sudo launchctl bootstrap system "'+str(SYSTEM_PLIST)+'"')
+            launchctl('bootstrap','system',str(SYSTEM_PLIST))
+        wait_for_api()
+        print('LaunchDaemon 已运行：http://127.0.0.1:8766（系统启动，无需登录）')
+    elif action=='stop':
+        if loaded:
+            if os.geteuid()!=0:
+                raise SystemExit('请执行 sudo launchctl bootout '+SYSTEM_TARGET)
+            launchctl('bootout',SYSTEM_TARGET)
+        print('LaunchDaemon 已停止；下次开机仍会启动。')
+    else:
+        raise SystemExit('用法：monitorctl.py start|stop|status')
+    return True
 
 
 def wait_for_api():
@@ -93,7 +124,7 @@ def running_pid():
 def main():
     action=sys.argv[1] if len(sys.argv)>1 else 'status'
     DATA.mkdir(mode=0o700,exist_ok=True)
-    if agent_action(action):
+    if system_action(action) or agent_action(action):
         return
     pid=running_pid()
     if action=='start':

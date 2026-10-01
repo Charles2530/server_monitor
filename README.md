@@ -15,6 +15,7 @@
 - [双站点与配置](#双站点与配置)
 - [监控与日志口径](#监控与日志口径)
 - [macOS 自动启动](#macos-自动启动)
+- [macOS 无人登录启动](docs/macos-unattended.md)
 - [飞书群通知](docs/feishu-notifications.md)
 - [飞书监控看板](docs/feishu-bitable.md)
 - [本地数据与安全边界](#本地数据与安全边界)
@@ -245,6 +246,8 @@ ssh -N -L 8766:127.0.0.1:8766 user@your-linux-server
 - 仅打开日志页时请求日志；离开页面或切换对象会停止当前读取。日志按纯文本显示，移除终端控制序列，不执行其中的 HTML 或命令，也不写入本地历史库。
 
 ## macOS 自动启动
+
+默认使用登录后运行的 LaunchAgent。若需要重启后无需登录就恢复监控与手机入口，使用[系统级无人登录部署](docs/macos-unattended.md)，其中包含独立 Tailscale 进程、回退方式和真实重启验收要求。
 
 ### 安装与更新
 

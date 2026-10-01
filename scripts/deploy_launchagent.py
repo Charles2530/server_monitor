@@ -9,6 +9,10 @@ import subprocess
 import time
 from urllib.request import urlopen
 import sys
+try:
+    from .boot_services import require_agent_mode
+except ImportError:
+    from boot_services import require_agent_mode
 
 SOURCE = Path(__file__).resolve().parent.parent
 RUNTIME = Path.home()/'Library/Application Support/CharlesCloudMonitor'
@@ -29,6 +33,7 @@ def wait_for_free_port():
 def main():
     if sys.platform!='darwin':
         raise SystemExit('LaunchAgent 仅支持 macOS；Linux 请使用 ./start.sh 或 ./run.sh。')
+    require_agent_mode(LABEL)
     RUNTIME.mkdir(parents=True,exist_ok=True,mode=0o700)
     os.chmod(RUNTIME,0o700)
     data=RUNTIME/'data'

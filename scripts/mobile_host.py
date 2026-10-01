@@ -11,6 +11,10 @@ import subprocess
 import sys
 import time
 from urllib.request import urlopen
+try:
+    from .boot_services import require_agent_mode
+except ImportError:
+    from boot_services import require_agent_mode
 
 SOURCE=Path(__file__).resolve().parents[1]
 RUNTIME=Path.home()/'Library/Application Support/CharlesCloudMonitorMobile'
@@ -36,15 +40,19 @@ def main():
     if options.action=='admin':
         env=dict(os.environ,MONITOR_MOBILE_DATA=str(RUNTIME/'data'))
         raise SystemExit(subprocess.call([sys.executable,'-m','server.mobile_admin']+options.args,cwd=SOURCE,env=env))
+    system_plist=Path('/Library/LaunchDaemons')/(LABEL+'.plist')
+    system_mode=system_plist.exists()
     domain='gui/'+str(os.getuid());target=domain+'/'+LABEL
+    if system_mode:domain='system';target=domain+'/'+LABEL
     plist=Path.home()/'Library/LaunchAgents'/(LABEL+'.plist')
     loaded=lambda:subprocess.run(['launchctl','print',target],capture_output=True).returncode==0
     if options.action=='status':
-        print('LaunchAgent: '+('loaded' if loaded() else 'not loaded'))
+        print(('LaunchDaemon: ' if system_mode else 'LaunchAgent: ')+('loaded' if loaded() else 'not loaded'))
         try:
             with urlopen('http://127.0.0.1:8767/health',timeout=3) as response:print(response.read().decode())
         except OSError:print('网关未运行。')
         return
+    require_agent_mode(LABEL)
     if options.action in ('stop','uninstall'):
         if loaded():subprocess.run(['launchctl','bootout',target],check=True)
         if options.action=='uninstall' and plist.exists():plist.unlink()

@@ -6,6 +6,10 @@ import plistlib
 import shutil
 import subprocess
 import sys
+try:
+    from .boot_services import require_agent_mode
+except ImportError:
+    from boot_services import require_agent_mode
 
 SOURCE = Path(__file__).resolve().parent
 RUNTIME = Path.home() / 'Library/Application Support/CharlesMonitorFeishu'
@@ -16,6 +20,7 @@ PLIST = Path.home() / 'Library/LaunchAgents' / (LABEL + '.plist')
 def main():
     if sys.platform != 'darwin':
         raise SystemExit('This installer requires macOS.')
+    require_agent_mode(LABEL)
     os.umask(0o077)
     RUNTIME.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(RUNTIME, 0o700)
