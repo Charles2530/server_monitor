@@ -415,6 +415,6 @@ Python 依赖版本由 `requirements.lock` 锁定，主要依赖为 FastAPI、Uv
 
 部署、构建、真机验收与接手 AI 指令见 [手机客户端与 Mac 部署交接](docs/手机客户端与Mac部署交接-1001-1705.md)。Android 工程在 `mobile/android`，构建入口为 `./mobile/build_android.sh`；网关部署入口为 `.venv/bin/python scripts/mobile_host.py install`。先更新主监控，再安装可选网关。
 
-当前已通过代码测试和 APK 构建，实际手机跨网连接仍需按交接文档验收。APK、配对数据、Android SDK 与签名文件不随 Git 同步。
+当前已通过代码测试和 APK 构建，并在一加 13T 上完成扫码、配对及监控主页加载验证；切换手机移动网络后的跨网连接仍需按交接文档验收。APK、配对数据、Android SDK 与签名文件不随 Git 同步。
 
-0.1.3 已修复 Android 原生日志目录缺失导致的启动闪退，并在一加 13T / Android 16 上验证冷启动及返回前台；详见 [启动修复与真机验证](docs/Android启动修复与真机验证-1001-1740.md)。Tailscale 登录、配对和跨网访问仍待验收。
+0.1.3 已修复 Android 原生日志目录缺失导致的启动闪退，并在一加 13T / Android 16 上验证冷启动及返回前台；详见 [启动修复与真机验证](docs/Android启动修复与真机验证-1001-1740.md)。0.1.5 补齐扫码依赖，修复点击扫描时的闪退，增加配对码过期提示、具体连接错误和只读网关检测。已在一加 13T / Android 16 上完成 Tailscale 登录、扫码配对及监控数据加载验证；移动网络下的跨网访问仍待单独验收。

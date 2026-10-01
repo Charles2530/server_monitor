@@ -1,6 +1,7 @@
 package tunnel
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,6 +23,33 @@ func TestGatewayValidation(t *testing.T) {
 	}
 	if got, err := validGateway("https://mac.tail.ts.net/"); err != nil || got != "https://mac.tail.ts.net" {
 		t.Fatal(got, err)
+	}
+}
+
+func TestExpiredPairingNeverContactsGateway(t *testing.T) {
+	calls := 0
+	c := &Client{http: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{StatusCode: 400, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"error":"request should not happen"}`))}, nil
+	})}}
+	_, err := c.Pair(`{"version":1,"gateway":"https://mac.tail.ts.net","ticket":"`+strings.Repeat("b", 43)+`","expires_at":1}`, "phone")
+	if err == nil || !strings.Contains(err.Error(), "过期") || calls != 0 {
+		t.Fatalf("expired pairing: error=%v, requests=%d", err, calls)
+	}
+}
+
+func TestGatewayCheckIsReadOnlyAndPreservesTransportCause(t *testing.T) {
+	calls := 0
+	c := &Client{http: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		if r.Method != "GET" || r.URL.Path != "/health" || r.Header.Get("Authorization") != "" {
+			t.Fatal("health probe must not pair or send credentials")
+		}
+		return nil, errors.New("test connection refused")
+	})}}
+	_, err := c.CheckGateway("https://mac.tail.ts.net")
+	if err == nil || !strings.Contains(err.Error(), "test connection refused") || strings.Contains(err.Error(), "https://") || calls != 1 {
+		t.Fatalf("connection diagnosis: %v; requests=%d", err, calls)
 	}
 }
 

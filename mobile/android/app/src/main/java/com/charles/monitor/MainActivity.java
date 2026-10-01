@@ -116,6 +116,7 @@ public class MainActivity extends Activity {
                 .setDesiredBarcodeFormats(IntentIntegrator.QR_CODE).setPrompt("扫描监控电脑生成的配对二维码")
                 .setBeepEnabled(false).setOrientationLocked(false).initiateScan());
         button("配对这台电脑", () -> pair(pairing.getText().toString()));
+        button("检测电脑连接", () -> checkGateway());
         button("刷新连接 / 审批状态", () -> checkStatus(true));
         button("进入监控", () -> checkStatusAndOpen());
         button("更换监控电脑", () -> new AlertDialog.Builder(this).setTitle("更换监控电脑")
@@ -136,13 +137,21 @@ public class MainActivity extends Activity {
                 }).show();
     }
     private void run(Work action) {
+        run(action,true);
+    }
+    private void run(Work action, boolean showErrorDialog) {
         if (busy || destroyed) return;
         busy = true; for (Button b : actions) b.setEnabled(false);
         worker.execute(() -> {
             try { if (!destroyed) action.execute(); }
             catch (Exception | LinkageError e) {
                 ((MonitorApplication)getApplication()).diagnostics.failure(e);
-                post(() -> message("启动或连接失败："+e.getClass().getSimpleName()+"。请点击“查看 / 复制诊断信息”。"));
+                post(() -> {
+                    String detail=OperationErrors.message(e);
+                    message(detail);
+                    if(showErrorDialog && resumed)
+                        new AlertDialog.Builder(this).setTitle("操作未完成").setMessage(detail).setPositiveButton("知道了",null).show();
+                });
             }
             finally { post(() -> { busy = false; for (Button b : actions) b.setEnabled(true); }); }
         });
@@ -165,18 +174,22 @@ public class MainActivity extends Activity {
                 String detail = result == null ? "尚未配对电脑" : result.optString("state").equals("approved")
                         ? "电脑已连接 · " + (result.optInt("can_write") == 1 ? "可管理任务" : "仅查看")
                         : "等待电脑批准，设备 ID：" + result.optString("id");
-                message("网络：" + state + "\n" + (device == null ? "请在网络 Running 后扫码配对" : device.optString("gateway")) + "\n" + detail);
+                message("网络：" + state + "\n" + (device == null
+                        ? (state.equals("Running") ? "网络已连接，请扫描电脑上新生成的配对二维码" : "请先完成 Tailscale 登录，再扫描电脑配对码")
+                        : device.optString("gateway")) + "\n" + detail);
                 if (autoOpen && result != null && result.optString("state").equals("approved")) {
                     autoOpen = false; ui.postDelayed(() -> checkStatusAndOpen(),100);
                 }
             });
-        });
+        },manual);
     }
     private void pair(String payload) {
-        if (tunnel == null || busy) return;
+        if (tunnel == null) {message("网络模块尚未启动，请点击“启动 / 重试连接”。");return;}
+        if (busy) {message("正在处理上一项操作，请稍后再试。");return;}
+        message("正在检查网络并申请电脑配对…");
         run(() -> {
             if (!new JSONObject(tunnel.status()).optString("state").equals("Running"))
-                throw new IllegalStateException("请先完成 Tailscale 登录，等待网络状态 Running。");
+                throw new IllegalStateException("请先完成 Tailscale 设备授权，返回 App 刷新至 Running 后再配对。可点击“首次登录 Tailscale”和“打开网络授权页面”。");
             String destination = new JSONObject(payload).getString("gateway").replaceAll("/+$", "");
             if (device != null && !destination.equals(device.getString("gateway")))
                 throw new IllegalStateException("已有其他主机的配对，请使用“更换监控电脑”。同一主机可直接重新配对并保留操作记录。");
@@ -196,6 +209,20 @@ public class MainActivity extends Activity {
             String start = tunnel.open(device.getString("gateway"), device.getString("token"), device.getString("host_id"));
             if (destroyed) { tunnel.stopProxy(); return; }
             post(() -> openMonitor(start));
+        });
+    }
+    private void checkGateway() {
+        if(tunnel==null){message("网络模块尚未启动，请先重试连接。");return;}
+        String payload=pairing.getText().toString();
+        message("正在检测电脑 HTTPS 网关…");
+        run(() -> {
+            if(!new JSONObject(tunnel.status()).optString("state").equals("Running"))
+                throw new IllegalStateException("请先完成 Tailscale 设备授权，刷新至 Running 后再检测电脑连接。");
+            String gateway=device==null ? new JSONObject(payload).getString("gateway") : device.getString("gateway");
+            JSONObject result=new JSONObject(tunnel.checkGateway(gateway));
+            if(!result.optString("service").equals("charles-mobile-gateway"))
+                throw new IllegalStateException("地址可访问，但不是手机监控网关，请检查电脑 Tailscale Serve 配置。");
+            post(() -> message("电脑网关已连通。请扫描有效配对码并申请配对，随后在电脑批准设备。"));
         });
     }
     private void forget() {

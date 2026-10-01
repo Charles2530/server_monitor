@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -116,7 +117,12 @@ func (c *Client) request(gateway, path, method, token, body string) (string, err
 	}
 	response, err := c.http.Do(req)
 	if err != nil {
-		return "", errors.New("无法连接电脑，请确认私有网络已连接、电脑网关已启动")
+		// Keep the transport cause (DNS, timeout, TLS) without repeating the request URL.
+		var requestError *url.Error
+		if errors.As(err, &requestError) {
+			err = requestError.Err
+		}
+		return "", fmt.Errorf("无法连接电脑网关：%w", err)
 	}
 	defer response.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(response.Body, 65537))
@@ -144,6 +150,9 @@ func (c *Client) Pair(payload, deviceName string) (string, error) {
 	}
 	if len(payload) > 4096 || json.Unmarshal([]byte(payload), &config) != nil || config.Version != 1 || len(config.Ticket) != 43 {
 		return "", errors.New("配对内容无效，请使用电脑新生成的二维码")
+	}
+	if config.ExpiresAt > 0 && config.ExpiresAt <= float64(time.Now().Unix()) {
+		return "", errors.New("配对二维码已过期，请在电脑重新生成后再扫描")
 	}
 	gateway, err := validGateway(config.Gateway)
 	if err != nil {
@@ -175,6 +184,11 @@ func (c *Client) Pair(payload, deviceName string) (string, error) {
 }
 func (c *Client) DeviceStatus(gateway, token string) (string, error) {
 	return c.request(gateway, "/mobile/status", "GET", token, "")
+}
+
+// CheckGateway probes only the public health endpoint; it never redeems a ticket.
+func (c *Client) CheckGateway(gateway string) (string, error) {
+	return c.request(gateway, "/health", "GET", "", "")
 }
 func (c *Client) Open(gateway, token, hostID string) (string, error) {
 	c.mu.Lock()
