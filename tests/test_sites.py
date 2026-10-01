@@ -59,8 +59,8 @@ def test_api_routes_history_logs_and_actions_without_global_switch(tmp_path):
         def __init__(self,site):self.site=site
         async def options(self):calls.append((self.site,'options'));return {'site':self.site}
         async def preview(self,data):calls.append((self.site,'preview'));return {'site':self.site}
-        async def restart_options(self,task_id):return {'site':self.site}
-        async def restart_preview(self,data):return {'site':self.site}
+        async def restart_options(self,task_id,release=False):return {'site':self.site,'release_restart':release}
+        async def restart_preview(self,data,release=False):return {'site':self.site,'release_restart':release}
         async def create(self,preview):calls.append((self.site,'create'));raise ActionError('not in this site','preview_expired',409)
         async def stop(self,*args):calls.append((self.site,'stop'));return {'site':self.site}
     class Storage:
@@ -76,7 +76,7 @@ def test_api_routes_history_logs_and_actions_without_global_switch(tmp_path):
         monitor=Monitor(store,None)
         async def refresh():return True
         monitor.refresh=refresh
-        runtimes[site.id]=SiteRuntime(monitor,Actions(site.id),Logs(site.id),site,Storage(site.id),Storage(site.id))
+        runtimes[site.id]=SiteRuntime(monitor,Actions(site.id),Logs(site.id),site,Storage(site.id),Storage(site.id),Logs(site.id),Logs(site.id))
     with TestClient(create_app(runtimes=runtimes,background=False),base_url='http://localhost:8766') as client:
         for site_id in ('sensecore','maoshanwang','sensecore','maoshanwang'):
             headers={'X-Monitor-Site':site_id,'X-Monitor-Request':'1'}
@@ -85,10 +85,12 @@ def test_api_routes_history_logs_and_actions_without_global_switch(tmp_path):
             assert state['tasks'][0]['url'].startswith(runtimes[site_id].site.console+'/acp/list/detail?')
             history=client.get('/api/history?task_id=ACP:same',headers=headers).json()
             assert history['series'][0]['points'][0][1]==(2 if site_id=='sensecore' else 1)
-            for path in ('/api/task-history','/api/storage','/api/acp/restart-options?task_id=ACP:same','/api/acp/options','/api/logs/targets?task_id=ACP:same','/api/logs?task_id=ACP:same&worker=w&container=c'):
+            for path in ('/api/acp/terminal-targets?task_id=ACP:same','/api/cci/terminal-targets?task_id=CCI:same','/api/task-history','/api/storage','/api/acp/restart-options?task_id=ACP:same','/api/acp/release-restart-options?task_id=ACP:same','/api/acp/options','/api/logs/targets?task_id=ACP:same','/api/logs?task_id=ACP:same&worker=w&container=c'):
                 assert client.get(path,headers=headers).json()['site']==site_id
             assert client.post('/api/acp/preview',headers=headers,json={'display_name':'charles','replicas':1,'gpus_per_replica':1,'command':''}).json()['site']==site_id
             assert client.post('/api/acp/restart-preview',headers=headers,json={'task_id':'ACP:same','revision':'rev','command':''}).json()['site']==site_id
+            release=client.post('/api/acp/release-restart-preview',headers=headers,json={'task_id':'ACP:same','revision':'rev','command':''}).json()
+            assert release['site']==site_id and release['release_restart'] is True
             assert client.post('/api/acp/stop',headers=headers,json={'task_id':'ACP:same','display_name':'charles','request_id':'id'}).json()['site']==site_id
         assert client.get('/api/state').json()['site']['id']=='maoshanwang'
         before=list(calls)

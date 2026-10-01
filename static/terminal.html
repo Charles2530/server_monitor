@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#f4f7f6">
+    <title>Web Terminal · iLab Server Monitor</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/selects.css">
+    <link rel="stylesheet" href="/static/terminal.css">
+    <script src="/static/sites.js" defer></script>
+    <script src="/static/terminal.js" defer></script>
+  </head>
+  <body>
+    <header class="terminal-header">
+      <div class="terminal-brand"><img src="/static/favicon.svg" width="36" height="36" alt=""><span>iLab<small>Server Monitor</small></span></div>
+      <span class="site-badge" data-site-label></span>
+    </header>
+    <main class="terminal-panel">
+      <div class="terminal-intro">
+        <div class="terminal-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 7 5 5-5 5M13 17h6"/></svg></div>
+        <span class="eyebrow">WORKSPACE / TERMINAL</span>
+        <h1 id="terminal-title">Web Terminal</h1>
+        <p class="terminal-description">选择运行中的目标，进入云控制台终端。</p>
+        <div class="task-context"><span>当前任务</span><p id="terminal-task">正在读取任务信息…</p></div>
+      </div>
+      <section class="terminal-connection" aria-labelledby="connection-title">
+        <div class="connection-heading"><span class="step-number" aria-hidden="true">01</span><div><h2 id="connection-title">连接目标</h2><p>从当前任务的可用实例中选择</p></div></div>
+        <p id="terminal-status" data-state="loading" role="status" aria-live="polite">正在读取最新实例与容器…</p>
+        <div id="terminal-picker" hidden>
+          <label id="terminal-instance-label" for="terminal-instance">实例</label><select id="terminal-instance" class="terminal-select"></select>
+          <label id="terminal-container-label" for="terminal-container">容器</label><select id="terminal-container" class="terminal-select"></select>
+          <a id="terminal-open" class="button primary" rel="noreferrer">进入 Terminal <span aria-hidden="true">↗</span></a>
+        </div>
+        <div class="actions"><a id="terminal-back" class="button"><span aria-hidden="true">←</span> 返回监控</a><button id="terminal-retry" class="button" type="button" hidden>重新读取</button></div>
+      </section>
+    </main>
+    <footer class="terminal-footer">iLab Server Monitor<span>Web Terminal · 云控制台会话</span></footer>
+  </body>
+</html>

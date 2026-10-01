@@ -14,6 +14,8 @@ from .collector import Collector
 from .auth import connect_browser, AuthRequired
 from .acp_actions import ACPManager, ActionError
 from .task_logs import TaskLogs
+from .cci_terminal import CCITerminal
+from .acp_terminal import ACPTerminal
 from .storage import StorageManager
 from .task_history import TaskHistory
 from .normalize import task_console_url
@@ -31,6 +33,8 @@ class SiteRuntime:
     site: object = MAOSHANWANG
     storage: object = None
     task_history: object = None
+    terminal: object = None
+    acp_terminal: object = None
 
 
 def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=None):
@@ -45,6 +49,8 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
                 instance=Monitor(store,Collector(site),renew=partial(connect_browser,site=site))
                 runtimes[site.id]=SiteRuntime(instance,ACPManager(store,site=site),TaskLogs(site=site),site)
     for runtime in runtimes.values():
+        if runtime.terminal is None:runtime.terminal=CCITerminal(runtime.site)
+        if runtime.acp_terminal is None:runtime.acp_terminal=ACPTerminal(runtime.site)
         if runtime.storage is None:runtime.storage=StorageManager(runtime.site)
         if runtime.task_history is None:runtime.task_history=TaskHistory(runtime.monitor.store,runtime.site)
     def current_site(request: Request):
@@ -99,11 +105,15 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     async def index():
         return FileResponse(ROOT/'static/index.html')
 
+    @app.get('/terminal')
+    async def terminal_page():
+        return FileResponse(ROOT/'static/terminal.html')
+
     @app.get('/api/state')
     async def state(runtime=Depends(current_site)):
         snapshot=copy.deepcopy(runtime.monitor.state)
         snapshot["site"]={"id":runtime.site.id,"console":runtime.site.console,"workspace":runtime.site.workspace}
-        for task in snapshot['tasks']:
+        for task in snapshot['tasks']+snapshot.get('waiting_tasks',[]):
             task['url']=task_console_url(task,runtime.site)
             task.pop('series',None)
             task.pop('uid',None)
@@ -154,6 +164,14 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     async def log_targets(task_id: str=Query(max_length=100),runtime=Depends(current_site)):
         return await perform(lambda:runtime.logs.targets(task_id))
 
+    @app.get('/api/cci/terminal-targets')
+    async def terminal_targets(task_id: str=Query(max_length=100),runtime=Depends(current_site)):
+        return await perform(lambda:runtime.terminal.targets(task_id))
+
+    @app.get('/api/acp/terminal-targets')
+    async def acp_terminal_targets(task_id: str=Query(max_length=100),runtime=Depends(current_site)):
+        return await perform(lambda:runtime.acp_terminal.targets(task_id))
+
     @app.get('/api/logs')
     async def task_logs(task_id: str=Query(max_length=100),worker: str=Query(min_length=1,max_length=253),
                         container: str=Query(min_length=1,max_length=253),tail: int=Query(default=1000,ge=1,le=1000),runtime=Depends(current_site)):
@@ -180,6 +198,17 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         async def run():
             data=await action_body(request,('task_id','revision','command'))
             return await runtime.actions.restart_preview(data)
+        return await perform(run)
+
+    @app.get('/api/acp/release-restart-options')
+    async def acp_release_restart_options(task_id: str=Query(max_length=100),runtime=Depends(current_site)):
+        return await perform(lambda:runtime.actions.restart_options(task_id,release=True))
+
+    @app.post('/api/acp/release-restart-preview')
+    async def acp_release_restart_preview(request:Request,runtime=Depends(current_site)):
+        async def run():
+            data=await action_body(request,('task_id','revision','command'))
+            return await runtime.actions.restart_preview(data,release=True)
         return await perform(run)
 
     @app.post('/api/acp/create')

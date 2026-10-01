@@ -128,14 +128,14 @@
           <pre id="logs-output" class="logs-output" tabindex="0" aria-label="任务日志纯文本"></pre>
           <p id="logs-status" class="logs-status" role="status">选择任务查看日志</p>
         </div>
-        <div class="detail-task-actions"><span id="detail-action-note"></span><button id="acp-stop-selected" class="button button-danger" type="button" hidden>停止此 ACP 任务</button></div>
+        <div class="detail-task-actions"><span id="detail-action-note"></span><div class="detail-task-buttons"><a id="cci-terminal-selected" class="button button-secondary" target="_blank" rel="noopener noreferrer" hidden>进入 Terminal ↗</a><button id="acp-release-restart-selected" class="button button-secondary" type="button" hidden>释放重启</button><button id="acp-stop-selected" class="button button-danger" type="button" hidden>停止此 ACP 任务</button></div></div>
         <div class="chart-footer"><p id="history-note">单位 % · 四类指标独立展示，保留各 Worker 来源；虚线区分同一指标的不同 Worker。</p></div>
       </section>
       </div>
       <section id="waiting-section" class="section-block cluster-panel waiting-panel workspace-view" data-page="waiting" hidden>
         <div class="section-heading"><div><h2>CCI / ACP 等待与启动队列<span class="count-badge" id="waiting-count">—</span></h2><p>当前工作空间所有用户的等待与启动任务，不按名称或账号过滤</p><p id="waiting-summary">CCI 未知 · ACP 未知</p></div></div>
         <div id="waiting-notice" class="inventory-notice" role="status" hidden></div>
-        <div class="table-scroll"><table class="resource-table waiting-table"><thead><tr><th scope="col">任务 / ID</th><th scope="col">类型</th><th scope="col">提交者</th><th scope="col">集群</th><th scope="col">状态</th><th scope="col">GPU / 副本</th><th scope="col">创建 / 观测时间</th><th scope="col">操作</th></tr></thead><tbody id="waiting-body"><tr><td colspan="8" class="table-empty">正在读取等待任务…</td></tr></tbody></table></div>
+        <div class="table-scroll" role="region" aria-label="等待任务，可滚动查看" tabindex="0"><table class="resource-table waiting-table"><thead><tr><th scope="col">任务 / ID</th><th scope="col">类型</th><th scope="col">提交者</th><th scope="col">集群</th><th scope="col">状态</th><th scope="col">GPU / 副本</th><th scope="col">创建 / 观测时间</th><th scope="col">操作</th></tr></thead><tbody id="waiting-body"><tr><td colspan="8" class="table-empty">正在读取等待任务…</td></tr></tbody></table></div>
         <div class="table-note">任务运行或结束后退出队列；只有 charles 的运行任务进入监控区。其他用户及 CCI 队列仅供查看，此处不采集监控曲线。</div>
       </section>
       <section id="storage-section" class="section-block cluster-panel workspace-view" data-page="storage" hidden>
@@ -148,19 +148,26 @@
         <div class="table-note">只读查看，容量每 60 秒刷新，挂载记录后台补齐并缓存 5 分钟。容量为整个共享存储卷的用量，非 charles 独占用量；按 1000 进制展示 GB / TB。挂载记录包含历史任务，按服务类型和路径保留最新一条；无记录不代表存储卷未使用。“—” 表示未知。</div>
       </section>
       <section id="task-history-section" class="section-block cluster-panel workspace-view" data-page="history" hidden>
-        <div class="section-heading"><div><h2>任务历史 <span id="task-history-count" class="count-badge">—</span></h2><p>charles 的 CCI / ACP 已结束任务</p></div><button id="task-history-refresh" class="button button-secondary" type="button">刷新历史</button></div>
-        <div class="task-history-filters"><label>任务类型<select id="task-history-kind"><option value="">全部类型</option><option value="ACP">ACP</option><option value="CCI">CCI</option></select></label><label>状态<select id="task-history-state"><option value="">全部状态</option><option value="succeeded">成功</option><option value="failed">失败</option><option value="stopped">已停止</option></select></label><label class="task-history-search">搜索<input id="task-history-search" type="search" placeholder="任务名称、ID 或集群" autocomplete="off"></label></div>
+        <div class="section-heading"><div><div class="history-eyebrow">TASK ARCHIVE</div><h2>任务历史 <span id="task-history-count" class="count-badge">—</span></h2><p>回顾 charles 的 CCI / ACP 任务，查看运行结果与资源配置</p></div><button id="task-history-refresh" class="button button-secondary" type="button"><span aria-hidden="true">↻</span> 刷新历史</button></div>
+        <div class="history-summary" aria-label="当前站点已读取历史任务统计">
+          <div class="history-stat"><span>已读取任务</span><strong id="history-total">—</strong><small>当前站点 · 已加载记录</small></div>
+          <div class="history-stat succeeded"><span><i aria-hidden="true"></i>成功</span><strong id="history-succeeded">—</strong><small>平台最终状态</small></div>
+          <div class="history-stat failed"><span><i aria-hidden="true"></i>失败</span><strong id="history-failed">—</strong><small>平台最终状态</small></div>
+          <div class="history-stat stopped"><span><i aria-hidden="true"></i>已停止</span><strong id="history-stopped">—</strong><small>有运行依据的记录</small></div>
+        </div>
+        <div class="task-history-filters"><label class="task-history-search">搜索任务<span class="history-search-control"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input id="task-history-search" type="search" placeholder="搜索任务名称、ID 或集群…" autocomplete="off"></span></label><label>任务类型<select id="task-history-kind" class="history-select"><option value="">全部类型</option><option value="ACP">ACP</option><option value="CCI">CCI</option></select></label><label>任务状态<select id="task-history-state" class="history-select"><option value="">全部状态</option><option value="succeeded">成功</option><option value="failed">失败</option><option value="stopped">已停止</option></select></label><button id="task-history-reset" type="button" class="button button-secondary" hidden>清除筛选</button></div>
         <p id="task-history-status" role="status" aria-live="polite">进入页面后读取任务历史</p>
         <div id="task-history-warning" class="inventory-notice" role="status" hidden></div>
-        <div class="table-scroll" role="region" aria-label="任务历史，可横向滚动" tabindex="0"><table class="resource-table task-history-table"><thead><tr><th scope="col">任务名称 / ID</th><th scope="col">类型 / 状态</th><th scope="col">集群 / 资源</th><th scope="col">创建 / 开始时间</th><th scope="col">结束时间 / 运行时长</th><th scope="col">操作</th></tr></thead><tbody id="task-history-body"><tr><td colspan="6" class="table-empty">等待读取任务历史</td></tr></tbody></table></div>
-        <div class="task-history-pagination"><label>每页<select id="task-history-size"><option value="20">20 条</option><option value="50">50 条</option><option value="100">100 条</option></select></label><span id="task-history-page">第 1 / 1 页</span><button id="task-history-prev" class="button button-secondary" type="button" disabled>上一页</button><button id="task-history-next" class="button button-secondary" type="button" disabled>下一页</button></div>
+        <div class="table-scroll" role="region" aria-label="任务历史，可横向滚动" tabindex="0"><table class="resource-table task-history-table"><thead><tr><th scope="col">任务名称 / ID</th><th scope="col">状态</th><th scope="col">集群 / 资源</th><th scope="col">创建 / 开始时间</th><th scope="col">结束时间 / 运行时长</th><th scope="col">操作</th></tr></thead><tbody id="task-history-body"><tr><td colspan="6" class="table-empty">等待读取任务历史</td></tr></tbody></table></div>
+        <div class="task-history-pagination"><label>每页<select id="task-history-size" class="history-select"><option value="20">20 条</option><option value="50">50 条</option><option value="100">100 条</option></select></label><span id="task-history-page">第 1 / 1 页</span><button id="task-history-prev" class="button button-secondary" type="button" disabled>上一页</button><button id="task-history-next" class="button button-secondary" type="button" disabled>下一页</button></div>
+        <p id="task-history-excluded" class="history-excluded" hidden></p>
         <p id="task-history-filter-note" class="table-note">已停止任务仅保留有实际开始时间或本机曾观测到运行的记录。没有运行依据的旧 CCI 任务暂不列入；成功、失败按平台最终状态显示。不展示历史曲线。</p>
       </section>
       <footer class="page-footer"><span>iLab Server Monitor<span class="footer-divider">/</span>运行监控：charles · 等待队列：所有用户</span><span>本地历史保留 7 天 · 60 秒采样</span></footer>
     </main>
     <dialog id="acp-restart-dialog" class="acp-dialog" aria-labelledby="acp-restart-title">
       <h2 id="acp-restart-title">重新启动 ACP 任务</h2>
-      <p class="acp-helper">沿用原任务名称、集群、资源、镜像和 AFS 配置，提交一个新任务，原历史记录保留。可在下方修改启动命令。</p>
+      <p id="acp-restart-description" class="acp-helper">沿用原任务名称、集群、资源、镜像和 AFS 配置，提交一个新任务，原历史记录保留。可在下方修改启动命令。</p>
       <dl id="acp-restart-details" class="acp-preview-details"></dl>
       <label for="acp-restart-command">启动命令</label>
       <textarea id="acp-restart-command" class="restart-command" rows="10" maxlength="65536" spellcheck="false" autocomplete="off" disabled></textarea>

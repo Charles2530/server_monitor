@@ -44,11 +44,16 @@ class Store:
         result['result']=json.loads(result['result']) if result['result'] else None
         return result
 
-    def begin_operation(self,key,kind,target,display_name):
+    def release_operation(self,target):
+        with self.connect() as db:
+            row=db.execute("SELECT key FROM operations WHERE kind='release_restart' AND target=? AND status!='failed' LIMIT 1",(target,)).fetchone()
+        return self.operation(row[0]) if row else None
+
+    def begin_operation(self,key,kind,target,display_name,result=None):
         import time
         with self.connect() as db:
-            cursor=db.execute('INSERT OR IGNORE INTO operations(key,kind,target,display_name,status,created) VALUES (?,?,?,?,?,?)',
-                              (key,kind,target,display_name,'pending',time.time()))
+            cursor=db.execute('INSERT OR IGNORE INTO operations(key,kind,target,display_name,status,created,result) VALUES (?,?,?,?,?,?,?)',
+                              (key,kind,target,display_name,'pending',time.time(),json.dumps(result,ensure_ascii=False) if result else None))
             return cursor.rowcount==1
 
     def finish_operation(self,key,status,result=None,error=None):

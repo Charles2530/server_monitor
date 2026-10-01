@@ -55,7 +55,7 @@
             byId("acp-preview-details").replaceChildren();
             pair(byId("acp-preview-details"), "恢复的创建请求", saved.preview_id);
           }
-          message("acp-create-message", "上次创建结果未知，已恢复原请求。核对会复用同一次请求，不会生成新的创建配置。");
+          message("acp-create-message", "上次提交结果未知，已恢复原请求。核对会复用同一次请求；若为释放重启，会在核实新任务后继续原任务的释放步骤，不会重复创建。");
         } else {
           state.stop = saved;
           byId("acp-stop-target").replaceChildren();
@@ -127,7 +127,7 @@
           resources_unavailable: "可用集群或资源规格暂时无法确认，请稍后重新预览。", source_unavailable: "云端数据暂不可用，请检查连接后重试。",
           target_mismatch: "任务身份或名称已变化，请刷新列表后重新核对。", state_changed: "任务状态已变化，当前无法停止，请刷新列表。",
           request_conflict: "该请求标识已有其他用途，请刷新并核对操作结果。", cloud_rejected: "云平台拒绝了本次操作，请核对资源和任务配置。", auth_required: "云会话已失效或没有操作权限，请重新连接。",
-          restart_state_changed: "任务已不处于结束状态，请刷新历史后重试。",
+          restart_state_changed: "任务状态已变化，请刷新列表。释放重启仅支持运行中的任务；历史重启仅支持已结束任务。",
           restart_source_changed: "原任务配置已变化，请关闭并重新打开重新启动窗口。",
           restart_resources_unavailable: "原集群或原资源规格已不可用，请到创建 ACP 任务页面选择新资源。",
           partition_unavailable: "AFS 分区或模板已变化，请重新读取分区配置。",
@@ -137,7 +137,8 @@
           not_connected: "请先连接云会话，再重新预览。", template_not_found: "未找到可用模板，请重新读取配置。",
           task_not_found: "任务已不在可操作列表中，请刷新后核对。", task_not_stoppable: "任务当前状态不支持停止，请刷新后核对。",
         };
-        throw Object.assign(new Error(codes[data.code] || "请求未完成，请刷新状态并核对任务配置或连接情况。"), { code: data.code, unknown: mutating && (response.status >= 500 || /unknown|uncertain|in_progress/i.test(data.code || "")), outcomeDetail: data.code === "outcome_unknown" && typeof data.error === "string" ? data.error : "" });
+        const releaseError = ["release_incomplete", "release_failed", "release_already_requested", "release_replacement_ended"].includes(data.code);
+        throw Object.assign(new Error(releaseError && typeof data.error === "string" ? data.error : codes[data.code] || "请求未完成，请刷新状态并核对任务配置或连接情况。"), { code: data.code, unknown: mutating && (response.status >= 500 || /unknown|uncertain|in_progress|release_incomplete/i.test(data.code || "")), outcomeDetail: (data.code === "outcome_unknown" || releaseError) && typeof data.error === "string" ? data.error : "" });
       }
       return data;
     } catch (error) {
@@ -250,10 +251,17 @@
 
   function renderSelected() {
     const task = state.selected, button = byId("acp-stop-selected");
+    const terminal = byId("cci-terminal-selected");
+    terminal.hidden = !(["CCI", "ACP"].includes(task?.kind) && task.state === "running" && task.name?.toLowerCase().includes("charles"));
+    terminal.removeAttribute("href");
+    if (!terminal.hidden) terminal.href = `/terminal?${new URLSearchParams({ site: window.MonitorSite?.id || "maoshanwang", task_id: task.id })}`;
+    const releaseButton = byId("acp-release-restart-selected");
+    releaseButton.hidden = !(task?.kind === "ACP" && task.can_stop && task.state === "running" && task.name?.toLowerCase().includes("charles"));
+    releaseButton.disabled = !fresh() || state.creating || state.createUnknown || state.stopping || state.stopUnknown || state.storageError;
     button.hidden = !(task?.kind === "ACP" && task.can_stop);
-    button.disabled = !fresh() || state.stopping || state.stopUnknown || state.storageError;
+    button.disabled = !fresh() || state.creating || state.stopping || state.stopUnknown || state.storageError;
     byId("acp-stop-confirm").disabled = state.stopping || state.storageError || !stopFresh(state.stop?.task_id);
-    byId("detail-action-note").textContent = task?.kind === "CCI" ? "CCI 任务仅提供只读监控" : task?.kind === "ACP" ? fresh() ? "ACP 支持停止；点击后需再次确认任务身份" : "当前为旧数据或连接不可用；成功采集后可停止任务" : "";
+    byId("detail-action-note").textContent = task?.kind === "CCI" ? "CCI 支持监控与 Web Terminal；点击后进入云控制台终端" : task?.kind === "ACP" ? fresh() ? "ACP 支持 Web Terminal、释放重启和停止；操作前需确认任务身份" : "当前为旧数据或连接不可用；成功采集后可操作任务" : "";
   }
 
   function openStop(task) {
@@ -299,6 +307,16 @@
         button.addEventListener("click", () => openStop(task));
         action.append(button);
       } else action.textContent = "只读";
+      try {
+        const url = new URL(task.url);
+        const origin = window.MonitorSite?.id === "sensecore" ? "https://console.sensecore.cn" : "https://console.ms-sc-01.maoshanwangtech.com";
+        if (url.origin === origin && !url.username && !url.password) {
+          const link = element("a", "text-link", "跳转任务 ↗"), linkRow = element("div");
+          link.href = url.href; link.target = "_blank"; link.rel = "noopener noreferrer";
+          link.setAttribute("aria-label", `跳转至任务 ${task.name || task.id}`);
+          linkRow.append(link); action.append(linkRow);
+        }
+      } catch { /* Missing or untrusted task URLs have no navigation link. */ }
       row.append(action);
       fragment.append(row);
     }
@@ -379,7 +397,7 @@
 
   function showCreatePreview(data, displayName) {
       state.preview = data;
-      byId("acp-create-title").textContent = data.restart ? "确认重新启动 ACP 任务" : "确认创建 ACP 任务";
+      byId("acp-create-title").textContent = data.release_restart ? "确认释放重启 ACP 任务" : data.restart ? "确认重新启动 ACP 任务" : "确认创建 ACP 任务";
       const details = byId("acp-preview-details"); details.replaceChildren();
       pair(details, "云站点", window.MonitorSite?.id || "maoshanwang");
       pair(details, "任务名称", displayName);
@@ -387,7 +405,8 @@
       if (partitioned) {
         pair(details, "AFS 分区", data.partition?.name || state.options?.partition?.name || "—");
       }
-      if (data.restart) pair(details, "重新启动方式", "提交新任务，保留原任务记录；名称与原任务相同，任务 ID 不同。");
+      if (data.restart) pair(details, "重新启动方式", data.release_restart ? "先以相同名称、集群和配置提交新任务（新 ID），核实云端已接收后再停止原任务。" : "提交新任务，保留原任务记录；名称与原任务相同，任务 ID 不同。");
+      if (data.release_restart) pair(details, "随后释放的原任务", `${data.template.name} · ${data.template.id}`);
       renderTemplateConfig(details, data.template_config);
       pair(details, data.selection_mode === "manual" ? "指定集群" : "自动选择的集群", `${data.cluster.name} · ${data.cluster.id}`);
       pair(details, "GPU 总量", `${data.replicas} 副本 × ${data.gpus_per_replica} GPU = ${data.total_gpus} 张`);
@@ -397,7 +416,7 @@
       pair(details, "预览有效期至", date(data.expires_at));
       message("acp-create-message", "");
       byId("acp-create-confirm").disabled = false;
-      byId("acp-create-confirm").textContent = data.restart ? "确认重新启动" : "确认创建";
+      byId("acp-create-confirm").textContent = data.release_restart ? "确认提交新任务并释放原任务" : data.restart ? "确认重新启动" : "确认创建";
       byId("acp-create-cancel").disabled = false;
       byId("acp-create-cancel").textContent = "返回修改";
       createDialog.showModal();
@@ -411,6 +430,11 @@
   }
   document.addEventListener("acp-restart", async (event) => {
     if (restartBlocked()) { if (state.createUnknown) createDialog.showModal(); return; }
+    const release = event.detail.release === true;
+    if (release && (state.stopping || state.stopUnknown || !fresh())) return;
+    byId("acp-restart-title").textContent = release ? "释放重启 ACP 任务" : "重新启动 ACP 任务";
+    byId("acp-restart-description").textContent = release ? "沿用原名称、集群、资源、镜像和 AFS，先提交新任务，确认云端接收后再停止原任务。请编辑启动命令后预览确认。" : "沿用原任务名称、集群、资源、镜像和 AFS 配置，提交一个新任务，原历史记录保留。可在下方修改启动命令。";
+    byId("acp-restart-preview").textContent = release ? "预览释放重启" : "预览重新启动";
     const serial = ++restartSerial; restartSource = null;
     restartCommand.value = ""; restartCommand.disabled = true;
     byId("acp-restart-preview").disabled = true; byId("acp-restart-restore").disabled = true;
@@ -418,7 +442,7 @@
     pair(details, "原任务", `${event.detail.name} · ${event.detail.id}`);
     message("acp-restart-message", "正在读取原任务配置…"); restartDialog.showModal();
     try {
-      const data = await request(`/api/acp/restart-options?task_id=${encodeURIComponent(event.detail.id)}`);
+      const data = await request(`/api/acp/${release ? "release-restart" : "restart"}-options?task_id=${encodeURIComponent(event.detail.id)}`);
       if (serial !== restartSerial || !restartDialog.open) return;
       restartSource = data;
       restartCommand.value = data.command; restartCommand.disabled = false;
@@ -439,7 +463,7 @@
     restartLoading = true; byId("acp-restart-preview").disabled = true;
     message("acp-restart-message", "正在核对原任务与资源…");
     try {
-      const data = await request("/api/acp/restart-preview", { task_id: source.template.id, revision: source.revision, command: restartCommand.value });
+      const data = await request(`/api/acp/${source.release_restart ? "release-restart" : "restart"}-preview`, { task_id: source.template.id, revision: source.revision, command: restartCommand.value });
       if (serial !== restartSerial || !restartDialog.open || restartBlocked()) return;
       message("acp-restart-message", "可继续修改命令并重新预览。");
       showCreatePreview(data, source.template.name);
@@ -464,13 +488,13 @@
       state.createUnknown = false;
       createDialog.close();
       restartDialog.close();
-      message("acp-message", `已提交创建：${result.name} · ${result.id}。状态：${result.state}。任务列表将在采集后更新。`);
+      message("acp-message", result.release_restart ? `释放重启已提交：新任务 ${result.name} · ${result.id}（${result.state}）；原任务 ${result.original_id}（${result.original_state}）。请等待采集确认启动和资源释放状态。` : `已提交创建：${result.name} · ${result.id}。状态：${result.state}。任务列表将在采集后更新。`);
       state.preview = null;
       refresh();
     } catch (error) {
       state.createUnknown = Boolean(error.unknown || error.conflict || (!remembered && wasUnknown));
       if (!state.createUnknown && remembered) { forget("create", submission); state.preview = null; }
-      const text = state.createUnknown ? `创建结果未知，请勿重新创建新任务。可核对此次请求，或暂时关闭弹窗查看监控；核对会复用同一次请求。${error.outcomeDetail || ""}` : error.message;
+      const text = state.createUnknown ? error.code === "release_incomplete" ? error.outcomeDetail : `创建结果未知，请勿重新创建新任务。可核对此次请求，或暂时关闭弹窗查看监控；核对会复用同一次请求。${error.outcomeDetail || ""}` : error.message;
       message("acp-create-message", text);
       if (state.createUnknown) message("acp-message", text);
     } finally {
@@ -524,6 +548,11 @@
   byId("acp-create-resume").addEventListener("click", () => createDialog.showModal());
   byId("acp-stop-resume").addEventListener("click", () => stopDialog.showModal());
   byId("acp-stop-selected").addEventListener("click", () => openStop(state.selected));
+  byId("acp-release-restart-selected").addEventListener("click", () => {
+    const task = state.selected;
+    if (!task || byId("acp-release-restart-selected").disabled || byId("acp-release-restart-selected").hidden) return;
+    document.dispatchEvent(new CustomEvent("acp-restart", { detail: { id: task.id, name: task.name, release: true } }));
+  });
   byId("acp-options-retry").addEventListener("click", () => options());
   document.addEventListener("monitor-selection", (event) => { state.selected = event.detail; renderSelected(); });
   document.addEventListener("monitor-snapshot", (event) => { state.snapshot = event.detail.snapshot; state.unavailable = event.detail.unavailable; renderWaiting(); renderSelected(); });

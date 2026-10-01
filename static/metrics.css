@@ -19,3 +19,4 @@
   .detail-heading > div:first-child { min-width: 0; }
   .detail-heading h2 { overflow-wrap: anywhere; }
 }
+.detail-task-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; }

@@ -87,6 +87,11 @@ def template_config(raw):
             'afs_mounts':[{k:m.get(k) for k in ('id','zone','mount_path','subdir')} for m in raw.get('mount',[]) if m.get('type')=='PV_AFS']}
 
 
+def restart_revision(raw):
+    config={k:raw.get(k) for k in (*COPY_FIELDS,'roles','resource_pool','framework','fine_tuning_specs','display_name','state')}
+    return hashlib.sha256(json.dumps(config,sort_keys=True).encode()).hexdigest()
+
+
 def build_payload(template,binding,spec,form,name):
     roles=template.get('roles') or []
     if len(roles)!=1 or roles[0].get('name')!='Worker' or not roles[0].get('image_path') or template.get('fine_tuning_specs'):
@@ -113,6 +118,7 @@ class ACPManager:
         self.api="/compute/acp/data/v2"+self.workspace+"/trainingJobs"
         self.store=store;self.transport=transport;self.session_loader=session_loader or ((lambda:load_session(site)) if site else load_session)
         self.reader=Collector(site);self.previews={};self.lock=asyncio.Lock()
+        self.release_lock=asyncio.Lock()
 
     def client(self):
         return httpx.AsyncClient(headers=self.session_loader()['headers'],timeout=25,follow_redirects=False,transport=self.transport)
@@ -265,16 +271,15 @@ class ACPManager:
         self.previews[token]={'expires':now+PREVIEW_TTL,'payload':payload,'preview':preview}
         return copy.deepcopy(preview)
 
-    async def restart_source(self,client,task_id,revision=None):
+    async def restart_source(self,client,task_id,revision=None,release=False):
         name=job_name(task_id)
         if not any(j.get('name')==name and is_charles(j.get('display_name')) for j in await self.own_jobs(client)):
             raise ActionError('没有找到可操作的本人 ACP 任务。','target_mismatch',403)
         raw=await self.detail(client,name)
-        if raw.get('state') not in ('FAILED','SUCCEEDED','SUSPENDED'):
-            raise ActionError('只能重新启动已结束的 ACP 任务，请刷新历史。','restart_state_changed',409)
+        if raw.get('state') not in (('RUNNING',) if release else ('FAILED','SUCCEEDED','SUSPENDED')):
+            raise ActionError('任务状态已变化；释放重启仅支持运行中的任务，历史重启仅支持已结束任务。','restart_state_changed',409)
         # Only configuration and terminal state participate; live timestamps must not invalidate a preview.
-        config={k:raw.get(k) for k in (*COPY_FIELDS,'roles','resource_pool','framework','fine_tuning_specs','display_name','state')}
-        current=hashlib.sha256(json.dumps(config,sort_keys=True).encode()).hexdigest()
+        current=restart_revision(raw)
         if revision is not None and revision!=current:
             raise ActionError('原任务配置已变化，请关闭并重新打开重新启动窗口。','restart_source_changed',409)
         roles=raw.get('roles') or []
@@ -284,19 +289,19 @@ class ACPManager:
         validate_form({'display_name':raw['display_name'],'replicas':1,'gpus_per_replica':1,'command':roles[0].get('startup_script') or ''})
         return raw,current
 
-    async def restart_options(self,task_id):
+    async def restart_options(self,task_id,release=False):
         async with self.client() as client:
-            raw,revision=await self.restart_source(client,task_id)
-        return {'template':public_template(raw),'template_config':template_config(raw),'revision':revision,
+            raw,revision=await self.restart_source(client,task_id,release=release)
+        return {'release_restart':release,'template':public_template(raw),'template_config':template_config(raw),'revision':revision,
                 'command':raw['roles'][0].get('startup_script') or 'sleep inf',
                 'cluster':(raw.get('resource_pool') or {}).get('name'),
                 'replicas':raw['roles'][0]['total_replicas'],'resource_spec':raw['roles'][0]['resource_spec'][0]['name']}
 
-    async def restart_preview(self,data):
+    async def restart_preview(self,data,release=False):
         if not isinstance(data,dict) or set(data)!={'task_id','revision','command'} or not isinstance(data['revision'],str):
             raise ActionError('请重新读取原任务配置。')
         async with self.client() as client:
-            template,revision=await self.restart_source(client,data['task_id'],data['revision'])
+            template,revision=await self.restart_source(client,data['task_id'],data['revision'],release=release)
             pool=template.get('resource_pool') or {}
             if not pool.get('name'):raise ActionError('原任务缺少集群配置。','restart_resources_unavailable',409)
             _,catalog=await self.catalog(client,template=template,cluster_id=pool['name'])
@@ -321,7 +326,7 @@ class ACPManager:
                 'available_vcpu':form['replicas']*spec['cpu']['vcpu_allocatable'],
                 'available_memory_gib':form['replicas']*spec['memory']['allocatable']}
         enough=all(quota[k] is not None and quota[k]>=v for k,v in demand.items())
-        preview={'preview_id':token,'expires_at':iso(now+PREVIEW_TTL),'restart':True,
+        preview={'preview_id':token,'expires_at':iso(now+PREVIEW_TTL),'restart':True,'release_restart':release,
                  'template':public_template(template),'template_config':template_config(template),'selection_mode':'manual',
                  'cluster':{'id':binding['name'],'name':binding.get('display_name') or binding['name']},
                  'replicas':form['replicas'],'gpus_per_replica':form['gpus_per_replica'],'total_gpus':demand['available_gpus'],
@@ -330,8 +335,82 @@ class ACPManager:
         if self.partitioned and afs_partition(template):preview['partition']=public_partition(template)
         self.previews={k:v for k,v in self.previews.items() if v['expires']>now}
         if len(self.previews)>=100:self.previews.pop(next(iter(self.previews)))
-        self.previews[token]={'expires':now+PREVIEW_TTL,'payload':payload,'preview':preview,'restart_source':(data['task_id'],revision)}
+        if release:preview['message']='先按原名称和配置提交新任务；确认新任务已被云端接收后，再停止原任务。资源不足时新任务先排队。'
+        self.previews[token]={'expires':now+PREVIEW_TTL,'payload':payload,'preview':preview,'restart_source':(data['task_id'],revision,release),'release_restart':release}
         return copy.deepcopy(preview)
+
+    async def release_restart(self,preview_id):
+        # Serialize this two-step workflow separately; each child write uses the existing durable idempotency guards.
+        async with self.release_lock:
+            record=self.store.operation(preview_id)
+            prepared=self.previews.get(preview_id)
+            if record:
+                if record['kind']!='release_restart':raise ActionError('请求标识已用于其他操作。','request_conflict',409)
+                if record['status']=='succeeded':return record['result']
+                if record['status']=='failed':raise ActionError(record['error'],'release_failed',409)
+                context=record['result']
+            else:
+                if not prepared or prepared['expires']<time.time():raise ActionError('预览已过期，请重新预览。','preview_expired',409)
+                source_id,revision,_=prepared['restart_source'];source_name=job_name(source_id)
+                if self.store.release_operation(source_name):
+                    raise ActionError('原任务已有释放重启请求，请先核对该请求或云端任务，不能重复提交。','release_already_requested',409)
+                context={'source_id':source_id,'revision':revision,'display_name':prepared['payload']['display_name'],
+                         'create_key':uuid.uuid5(uuid.UUID(preview_id),'replacement').hex,
+                         'stop_key':str(uuid.uuid5(uuid.UUID(preview_id),'release-original')),
+                         'new_id':'ACP:'+prepared['payload']['name'],'stage':'creating'}
+                self.store.begin_operation(preview_id,'release_restart',source_name,context['display_name'],result=context)
+            create_key=context['create_key']
+            if not self.store.operation(create_key):
+                if not prepared or prepared['expires']<time.time():
+                    text='新任务尚未提交，原任务未释放。预览已失效，请重新预览。'
+                    self.store.finish_operation(preview_id,'failed',result=context,error=text)
+                    raise ActionError(text,'release_failed',409)
+                self.previews[create_key]={**prepared,'release_restart':False}
+            try:
+                replacement=await self.create(create_key)
+            except Exception as exc:
+                child=self.store.operation(create_key)
+                if not child or child['status']=='failed':
+                    text='新任务未能提交，未停止原任务。请核对配置后重新预览。'
+                    self.store.finish_operation(preview_id,'failed',result=context,error=text)
+                    raise ActionError(text,'release_failed',409) from None
+                text='新任务 '+context['new_id']+' 的提交结果尚未确认，未发送原任务停止请求。请核对此次请求，不要重新创建。'
+                self.store.finish_operation(preview_id,'pending',result=context,error=text)
+                raise ActionError(text,'outcome_unknown',409) from None
+            context['stage']='replacement_created'
+            self.store.finish_operation(preview_id,'pending',result=context)
+            try:
+                async with self.client() as client:
+                    new=await self.detail(client,job_name(context['new_id']))
+                    original=await self.detail(client,job_name(context['source_id']))
+                if new['display_name']!=context['display_name'] or original['display_name']!=context['display_name']:
+                    raise ActionError('任务名称已变化，请在控制台核对两个任务。')
+                released=original.get('state') in ('SUSPENDING','SUSPENDED','FAILED','SUCCEEDED')
+                stop_record=self.store.operation(context['stop_key'])
+                if not released:
+                    if not stop_record:
+                        if new.get('state') in ('FAILED','SUCCEEDED','SUSPENDING','SUSPENDED'):
+                            text='新任务 '+context['new_id']+' 已结束，未停止原任务。请核对新任务日志后重新预览。'
+                            self.store.finish_operation(preview_id,'failed',result=context,error=text)
+                            raise ActionError(text,'release_replacement_ended',409)
+                        if new.get('state') not in STOPPABLE_STATES:
+                            raise ActionError('新任务状态暂不可确认，未停止原任务。')
+                        if restart_revision(original)!=context['revision']:
+                            raise ActionError('原任务配置或状态已变化，未发送停止请求，请在控制台核对。')
+                    stopped=await self.stop(context['source_id'],context['display_name'],context['stop_key'])
+                    original_state=stopped['state']
+                else:original_state=original['state']
+            except Exception as exc:
+                if isinstance(exc,ActionError) and exc.code=='release_replacement_ended':raise
+                detail=str(exc) if isinstance(exc,ActionError) else '云端状态暂不可核实。'
+                text='新任务 '+context['new_id']+' 已提交；原任务 '+context['source_id']+' 的释放尚未确认。'+detail+' 核对此次请求不会重复创建或重复发送停止。'
+                self.store.finish_operation(preview_id,'pending',result=context,error=text)
+                raise ActionError(text,'release_incomplete',409) from None
+            result={**replacement,'state':new.get('state'),'release_restart':True,'original_id':context['source_id'],
+                    'original_state':original_state,'message':'新任务已提交，原任务已结束或停止请求已被接收；请等待采集更新。'}
+            self.store.finish_operation(preview_id,'succeeded',result=result)
+            self.previews.pop(preview_id,None)
+            return result
 
     async def write_once(self,client,path,body=None,params=None):
         try:
@@ -362,6 +441,9 @@ class ACPManager:
 
     async def create(self,preview_id):
         if not isinstance(preview_id,str) or not re.fullmatch('[a-f0-9]{32}',preview_id):raise ActionError('无效的创建预览。')
+        old=self.store.operation(preview_id)
+        if (old and old['kind']=='release_restart') or (not old and self.previews.get(preview_id,{}).get('release_restart')):
+            return await self.release_restart(preview_id)
         async with self.lock:
             old=self.store.operation(preview_id)
             if old:return await self.previous_result(old,'create')

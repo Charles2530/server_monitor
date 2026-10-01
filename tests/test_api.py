@@ -79,3 +79,53 @@ def test_restart_routes_validate_readonly_preparation_and_preview(tmp_path):
         assert client.post('/api/acp/restart-preview',json=body,headers=headers).json()['preview_id']=='prepared'
         assert client.post('/api/acp/restart-preview',json={**body,'payload':{}},headers=headers).status_code==400
         assert client.post('/api/acp/restart-preview',json=body,headers={**headers,'Origin':'https://evil.test'}).status_code==403
+
+
+def test_release_restart_routes_require_explicit_mode_and_same_origin(tmp_path):
+    class Actions:
+        async def restart_options(self,task_id,release=False):return {'release_restart':release,'task_id':task_id}
+        async def restart_preview(self,data,release=False):return {'release_restart':release,'preview_id':'p'}
+    monitor=Monitor(Store(tmp_path/'db'),None)
+    with TestClient(create_app(monitor,background=False,actions=Actions()),base_url='http://localhost:8765') as client:
+        assert client.get('/api/acp/release-restart-options?task_id=ACP:old').json()['release_restart'] is True
+        assert client.get('/api/acp/restart-options?task_id=ACP:old').json()['release_restart'] is False
+        form={'task_id':'ACP:old','revision':'r','command':'python retry.py'}
+        endpoint='/api/acp/release-restart-preview';headers={'X-Monitor-Request':'1'}
+        assert client.post(endpoint,json=form).status_code==403
+        assert client.post(endpoint,json=form,headers=headers).json()['release_restart'] is True
+        assert client.post(endpoint,json=form,headers={**headers,'Origin':'https://evil.test'}).status_code==403
+        assert client.post(endpoint,json={**form,'release':False},headers=headers).status_code==400
+
+
+def test_cci_terminal_route_is_read_only_no_store_and_sanitizes_errors(tmp_path):
+    class Terminal:
+        async def targets(self,task_id):
+            if task_id=='CCI:bad':raise RuntimeError('PRIVATE_TOKEN')
+            return {'task_id':task_id,'targets':[],'site':'maoshanwang'}
+    monitor=Monitor(Store(tmp_path/'db'),None)
+    app=create_app(monitor,background=False)
+    app.state.runtimes['maoshanwang'].terminal=Terminal()
+    with TestClient(app,base_url='http://localhost:8766') as client:
+        assert client.get('/terminal?site=maoshanwang&task_id=CCI:app').status_code==200
+        response=client.get('/api/cci/terminal-targets?task_id=CCI:app')
+        assert response.json()['targets']==[] and response.headers['cache-control']=='no-store'
+        assert client.get('/api/cci/terminal-targets?task_id='+('x'*101)).status_code==422
+        assert client.get('/api/cci/terminal-targets?task_id=CCI:app',headers={'Origin':'https://evil.test'}).status_code==403
+        response=client.get('/api/cci/terminal-targets?task_id=CCI:bad')
+        assert response.status_code==503 and 'PRIVATE' not in response.text
+
+
+def test_acp_terminal_route_is_read_only_and_no_store(tmp_path):
+    class Terminal:
+        async def targets(self,task_id):
+            if task_id=='ACP:bad':raise RuntimeError('PRIVATE_TOKEN')
+            return {'task_id':task_id,'targets':[],'site':'maoshanwang'}
+    app=create_app(Monitor(Store(tmp_path/'db'),None),background=False)
+    app.state.runtimes['maoshanwang'].acp_terminal=Terminal()
+    with TestClient(app,base_url='http://localhost:8766') as client:
+        response=client.get('/api/acp/terminal-targets?task_id=ACP:app')
+        assert response.json()['task_id']=='ACP:app' and response.headers['cache-control']=='no-store'
+        assert client.get('/api/acp/terminal-targets?task_id='+('x'*101)).status_code==422
+        assert client.get('/api/acp/terminal-targets?task_id=ACP:app',headers={'Origin':'https://evil.test'}).status_code==403
+        response=client.get('/api/acp/terminal-targets?task_id=ACP:bad')
+        assert response.status_code==503 and 'PRIVATE' not in response.text

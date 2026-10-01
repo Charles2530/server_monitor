@@ -18,6 +18,11 @@
     const kind = $("task-history-kind").value, status = $("task-history-state").value;
     const rows = snapshot.tasks.filter(t => (!kind || t.kind === kind) && (!status || t.status === status)
       && (!query || [t.name, t.id, t.cluster].join(" ").toLowerCase().includes(query)));
+    $("task-history-reset").hidden = !query && !kind && !status;
+    $("history-total").textContent = snapshot.tasks.length.toLocaleString("zh-CN");
+    for (const value of ["succeeded", "failed", "stopped"]) {
+      $(`history-${value}`).textContent = snapshot.tasks.filter(t => t.status === value).length.toLocaleString("zh-CN");
+    }
     const size = Number($("task-history-size").value), pages = Math.max(1, Math.ceil(rows.length / size));
     page = Math.min(page, pages);
     $("task-history-count").textContent = `${rows.length} / ${snapshot.tasks.length}`;
@@ -31,12 +36,15 @@
     }
     for (const task of rows.slice((page - 1) * size, page * size)) {
       const row = node("tr"), identity = node("td"), state = node("td"), resources = node("td"), created = node("td"), ended = node("td"), action = node("td");
-      identity.append(node("strong", task.name), node("small", task.id));
-      state.append(node("span", task.kind), node("span", task.status_label, `history-state ${["succeeded", "failed", "stopped"].includes(task.status) ? task.status : ""}`));
-      resources.append(node("span", task.cluster || "—"), node("small", `${task.gpu_count ?? "—"} GPU · ${task.replicas ?? "—"} 副本`));
+      const identityText = node("div", undefined, "history-identity-text"), identityGroup = node("div", undefined, "history-identity");
+      identityText.append(node("strong", task.name || task.id), node("small", task.id, "history-task-id"));
+      identityGroup.append(node("span", task.kind || "—", `history-service ${task.kind === "ACP" ? "acp" : "cci"}`), identityText);
+      identity.append(identityGroup);
+      state.append(node("span", task.status_label, `history-state ${["succeeded", "failed", "stopped"].includes(task.status) ? task.status : ""}`));
+      resources.append(node("span", task.cluster || "—", "history-cluster"), node("small", `${task.gpu_count ?? "—"} GPU · ${task.replicas ?? "—"} 副本`, "history-resources"));
       created.append(node("span", date(task.created_at)), node("small", `开始 ${date(task.started_at)}`));
       if (!task.started_at && task.run_evidence === "observed") created.append(node("small", "本机曾观测到运行"));
-      ended.append(node("span", date(task.ended_at)), node("small", `运行 ${duration(task.duration_seconds)}`));
+      ended.append(node("span", date(task.ended_at)), node("small", `运行 ${duration(task.duration_seconds)}`, "history-duration"));
       if (!task.ended_at) ended.append(node("small", `最近更新 ${date(task.updated_at)}`));
       try {
         const url = new URL(task.url), origin = site.id === "sensecore" ? "https://console.sensecore.cn" : "https://console.ms-sc-01.maoshanwangtech.com";
@@ -49,13 +57,20 @@
         restart.addEventListener("click", () => document.dispatchEvent(new CustomEvent("acp-restart", { detail: { id: task.id, name: task.name } })));
         action.append(restart);
       }
-      row.append(identity, state, resources, created, ended, action); body.append(row);
+      const cells = [identity, state, resources, created, ended, action];
+      const labels = ["任务", "状态", "集群 / 资源", "创建 / 开始时间", "结束时间 / 运行时长", "操作"];
+      cells.forEach((cell, i) => { cell.dataset.label = labels[i]; });
+      row.append(...cells); body.append(row);
     }
     const sources = Object.entries(snapshot.source_status || {}).map(([kind, s]) => `${kind} ${s.status === "error" ? "读取失败 · " : ""}${date(s.updated_at)}`).join("；");
     $("task-history-status").textContent = `${snapshot.loading ? "正在更新，已取得的结果先显示" : "历史读取完成"} · ${sources}`;
     const excluded = snapshot.filtered_stopped || {};
-    const warnings = [...(snapshot.warnings || []), `已过滤无运行依据的已停止任务：ACP ${excluded.ACP || 0} 条、CCI ${excluded.CCI || 0} 条${snapshot.loading ? "（统计中）" : ""}。`];
-    $("task-history-warning").hidden = false; $("task-history-warning").textContent = warnings.join(" ");
+    $("task-history-excluded").hidden = false;
+    $("task-history-excluded").textContent = `已过滤无运行依据的已停止任务：ACP ${excluded.ACP || 0} 条、CCI ${excluded.CCI || 0} 条${snapshot.loading ? "（统计中）" : ""}。`;
+    const warnings = [...(snapshot.warnings || [])];
+    const failedSources = Object.entries(snapshot.source_status || {}).filter(([, source]) => source.status === "error").map(([kind]) => kind);
+    if (failedSources.length && !warnings.length) warnings.unshift(`${failedSources.join(" / ")} 历史读取失败，当前结果可能不完整。`);
+    $("task-history-warning").hidden = !warnings.length; $("task-history-warning").textContent = warnings.join(" ");
   }
   async function refresh() {
     if (!active || controller) return;
@@ -86,6 +101,10 @@
     else { serial += 1; controller?.abort(); controller = null; $("task-history-refresh").disabled = false; }
   }
   for (const id of ["task-history-search", "task-history-kind", "task-history-state", "task-history-size"]) $(id).addEventListener("input", () => { page = 1; render(); });
+  $("task-history-reset").addEventListener("click", () => {
+    for (const id of ["task-history-search", "task-history-kind", "task-history-state"]) $(id).value = "";
+    page = 1; render(); $("task-history-search").focus();
+  });
   $("task-history-prev").addEventListener("click", () => { page -= 1; render(); });
   $("task-history-next").addEventListener("click", () => { page += 1; render(); });
   $("task-history-refresh").addEventListener("click", refresh);
