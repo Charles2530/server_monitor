@@ -408,3 +408,11 @@ Python 依赖版本由 `requirements.lock` 锁定，主要依赖为 FastAPI、Uv
 - 不提供短信 / 邮件告警，也不根据 GPU 利用率或训练日志自动停止任务。
 - 不支持 CCI 创建 / 停止、不支持删除云任务，不支持任意多角色模板复制。
 - 运行状态不等于训练成功，资源快照不等于预留承诺；实际调度与最终任务状态以云平台为准。
+
+## Android 手机客户端（可选原型）
+
+新增单 APK 客户端与独立 macOS 手机网关，复用原监控后台。手机内嵌 tsnet，首次网络登录和设备配对后，经私有 HTTPS 访问常开 Mac。支持本机审批/撤销、读写权限及主机隔离；不自动开放公网入口。
+
+部署、构建、真机验收与接手 AI 指令见 [手机客户端与 Mac 部署交接](docs/手机客户端与Mac部署交接-1001-1705.md)。Android 工程在 `mobile/android`，构建入口为 `./mobile/build_android.sh`；网关部署入口为 `.venv/bin/python scripts/mobile_host.py install`。先更新主监控，再安装可选网关。
+
+当前已通过代码测试和 APK 构建，实际手机跨网连接仍需按交接文档验收。APK、配对数据、Android SDK 与签名文件不随 Git 同步。

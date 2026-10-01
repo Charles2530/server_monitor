@@ -1,0 +1,26 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.charles.monitor'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.charles.monitor'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '0.1.0-prototype'
+        ndk { abiFilters 'arm64-v8a' }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    buildTypes {
+        release { minifyEnabled false }
+    }
+}
+dependencies {
+    implementation files('libs/monitor-tunnel.aar')
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+    testImplementation 'junit:junit:4.13.2'
+}

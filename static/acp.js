@@ -137,8 +137,9 @@
           not_connected: "请先连接云会话，再重新预览。", template_not_found: "未找到可用模板，请重新读取配置。",
           task_not_found: "任务已不在可操作列表中，请刷新后核对。", task_not_stoppable: "任务当前状态不支持停止，请刷新后核对。",
         };
+        const mobileBlocked = ["mobile_auth_required", "mobile_access_denied", "mobile_connection_required"].includes(data.code);
         const releaseError = ["release_incomplete", "release_failed", "release_already_requested", "release_replacement_ended"].includes(data.code);
-        throw Object.assign(new Error(releaseError && typeof data.error === "string" ? data.error : codes[data.code] || "请求未完成，请刷新状态并核对任务配置或连接情况。"), { code: data.code, unknown: mutating && (response.status >= 500 || /unknown|uncertain|in_progress|release_incomplete/i.test(data.code || "")), outcomeDetail: (data.code === "outcome_unknown" || releaseError) && typeof data.error === "string" ? data.error : "" });
+        throw Object.assign(new Error((releaseError || mobileBlocked) && typeof data.error === "string" ? data.error : codes[data.code] || "请求未完成，请刷新状态并核对任务配置或连接情况。"), { code: data.code, mobileBlocked, unknown: mutating && (response.status >= 500 || /unknown|uncertain|in_progress|release_incomplete/i.test(data.code || "")), outcomeDetail: (data.code === "outcome_unknown" || releaseError || mobileBlocked) && typeof data.error === "string" ? data.error : "" });
       }
       return data;
     } catch (error) {
@@ -492,7 +493,7 @@
       state.preview = null;
       refresh();
     } catch (error) {
-      state.createUnknown = Boolean(error.unknown || error.conflict || (!remembered && wasUnknown));
+      state.createUnknown = Boolean(error.unknown || error.conflict || (wasUnknown && (!remembered || error.mobileBlocked)));
       if (!state.createUnknown && remembered) { forget("create", submission); state.preview = null; }
       const text = state.createUnknown ? error.code === "release_incomplete" ? error.outcomeDetail : `创建结果未知，请勿重新创建新任务。可核对此次请求，或暂时关闭弹窗查看监控；核对会复用同一次请求。${error.outcomeDetail || ""}` : error.message;
       message("acp-create-message", text);
@@ -526,7 +527,7 @@
       message("acp-message", `已提交停止：${result.name} · ${result.id}。请等待采集确认最终状态。`);
       refresh();
     } catch (error) {
-      state.stopUnknown = Boolean(error.unknown || error.conflict || (!remembered && wasUnknown));
+      state.stopUnknown = Boolean(error.unknown || error.conflict || (wasUnknown && (!remembered || error.mobileBlocked)));
       if (!state.stopUnknown && remembered) forget("stop", submission);
       const text = state.stopUnknown ? `停止结果未知。请核对本次停止请求，勿另行重复操作；核对会复用同一次请求。${error.outcomeDetail || ""}` : error.message;
       message("acp-stop-message", text);

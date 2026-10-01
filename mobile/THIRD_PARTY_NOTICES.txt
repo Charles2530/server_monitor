@@ -1,0 +1,14 @@
+Charles Monitor Android prototype dependency references
+
+Tailscale v1.102.5: BSD-3-Clause, https://github.com/tailscale/tailscale/blob/v1.102.5/LICENSE
+Go mobile: BSD-3-Clause, https://go.googlesource.com/mobile/+/refs/heads/master/LICENSE
+Go toolchain: BSD-3-Clause, https://go.dev/LICENSE
+Gradle wrapper: Apache-2.0, https://github.com/gradle/gradle/blob/v8.11.1/LICENSE
+ZXing Android Embedded 4.3.0: Apache-2.0, https://github.com/journeyapps/zxing-android-embedded/blob/v4.3.0/COPYING
+Python qrcode 8.2: BSD, https://github.com/lincolnloop/python-qrcode
+
+Pinned Go transitive dependencies are listed in mobile/tunnel/go.mod and go.sum.
+Android dependencies are resolved by mobile/android/app/build.gradle.
+For distribution beyond this personal prototype, bundle all dependency license texts
+from the exact resolved build, including transitive libraries; this reference list
+is not a replacement for those license texts.
