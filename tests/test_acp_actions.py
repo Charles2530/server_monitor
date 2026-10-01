@@ -33,10 +33,22 @@ class Cloud:
                        'state':'ACTIVE','reserved_number':'8','reserved_cpu':'112','reserved_memory':'1920Gi','vpc_id':'vpc'}
                        for n in ('modeltoolchain-test','modeltoolchain','vigen')]
         self.specs=[spec(1),spec(2),spec(4),spec(8)]
+        self.node_reads=[]
+        self.node_free={n:[(8,112,1920)] for n in ('modeltoolchain-test','modeltoolchain')}
         self.writes=[]; self.timeout=False; self.reject=False
     async def __call__(self, request):
         path=request.url.path
         if request.method=='GET':
+            if path.endswith(('/acns','/observe')):
+                from tests.test_inventory import allocation_node, observation
+                name=path.split('/aec2s/')[1].split('/')[0]
+                self.node_reads.append(name)
+                free=self.node_free.get(name)
+                if free is None:return httpx.Response(403,json={})
+                nodes=[allocation_node(str(i)) for i in range(len(free))]
+                if path.endswith('/acns'):
+                    return httpx.Response(200,json={'acns':nodes,'total_size':len(nodes),'next_page_token':''})
+                return httpx.Response(200,json={'observations':{'acns':[observation(str(i),*v) for i,v in enumerate(free)]},'total_size':len(nodes),'next_page_token':''})
             if path.endswith('/trainingJobsOwn'):
                 return httpx.Response(200,json={'training_jobs':self.jobs,'next_page_token':''})
             if path.endswith('/workspaceAEC2Bindings'):
@@ -92,6 +104,49 @@ async def test_capacity_checks_cpu_memory_priority_and_queue(setup):
     c.bindings[2]['reserved_number']='0'
     p=await m.preview(data)
     assert p['will_queue'] and p['cluster']['name']=='modeltoolchain_test' and p['command']=='sleep inf'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('free', [[(4,56,960),(4,56,960)], [(8,48,1664)], [(8,112,100)], None])
+async def test_fragmented_or_unknown_nodes_skip_priority_cluster(setup,free):
+    m,c,_=setup;c.node_free['modeltoolchain-test']=free
+    p=await m.preview({'display_name':'charles_eight','replicas':1,'gpus_per_replica':8,'command':''})
+    assert p['cluster']['id']=='modeltoolchain' and not p['will_queue']
+    assert p['capacity_checks'][0]['node_check']['status'] in ('insufficient','unknown')
+    assert 'vigen' not in c.node_reads and not c.writes
+
+
+@pytest.mark.asyncio
+async def test_node_slots_use_replica_size_not_total_cards(setup):
+    m,c,_=setup;c.node_free['modeltoolchain-test']=[(4,56,960),(4,56,960)]
+    p=await m.preview({'display_name':'charles_split','replicas':2,'gpus_per_replica':4,'command':''})
+    assert p['cluster']['id']=='modeltoolchain-test' and not p['will_queue']
+    assert p['capacity_checks'][0]['node_check']['replica_slots']==2
+
+
+@pytest.mark.asyncio
+async def test_no_node_fit_queues_and_manual_selection_stays_fixed(setup):
+    m,c,_=setup
+    c.node_free={n:[(4,56,960),(4,56,960)] for n in c.node_free}
+    form={'display_name':'charles_queue','replicas':1,'gpus_per_replica':8,'command':''}
+    p=await m.preview(form)
+    assert p['cluster']['id']=='vigen' and not p['will_queue']
+    assert p['capacity_checks'][-1]['node_check']['status']=='not_checked'
+    c.bindings[2]['reserved_number']='0'
+    p=await m.preview(form)
+    assert p['cluster']['id']=='modeltoolchain-test' and p['will_queue']
+    p=await m.preview({**form,'cluster_id':'modeltoolchain'})
+    assert p['cluster']['id']=='modeltoolchain' and p['will_queue']
+    assert len(p['capacity_checks'])==1 and not c.writes
+
+
+@pytest.mark.asyncio
+async def test_restart_checks_nodes_but_keeps_original_cluster(setup):
+    m,c,_=setup;c.node_free['modeltoolchain-test']=[(0,112,1920)]
+    options=await m.restart_options('ACP:pt-template')
+    p=await m.restart_preview({'task_id':'ACP:pt-template','revision':options['revision'],'command':''})
+    assert p['cluster']['id']=='modeltoolchain-test' and p['will_queue']
+    assert p['capacity_checks'][0]['node_check']['status']=='insufficient' and not c.writes
 
 
 @pytest.mark.asyncio

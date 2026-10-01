@@ -22,7 +22,8 @@ async def main():
     state = dict(status='ok', connected=True, updated_at=now, tasks=[task],
                  waiting_tasks=[dict(task, id=f'ACP:waiting-{i}', state='WAIT_QUOTA', state_label='等待配额', owner='test-submitter', observed_at=now) for i in range(4)],
                  clusters=[dict(name='modeltoolchain_test', available_gpus=12, available_vcpu=128, available_memory_gib=4096,
-                                updated_at=now, inventory=dict(total_gpus=160, node_count=20, disabled_nodes=0, abnormal_nodes=0, updated_at=now))],
+                                updated_at=now, inventory=dict(total_gpus=160, node_count=20, disabled_nodes=0, abnormal_nodes=0, updated_at=now,
+                                    allocation=dict(status='ok',idle_gpu_groups=[dict(gpus_per_node=8,nodes=2)],updated_at=now)))],
                  source_status={k: {'status': 'ok', 'updated_at': now} for k in ('CCI', 'ACP', 'CCI_queue', 'ACP_queue')})
 
     async def api(route):
@@ -78,6 +79,8 @@ async def main():
                         assert await page.locator(body).evaluate('e => e.closest(".table-scroll").scrollWidth <= e.closest(".table-scroll").clientWidth + 1'), (width, route_name, 'table overflow')
                         assert await page.locator(body).evaluate('e => e.getBoundingClientRect().bottom <= e.closest(".cluster-panel").getBoundingClientRect().bottom'), (width, route_name, 'last card is clipped')
                         assert await page.locator(body + ' td[data-label]').count() > 0, 'Cards retain field labels'
+                    if route_name == 'overview':
+                        await expect(page.locator('#cluster-body')).to_contain_text('整组空闲 GPU：8 卡 × 2 组')
                     if width == 393:
                         await page.screenshot(path=str(ROOT / f'data/mobile-ui-{route_name}.png'), full_page=True)
                     if route_name == 'history':
@@ -116,6 +119,17 @@ async def main():
             assert await page.locator('.sidebar nav').evaluate('e => getComputedStyle(e).position') != 'fixed'
             assert await page.locator('#cluster-body').evaluate('e => getComputedStyle(e).display') == 'table-row-group'
             await page.screenshot(path=str(ROOT / 'data/mobile-ui-desktop.png'), full_page=True)
+            state['clusters'][0]['inventory_error']='节点状态采集失败；保留旧值'
+            await page.reload(wait_until='networkidle')
+            await expect(page.locator('#cluster-body')).to_contain_text('整组空闲 GPU：未知')
+            await expect(page.locator('#cluster-body')).not_to_contain_text('8 卡 × 2 组')
+            state['clusters'][0].pop('inventory_error')
+            state['clusters'][0]['inventory']['allocation']['idle_gpu_groups']=[]
+            await page.reload(wait_until='networkidle')
+            await expect(page.locator('#cluster-body')).to_contain_text('整组空闲 GPU：0 组')
+            state['clusters'][0]['inventory']['allocation']['status']='unknown'
+            await page.reload(wait_until='networkidle')
+            await expect(page.locator('#cluster-body')).to_contain_text('整组空闲 GPU：未知')
             assert not errors, errors
             await browser.close()
             print('Mobile UI passed: six routes, bottom navigation, labeled cards, long content, detail navigation, desktop preservation; no cloud writes.')

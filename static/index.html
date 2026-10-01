@@ -70,7 +70,7 @@
         <div id="inventory-notice" class="inventory-notice" role="status" hidden></div>
         <p class="table-scroll-hint">横向滚动查看全部指标 <span aria-hidden="true">↔</span></p>
         <div class="table-scroll" role="region" aria-label="标准集群资源，可横向滚动" tabindex="0"><table class="resource-table"><thead><tr><th scope="col">集群</th><th scope="col">总 GPU <span>张</span></th><th scope="col">可用 GPU <span>张</span></th><th scope="col">可用 vCPU <span>核</span></th><th scope="col">可用内存 <span>GiB</span></th><th scope="col">节点健康</th><th scope="col">采集时间</th></tr></thead><tbody id="cluster-body"><tr><td colspan="7" class="table-empty">正在读取集群资源…</td></tr></tbody></table></div>
-        <div class="table-note"><span class="note-dot"></span>总 GPU 为已接入集群所有关联节点的规格卡数之和，包含异常及禁用节点；可用资源来自工作空间标准配额，两者不相减估算占用。“—” 表示未知或未接入。</div>
+        <div class="table-note"><span class="note-dot"></span>总 GPU 含异常及禁用节点，可用资源来自工作空间标准配额。整组空闲 GPU 表示健康、启用且可调度节点的全部 GPU 均未分配（如 8 卡 × 2 组）；CPU、内存仍需满足任务要求。节点余量与工作空间配额独立，不相减估算占用。“—” 表示未知或未接入。</div>
       </section>
 
       <div class="overview-panels">

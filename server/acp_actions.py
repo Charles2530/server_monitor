@@ -14,6 +14,7 @@ from .config import SERVICES, WORKSPACE
 from .normalize import iso, cluster_from_raw
 from .domain import finite_number
 from .acp_states import is_charles, STOPPABLE_STATES
+from .inventory import read_inventory, allocation_fit, TARGET_CLUSTERS, INVENTORY_TIMEOUT_SECONDS
 
 PRIORITY = ('modeltoolchain-test','modeltoolchain','vigen')
 API = '/compute/acp/data/v2'+WORKSPACE+'/trainingJobs'
@@ -233,6 +234,16 @@ class ACPManager:
                              'gpu_options':sorted({int(s['device']['number']) for s in specs})} for b,specs in catalog],
                 'cluster_order':[b.get('display_name') or b['name'] for b,_ in automatic],'updated_at':iso(time.time())}
 
+    async def node_check(self,client,binding,spec,replicas):
+        if (self.site and self.site.id!='maoshanwang') or binding['name'] not in TARGET_CLUSTERS:
+            return {'status':'not_checked','replica_slots':None,'message':'未检查节点分配，按集群总配额判断。'}
+        try:
+            inventory=await asyncio.wait_for(read_inventory(self.reader.request,client,binding,time.time(),
+                include_allocation=True),timeout=INVENTORY_TIMEOUT_SECONDS)
+            return allocation_fit(inventory['allocation'],spec,replicas)
+        except Exception:
+            return allocation_fit({'status':'unknown'},spec,replicas)
+
     async def preview(self,data):
         form=validate_form(data)
         cluster_id=form.get('cluster_id','')
@@ -255,17 +266,24 @@ class ACPManager:
             enough=all(quota[k] is not None and quota[k]>=v for k,v in demand.items())
             candidates.append((binding,spec,enough))
         if not candidates:raise ActionError('当前集群不支持所选的每副本卡数。','resources_unavailable',409)
+        async with self.client() as client:
+            node_checks=await asyncio.gather(*(self.node_check(client,b,s,form['replicas']) for b,s,_ in candidates))
+        checks=[{'cluster_id':b['name'],'cluster_name':b.get('display_name') or b['name'],
+                 'quota_sufficient':enough,'node_check':check} for (b,s,enough),check in zip(candidates,node_checks)]
+        candidates=[(b,s,enough and check['status'] in ('sufficient','not_checked'))
+                    for (b,s,enough),check in zip(candidates,node_checks)]
         binding,spec,enough=next((c for c in candidates if c[2]),candidates[0])
         token=uuid.uuid4().hex;now=time.time();name='cm-'+token[:24]
         payload=build_payload(template,binding,spec,form,name)
         preview={**({'partition':public_partition(template)} if self.partitioned else {}),
                  'preview_id':token,'expires_at':iso(now+PREVIEW_TTL),'template_config':template_config(template),'template':public_template(template),
                  'selection_mode':'manual' if cluster_id else 'auto',
+                 'capacity_checks':checks,
                  'cluster':{'id':binding['name'],'name':binding.get('display_name') or binding['name']},
                  'replicas':form['replicas'],'gpus_per_replica':form['gpus_per_replica'],
                  'total_gpus':form['replicas']*form['gpus_per_replica'],'vcpu_per_replica':spec['cpu']['vcpu_allocatable'],
                  'memory_gib_per_replica':spec['memory']['allocatable'],'command':form['command'],'will_queue':not enough,
-                 'message':'当前配额不足或未知，将提交并等待调度。' if not enough else '当前配额充足；实际启动时间取决于调度，余量变化时自动排队。'}
+                 'message':'当前配额或单节点资源不足 / 未知，将提交并等待调度。' if not enough else '已通过当前资源检查；实际启动时间取决于调度，余量变化时自动排队。'}
         self.previews={k:v for k,v in self.previews.items() if v['expires']>now}
         if len(self.previews)>=100:self.previews.pop(next(iter(self.previews)))
         self.previews[token]={'expires':now+PREVIEW_TTL,'payload':payload,'preview':preview}
@@ -326,7 +344,13 @@ class ACPManager:
                 'available_vcpu':form['replicas']*spec['cpu']['vcpu_allocatable'],
                 'available_memory_gib':form['replicas']*spec['memory']['allocatable']}
         enough=all(quota[k] is not None and quota[k]>=v for k,v in demand.items())
+        async with self.client() as client:
+            check=await self.node_check(client,binding,spec,form['replicas'])
+        checks=[{'cluster_id':binding['name'],'cluster_name':binding.get('display_name') or binding['name'],
+                 'quota_sufficient':enough,'node_check':check}]
+        enough=enough and check['status'] in ('sufficient','not_checked')
         preview={'preview_id':token,'expires_at':iso(now+PREVIEW_TTL),'restart':True,'release_restart':release,
+                 'capacity_checks':checks,
                  'template':public_template(template),'template_config':template_config(template),'selection_mode':'manual',
                  'cluster':{'id':binding['name'],'name':binding.get('display_name') or binding['name']},
                  'replicas':form['replicas'],'gpus_per_replica':form['gpus_per_replica'],'total_gpus':demand['available_gpus'],

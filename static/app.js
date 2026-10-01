@@ -239,6 +239,7 @@
       const inventory = cluster.inventory;
       if (cluster.inventory_error) notices.push(`${cluster.name}：${cluster.inventory_error}`);
       else if (known(inventory?.abnormal_nodes) && inventory.abnormal_nodes > 0) notices.push(`${cluster.name}：${count(inventory.abnormal_nodes)} 个异常节点，涉及 ${count(inventory.abnormal_node_gpus)} 张 GPU`);
+      if (inventory?.allocation?.error && !cluster.inventory_error) notices.push(`${cluster.name}：${inventory.allocation.error}`);
       const row = element("tr"), nameCell = element("td"), name = element("div", "cluster-name-cell");
       name.append(element("span", "cluster-dot"), document.createTextNode(cluster.name || cluster.id));
       nameCell.append(name);
@@ -251,6 +252,13 @@
       for (const key of ["available_gpus", "available_vcpu", "available_memory_gib"]) {
         const cell = element("td");
         cell.append(element("span", `resource-value${key === "available_gpus" ? " gpu-value" : ""}`, count(cluster[key])));
+        if (key === "available_gpus" && inventory?.allocation) {
+          const allocation = inventory.allocation;
+          const fresh = !cluster.inventory_error && allocation.status === "ok";
+          const groups = fresh && Array.isArray(allocation.idle_gpu_groups) ? allocation.idle_gpu_groups : null;
+          const text = groups ? groups.length ? groups.map(group => `${count(group.gpus_per_node)} 卡 × ${count(group.nodes)} 组`).join(" · ") : "0 组" : "未知";
+          cell.append(element("small", groups ? "inventory-caption" : "inventory-warning", `整组空闲 GPU：${text}`));
+        }
         row.append(cell);
       }
       const health = element("td", "node-health");

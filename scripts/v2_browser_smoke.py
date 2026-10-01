@@ -67,6 +67,8 @@ async def main():
                 await asyncio.sleep(1.2)
             assert set(body) == {"display_name", "replicas", "gpus_per_replica", "command", "cluster_id"}
             data = {**body, "preview_id": "preview-stable-1", "expires_at": "2099-01-01T00:00:00Z", "template": {"id": "template-1", "name": "charles template"}, "selection_mode": "manual" if body["cluster_id"] else "auto", "cluster": {"id": body["cluster_id"] or "cluster-1", "name": body["cluster_id"] or "modeltoolchain-test"}, "total_gpus": body["replicas"] * body["gpus_per_replica"], "vcpu_per_replica": 12, "memory_gib_per_replica": 96, "command": body["command"] or "sleep inf", "will_queue": True, "message": "当前资源不足，将进入队列。"}
+            data['capacity_checks']=[{'cluster_id':'modeltoolchain-test','cluster_name':'modeltoolchain_test',
+                'quota_sufficient':True,'node_check':{'status':'insufficient','message':'节点 GPU / CPU / 内存可容纳 0 个副本，需要 1 个副本。'}}]
         elif path == "acp/create":
             assert body == {"preview_id": "preview-stable-1"}
             assert await request.frame.evaluate("key => JSON.parse(localStorage.getItem(key))", CREATE_KEY) == body, "persist identity before create"
@@ -119,6 +121,7 @@ async def main():
             await page.locator("#acp-preview-button").click()
             await expect(page.locator("#acp-create-dialog")).to_be_visible()
             await expect(page.locator("#acp-preview-details")).to_contain_text("指定集群")
+            await expect(page.locator("#acp-preview-details")).to_contain_text("节点 GPU / CPU / 内存可容纳 0 个副本")
             assert [body for path,body in calls if path == "acp/preview"][-1]["cluster_id"] == "vigen"
             await page.locator("#acp-create-cancel").click()
             await page.locator("#acp-cluster").select_option("")

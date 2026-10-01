@@ -412,6 +412,11 @@
       pair(details, data.selection_mode === "manual" ? "指定集群" : "自动选择的集群", `${data.cluster.name} · ${data.cluster.id}`);
       pair(details, "GPU 总量", `${data.replicas} 副本 × ${data.gpus_per_replica} GPU = ${data.total_gpus} 张`);
       pair(details, "每副本实际资源", `${data.vcpu_per_replica} vCPU · ${data.memory_gib_per_replica} GiB 内存`);
+      if (data.capacity_checks?.some(check => check.node_check?.status !== "not_checked")) {
+        for (const check of data.capacity_checks) {
+          pair(details, `${check.cluster_name} 资源检查`, `${check.quota_sufficient ? "总配额充足" : "总配额不足 / 未知"}；${check.node_check?.message || "节点资源未知"}`);
+        }
+      }
       pair(details, "调度预期", `${data.will_queue ? "将排队" : "按当前可用资源提交"} · ${data.message || "实际调度以云端状态为准。"}`);
       pair(details, "最终启动命令", data.command, true);
       pair(details, "预览有效期至", date(data.expires_at));
