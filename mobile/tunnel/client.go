@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,6 +40,11 @@ func NewClient(stateDir, hostname string) (*Client, error) {
 	}
 	if err := os.MkdirAll(stateDir, 0700); err != nil {
 		return nil, err
+	}
+	if runtime.GOOS == "android" {
+		if err := configureAndroidLogs(stateDir); err != nil {
+			return nil, err
+		}
 	}
 	network := &tsnet.Server{Dir: stateDir, Hostname: hostname, UserLogf: func(string, ...any) {}, Logf: func(string, ...any) {}}
 	client := network.HTTPClient()

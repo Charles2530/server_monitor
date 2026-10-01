@@ -3,6 +3,8 @@ package com.charles.monitor;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -67,9 +69,17 @@ public class MainActivity extends Activity {
                     insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom()); return insets;
         });
         setContentView(root); showForm();
+        message("正在启动网络模块…");
+        startNetwork();
+    }
+
+    private void startNetwork() {
+        if(tunnel!=null){checkStatus(true);return;}
         run(() -> {
             tunnel = ((MonitorApplication)getApplication()).client();
+            ((MonitorApplication)getApplication()).diagnostics.stage("读取本机配对配置");
             String saved = vault.load(); if (saved != null) device = new JSONObject(saved);
+            ((MonitorApplication)getApplication()).diagnostics.stage("启动完成");
             post(() -> { message("网络模块已启动，请首次登录 Tailscale。"); checkStatus(true); });
         });
     }
@@ -90,8 +100,10 @@ public class MainActivity extends Activity {
         text("Charles 云监控", 25);
         text("连接另一台常开 Mac · 首次登录网络并配对", 14);
         status = text("正在启动…", 15);
+        button("查看 / 复制诊断信息", () -> showDiagnostics());
+        button("启动 / 重试连接", () -> startNetwork());
         button("首次登录 Tailscale", () -> {
-            if (tunnel == null) return;
+            if (tunnel == null) {message("网络模块尚未启动，请点击“启动 / 重试连接”。");return;}
             run(() -> { tunnel.login(); ui.postDelayed(() -> checkStatus(true),100); });
         });
         button("打开网络授权页面", () -> {
@@ -113,12 +125,25 @@ public class MainActivity extends Activity {
     }
 
     private interface Work { void execute() throws Exception; }
+    private void showDiagnostics() {
+        String report=((MonitorApplication)getApplication()).diagnostics.report();
+        TextView details=new TextView(this);details.setText(report);details.setTextIsSelectable(true);details.setPadding(24,16,24,16);
+        ScrollView scroll=new ScrollView(this);scroll.addView(details);
+        new AlertDialog.Builder(this).setTitle("本机启动诊断").setView(scroll)
+                .setNegativeButton("关闭",null).setPositiveButton("复制诊断",(dialog,which) -> {
+                    ((ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("启动诊断",report));
+                    message("诊断信息已复制，可以粘贴到聊天中。");
+                }).show();
+    }
     private void run(Work action) {
         if (busy || destroyed) return;
         busy = true; for (Button b : actions) b.setEnabled(false);
         worker.execute(() -> {
             try { if (!destroyed) action.execute(); }
-            catch (Exception e) { post(() -> message(e.getMessage() == null ? "连接失败，请重试。" : e.getMessage())); }
+            catch (Exception | LinkageError e) {
+                ((MonitorApplication)getApplication()).diagnostics.failure(e);
+                post(() -> message("启动或连接失败："+e.getClass().getSimpleName()+"。请点击“查看 / 复制诊断信息”。"));
+            }
             finally { post(() -> { busy = false; for (Button b : actions) b.setEnabled(true); }); }
         });
     }
