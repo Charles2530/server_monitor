@@ -27,3 +27,6 @@ node_modules/
 /mobile/tunnel/build/
 *.jks
 *.keystore
+
+# AppleDouble metadata generated on external ExFAT volumes.
+._*
