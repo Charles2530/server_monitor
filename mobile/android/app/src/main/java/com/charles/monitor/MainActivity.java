@@ -3,14 +3,20 @@ package com.charles.monitor;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.text.InputType;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
@@ -44,7 +50,13 @@ public class MainActivity extends Activity {
     private CredentialVault vault;
     private JSONObject device;
     private LinearLayout root, form;
-    private TextView status;
+    private static final int GREEN = Color.rgb(25, 75, 58);
+    private static final int INK = Color.rgb(29, 48, 40);
+    private static final int MUTED = Color.rgb(96, 116, 105);
+    private static final int BACKGROUND = Color.rgb(244, 247, 245);
+    private TextView status, savedConnection;
+    private Button resumeConnection;
+    private MobilePageStyle mobilePageStyle;
     private EditText pairing;
     private String localOrigin = "", loginURL = "";
     private boolean busy, resumed;
@@ -60,10 +72,13 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle bundle) {
         super.onCreate(bundle);
-        getWindow().setStatusBarColor(Color.rgb(243,247,245));
+        getWindow().setStatusBarColor(BACKGROUND);
+        getWindow().setNavigationBarColor(BACKGROUND);
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         worker = ((MonitorApplication)getApplication()).worker;
         vault = new CredentialVault(this);
-        root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL);
+        root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(BACKGROUND);
         // Android 15 edge-to-edge: keep controls out of status/navigation bars.
         root.setOnApplyWindowInsetsListener((view, insets) -> {
             view.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
@@ -85,25 +100,78 @@ public class MainActivity extends Activity {
         }, true, () -> checkStatus(true));
     }
 
-    private TextView text(String value, int size) {
-        TextView view = new TextView(this); view.setText(value); view.setTextSize(size);
-        view.setPadding(0,12,0,12); form.addView(view); return view;
+    private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+    private GradientDrawable surface(int fill, int stroke) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(fill); drawable.setCornerRadius(dp(14));
+        if (stroke != 0) drawable.setStroke(dp(1), stroke);
+        return drawable;
     }
-    private Button button(String label, Runnable action) {
-        Button b = new Button(this); b.setText(label); b.setOnClickListener(v -> action.run());
-        form.addView(b); actions.add(b); return b;
+    private TextView text(LinearLayout parent, String value, int size, int color) {
+        TextView view = new TextView(this); view.setText(value); view.setTextSize(size); view.setTextColor(color);
+        view.setPadding(0, dp(5), 0, dp(5)); parent.addView(view); return view;
+    }
+    private Button styledButton(String label, boolean primary, Runnable action) {
+        Button button = new Button(this); button.setText(label); button.setTextSize(15); button.setAllCaps(false);
+        button.setMinHeight(dp(48)); button.setMinimumHeight(dp(48));
+        button.setPadding(dp(16), dp(10), dp(16), dp(10));
+        button.setTextColor(new ColorStateList(new int[][]{new int[]{-android.R.attr.state_enabled}, new int[]{}},
+                new int[]{primary ? Color.rgb(207, 222, 214) : MUTED, primary ? Color.WHITE : GREEN}));
+        button.setBackground(new RippleDrawable(ColorStateList.valueOf(Color.argb(35, 25, 75, 58)),
+                surface(primary ? GREEN : Color.WHITE, primary ? 0 : Color.rgb(212, 225, 217)), null));
+        button.setOnClickListener(v -> action.run());
+        return button;
+    }
+    private Button button(LinearLayout parent, String label, boolean primary, Runnable action) {
+        Button button = styledButton(label, primary, action);
+        LinearLayout.LayoutParams layout = new LinearLayout.LayoutParams(-1, -2); layout.topMargin = dp(8);
+        parent.addView(button, layout); actions.add(button); return button;
+    }
+    private LinearLayout section(String title, String description) {
+        LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(6), dp(14), dp(12));
+        card.setBackground(surface(Color.WHITE, Color.rgb(222, 232, 225)));
+        LinearLayout.LayoutParams layout = new LinearLayout.LayoutParams(-1, -2); layout.topMargin = dp(18);
+        form.addView(card, layout);
+        LinearLayout content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL);
+        content.setVisibility(View.GONE);
+        Button toggle = styledButton(title + "  ＋", false, () -> {});
+        toggle.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        toggle.setBackgroundColor(Color.TRANSPARENT);
+        toggle.setPadding(0, dp(10), 0, dp(10));
+        toggle.setOnClickListener(v -> {
+            boolean expanded = content.getVisibility() != View.VISIBLE;
+            content.setVisibility(expanded ? View.VISIBLE : View.GONE);
+            toggle.setText(title + (expanded ? "  −" : "  ＋"));
+        });
+        card.addView(toggle, new LinearLayout.LayoutParams(-1, -2));
+        text(card, description, 13, MUTED); card.addView(content);
+        return content;
     }
     private void showForm() {
         root.removeAllViews(); actions.clear();
-        ScrollView scroll = new ScrollView(this); form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL); form.setPadding(30,20,30,20);
-        scroll.addView(form); root.addView(scroll);
-        text(getString(R.string.app_name), 25);
-        text("连接另一台常开 Mac · 自动恢复已保存的连接", 14);
-        status = text("正在启动…", 15);
-        button("查看 / 复制诊断信息", () -> showDiagnostics());
-        button("启动 / 重试连接", () -> startNetwork());
-        button("连接 / 登录 Tailscale", () -> {
+        ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
+        form = new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(20), dp(20), dp(20), dp(24));
+        scroll.addView(form, new ScrollView.LayoutParams(-1, -2));
+        root.addView(scroll, new LinearLayout.LayoutParams(-1, -1));
+        text(form, "iLab · 私有监控", 14, GREEN).setTypeface(null, Typeface.BOLD);
+        text(form, getString(R.string.app_name), 28, INK).setTypeface(null, Typeface.BOLD);
+        text(form, "连接常开电脑，随时查看资源与任务", 14, MUTED);
+
+        LinearLayout connection = new LinearLayout(this); connection.setOrientation(LinearLayout.VERTICAL);
+        connection.setPadding(dp(16), dp(12), dp(16), dp(16));
+        connection.setBackground(surface(Color.WHITE, Color.rgb(222, 232, 225)));
+        LinearLayout.LayoutParams cardLayout = new LinearLayout.LayoutParams(-1, -2); cardLayout.topMargin = dp(20);
+        form.addView(connection, cardLayout);
+        savedConnection = text(connection, "正在读取已保存的连接", 17, GREEN);
+        savedConnection.setTypeface(null, Typeface.BOLD);
+        status = text(connection, "正在启动…", 14, MUTED);
+        resumeConnection = button(connection, "启动 / 重试连接", true, () -> {
+            autoOpen = true;
+            if (tunnel != null && device != null) checkStatusAndOpen(); else startNetwork();
+        });
+        button(form, "连接 / 登录 Tailscale", false, () -> {
             if (tunnel == null) {message("网络模块尚未启动，请点击“启动 / 重试连接”。");return;}
             message("正在检查已有网络登录…");
             run(() -> {
@@ -114,29 +182,47 @@ public class MainActivity extends Activity {
                 } else post(() -> message(ConnectionState.networkHint(state)));
             }, true, () -> checkStatus(true));
         });
-        button("打开网络授权页面", () -> {
+
+        LinearLayout pairSection = section("配对监控电脑", "首次使用时展开，扫码或粘贴电脑生成的配对信息。");
+        button(pairSection, "扫描电脑上的配对二维码", false, () -> new IntentIntegrator(this)
+                .setDesiredBarcodeFormats(IntentIntegrator.QR_CODE).setPrompt("扫描监控电脑生成的配对二维码")
+                .setBeepEnabled(false).setOrientationLocked(false).initiateScan());
+        pairing = new EditText(this); pairing.setHint("粘贴电脑生成的配对 JSON");
+        pairing.setTextSize(14); pairing.setTextColor(INK); pairing.setHintTextColor(MUTED);
+        pairing.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        pairing.setGravity(Gravity.TOP | Gravity.START); pairing.setMinLines(3); pairing.setMaxLines(7);
+        pairing.setPadding(dp(12), dp(12), dp(12), dp(12));
+        pairing.setBackground(surface(BACKGROUND, Color.rgb(212, 225, 217)));
+        LinearLayout.LayoutParams inputLayout = new LinearLayout.LayoutParams(-1, -2); inputLayout.topMargin = dp(12);
+        pairSection.addView(pairing, inputLayout);
+        button(pairSection, "配对这台电脑", true, () -> pair(pairing.getText().toString()));
+
+        LinearLayout advanced = section("连接诊断与设置", "检查网络、查看诊断信息，或更换监控电脑。");
+        button(advanced, "启动 / 重试连接", false, () -> startNetwork());
+        button(advanced, "打开网络授权页面", false, () -> {
             if (NavigationPolicy.login(loginURL)) openBrowser(loginURL);
             else message("还没有授权地址，请先点击“连接 / 登录 Tailscale”。");
         });
-        pairing = new EditText(this); pairing.setHint("粘贴电脑生成的配对 JSON，或扫描二维码");
-        pairing.setMinLines(3); pairing.setMaxLines(7); form.addView(pairing);
-        button("扫描电脑上的配对二维码", () -> new IntentIntegrator(this)
-                .setDesiredBarcodeFormats(IntentIntegrator.QR_CODE).setPrompt("扫描监控电脑生成的配对二维码")
-                .setBeepEnabled(false).setOrientationLocked(false).initiateScan());
-        button("配对这台电脑", () -> pair(pairing.getText().toString()));
-        button("检测电脑连接", () -> checkGateway());
-        button("刷新连接 / 审批状态", () -> checkStatus(true));
-        button("进入监控", () -> checkStatusAndOpen());
-        button("更换监控电脑", () -> new AlertDialog.Builder(this).setTitle("更换监控电脑")
+        button(advanced, "检测电脑连接", false, () -> checkGateway());
+        button(advanced, "刷新连接 / 审批状态", false, () -> checkStatus(true));
+        button(advanced, "查看 / 复制诊断信息", false, () -> showDiagnostics());
+        button(advanced, "更换监控电脑", false, () -> new AlertDialog.Builder(this).setTitle("更换监控电脑")
                 .setMessage("请先核对所有结果未知的任务操作。继续会清除手机配对和网页记录；旧电脑上的权限需在旧电脑撤销。")
                 .setNegativeButton("取消", null).setPositiveButton("清除并更换", (d,w) -> forget()).show());
-        text("网络连接使用 Tailscale 官方账号。手机不保存云平台 IAM 密码。Terminal 将在浏览器打开，可能需要官方登录。", 13);
+        TextView privacy = text(form, "网络连接使用 Tailscale 官方账号。手机不保存云平台 IAM 密码。Terminal 将在浏览器打开，可能需要官方登录。", 12, MUTED);
+        privacy.setPadding(0, dp(20), 0, 0);
+        updateSavedConnection();
+    }
+    private void updateSavedConnection() {
+        if (savedConnection == null || resumeConnection == null) return;
+        savedConnection.setText(device == null ? "尚未配对监控电脑" : "已保存电脑配对");
+        resumeConnection.setText(device == null ? "启动 / 重试连接" : "恢复连接并进入监控");
     }
 
     private interface Work { void execute() throws Exception; }
     private void showDiagnostics() {
         String report=((MonitorApplication)getApplication()).diagnostics.report();
-        TextView details=new TextView(this);details.setText(report);details.setTextIsSelectable(true);details.setPadding(24,16,24,16);
+        TextView details=new TextView(this);details.setText(report);details.setTextIsSelectable(true);details.setTextSize(14);details.setPadding(dp(20),dp(16),dp(20),dp(16));
         ScrollView scroll=new ScrollView(this);scroll.addView(details);
         new AlertDialog.Builder(this).setTitle("本机启动诊断").setView(scroll)
                 .setNegativeButton("关闭",null).setPositiveButton("复制诊断",(dialog,which) -> {
@@ -175,7 +261,7 @@ public class MainActivity extends Activity {
         });
     }
     private void post(Runnable action) { ui.post(() -> { if (!destroyed) action.run(); }); }
-    private void message(String value) { if (!destroyed && status != null) status.setText(value); }
+    private void message(String value) { if (!destroyed && status != null) { status.setText(value); updateSavedConnection(); } }
     private void checkStatus(boolean manual) {
         if (tunnel == null || busy) return;
         final boolean[] approved = {false};
@@ -265,8 +351,19 @@ public class MainActivity extends Activity {
         autoOpen=false;
         destroyPages(); root.removeAllViews();
         Uri uri = Uri.parse(start); localOrigin = "http://127.0.0.1:" + uri.getPort();
-        Button back = new Button(this); back.setText("‹ 连接设置 / 更换电脑");
-        back.setOnClickListener(v -> { autoOpen=false; destroyPages(); showForm(); checkStatus(true); }); root.addView(back);
+        actions.clear();
+        LinearLayout toolbar = new LinearLayout(this); toolbar.setGravity(Gravity.CENTER_VERTICAL);
+        toolbar.setPadding(dp(10), 0, dp(12), 0); toolbar.setMinimumHeight(dp(44));
+        Button back = styledButton("‹ 连接设置", false, () -> {
+            autoOpen=false; destroyPages(); showForm(); checkStatus(true);
+        });
+        back.setMinHeight(dp(44)); back.setMinimumHeight(dp(44)); back.setTextSize(13);
+        back.setPadding(dp(8), dp(6), dp(8), dp(6)); back.setBackgroundColor(Color.TRANSPARENT);
+        toolbar.addView(back, new LinearLayout.LayoutParams(-2, -2));
+        TextView connected = new TextView(this); connected.setText("● 私有连接"); connected.setTextColor(GREEN);
+        connected.setTextSize(12); connected.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        toolbar.addView(connected, new LinearLayout.LayoutParams(0, -2, 1));
+        root.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
         WebView web = newWebView(); pages.add(web); root.addView(web,new LinearLayout.LayoutParams(-1,0,1)); web.loadUrl(start);
     }
     private WebView newWebView() {
@@ -276,6 +373,16 @@ public class MainActivity extends Activity {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); settings.setSupportMultipleWindows(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(web,false);
         web.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                if (!MobilePageStyle.monitorDocument(url, localOrigin)) return;
+                try {
+                    if (mobilePageStyle == null) mobilePageStyle = MobilePageStyle.fromAssets(getAssets());
+                    String script = mobilePageStyle.scriptFor(url, localOrigin);
+                    if (script != null) view.evaluateJavascript(script, null);
+                } catch (java.io.IOException error) {
+                    ((MonitorApplication)getApplication()).diagnostics.failure(error);
+                }
+            }
             @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request) {
                 String url=request.getUrl().toString();
                 if (NavigationPolicy.local(url,localOrigin)) return false;

@@ -80,12 +80,8 @@ async def main():
                         if width == 390:
                             scroll = page.get_by_role('region', name='标准集群资源，可横向滚动')
                             await expect(scroll).to_have_attribute('tabindex', '0')
-                            left = await page.locator('#cluster-body td').first.evaluate('e => e.getBoundingClientRect().left')
-                            await scroll.evaluate('e => { e.scrollLeft = 220; }')
-                            assert await scroll.evaluate('e => e.scrollLeft') > 0
-                            pinned_left = await page.locator('#cluster-body td').first.evaluate('e => e.getBoundingClientRect().left')
-                            assert abs(left - pinned_left) < 2, 'Cluster name must stay visible while reading distant columns'
-                            await scroll.evaluate('e => { e.scrollLeft = 0; }')
+                            assert await scroll.evaluate('e => e.scrollWidth <= e.clientWidth + 1'), 'Phone cluster cards should fit without horizontal scrolling'
+                            await expect(page.locator('#cluster-body td').nth(2)).to_have_attribute('data-label', '可用 GPU 张')
                     await expect(page.locator('.workspace-view:visible')).to_have_count(1)
             task['metrics']['gpu'] = 0
             task['metrics']['gpu_memory'] = None
@@ -112,7 +108,7 @@ async def main():
             await expect(page.locator('#overview-task-list')).to_contain_text('暂无运行任务')
             assert not errors, errors
             await browser.close()
-            print('Design passed: eight series on shared time axes, compact legends preserving source names, zero/null integrity, pinned mobile cluster names, snapshot aggregation, four pages at six widths, no JS errors.')
+            print('Design passed: eight series on shared time axes, compact legends preserving source names, zero/null integrity, labeled mobile cluster cards, snapshot aggregation, four pages at six widths, no JS errors.')
     finally:
         server.shutdown()
         server.server_close()
