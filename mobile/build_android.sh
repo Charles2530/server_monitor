@@ -17,8 +17,11 @@ go test ./...
 MOBILE_VERSION='v0.0.0-20260908204917-8b95e45f8d3e'
 go install "golang.org/x/mobile/cmd/gomobile@$MOBILE_VERSION"
 go install "golang.org/x/mobile/cmd/gobind@$MOBILE_VERSION"
-gomobile bind -target android/arm64 -androidapi 26 -javapkg com.charles.monitor.nativebridge -o "$MOBILE_ROOT/android/app/libs/monitor-tunnel.aar" .
+# NDK r27 defaults to 4 KB ELF alignment; ZIP alignment alone is insufficient.
+gomobile bind -target android/arm64 -androidapi 26 -ldflags='-extldflags=-Wl,-z,max-page-size=16384,-z,common-page-size=16384' -javapkg com.charles.monitor.nativebridge -o "$MOBILE_ROOT/android/app/libs/monitor-tunnel.aar" .
 cd "$MOBILE_ROOT/android"
 ./gradlew --no-daemon testDebugUnitTest assembleDebug
+python3 "$MOBILE_ROOT/../scripts/check_android_native.py" "$MOBILE_ROOT/android/app/build/outputs/apk/debug/app-debug.apk"
+"$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 "$MOBILE_ROOT/android/app/build/outputs/apk/debug/app-debug.apk"
 printf '\nAPK: %s\n' "$MOBILE_ROOT/android/app/build/outputs/apk/debug/app-debug.apk"
 printf '这是原型调试包；编译通过不代表跨网连接已经通过真机验收。\n'
