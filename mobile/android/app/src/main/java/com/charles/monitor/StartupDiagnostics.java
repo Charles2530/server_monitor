@@ -66,7 +66,7 @@ final class StartupDiagnostics {
         } catch(Exception error) {return "原生启动日志读取失败："+error.getClass().getSimpleName();}
     }
     String report() {
-        StringBuilder result=new StringBuilder("Charles Monitor\n");
+        StringBuilder result=new StringBuilder("ilab server monitor\n");
         try {result.append("App ").append(context.getPackageManager().getPackageInfo(context.getPackageName(),0).versionName).append('\n');}
         catch(Exception ignored) { }
         result.append(Build.MANUFACTURER).append(' ').append(Build.MODEL)

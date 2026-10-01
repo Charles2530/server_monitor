@@ -1,0 +1,11 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- The website mark from static/favicon.svg, centered within the adaptive icon safe area. -->
+    <group android:scaleX="1.1" android:scaleY="1.1" android:translateX="18.8" android:translateY="18.8">
+        <path android:fillColor="#6EE7CB" android:pathData="M24.5,18A4.5,4.5 0,1 1,15.5 18A4.5,4.5 0,1 1,24.5 18Z" />
+        <path android:fillColor="#F0FDFA" android:pathData="M19,28H21A3,3 0,0 1,24 31V46A3,3 0,0 1,21 49H19A3,3 0,0 1,16 46V31A3,3 0,0 1,19 28Z" />
+        <path android:fillColor="#F0FDFA" android:pathData="M34,15H42V41H53V49H38C35.8,49 34,47.2 34,45V15Z" />
+        <path android:fillColor="#6EE7CB" android:pathData="M47.5,16H49.5A1.5,1.5 0,0 1,51 17.5V19.5A1.5,1.5 0,0 1,49.5 21H47.5A1.5,1.5 0,0 1,46 19.5V17.5A1.5,1.5 0,0 1,47.5 16Z" />
+    </group>
+</vector>

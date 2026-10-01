@@ -49,11 +49,12 @@ public class MainActivity extends Activity {
     private String localOrigin = "", loginURL = "";
     private boolean busy, resumed;
     private volatile boolean destroyed;
-    private boolean autoOpen = true;
+    private boolean autoOpen = true, openLoginWhenReady;
+    private String networkState = "NoState";
     private final Runnable poll = new Runnable() {
         @Override public void run() {
             if (resumed && !busy && pages.isEmpty() && tunnel != null) checkStatus(false);
-            if (resumed) ui.postDelayed(this, 15000);
+            if (resumed) ui.postDelayed(this, "Running".equals(networkState) ? 15000 : 3000);
         }
     };
 
@@ -80,8 +81,8 @@ public class MainActivity extends Activity {
             ((MonitorApplication)getApplication()).diagnostics.stage("读取本机配对配置");
             String saved = vault.load(); if (saved != null) device = new JSONObject(saved);
             ((MonitorApplication)getApplication()).diagnostics.stage("启动完成");
-            post(() -> { message("网络模块已启动，请首次登录 Tailscale。"); checkStatus(true); });
-        });
+            post(() -> message("正在恢复私有网络和已保存的电脑配对…"));
+        }, true, () -> checkStatus(true));
     }
 
     private TextView text(String value, int size) {
@@ -97,18 +98,25 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this); form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL); form.setPadding(30,20,30,20);
         scroll.addView(form); root.addView(scroll);
-        text("Charles 云监控", 25);
-        text("连接另一台常开 Mac · 首次登录网络并配对", 14);
+        text(getString(R.string.app_name), 25);
+        text("连接另一台常开 Mac · 自动恢复已保存的连接", 14);
         status = text("正在启动…", 15);
         button("查看 / 复制诊断信息", () -> showDiagnostics());
         button("启动 / 重试连接", () -> startNetwork());
-        button("首次登录 Tailscale", () -> {
+        button("连接 / 登录 Tailscale", () -> {
             if (tunnel == null) {message("网络模块尚未启动，请点击“启动 / 重试连接”。");return;}
-            run(() -> { tunnel.login(); ui.postDelayed(() -> checkStatus(true),100); });
+            message("正在检查已有网络登录…");
+            run(() -> {
+                String state = new JSONObject(tunnel.status()).optString("state");
+                if (ConnectionState.shouldRequestLogin(state)) {
+                    tunnel.login();
+                    post(() -> {openLoginWhenReady=true;message("正在获取网络授权地址…");});
+                } else post(() -> message(ConnectionState.networkHint(state)));
+            }, true, () -> checkStatus(true));
         });
         button("打开网络授权页面", () -> {
             if (NavigationPolicy.login(loginURL)) openBrowser(loginURL);
-            else message("还没有授权地址，请先点击首次登录，稍后刷新状态。");
+            else message("还没有授权地址，请先点击“连接 / 登录 Tailscale”。");
         });
         pairing = new EditText(this); pairing.setHint("粘贴电脑生成的配对 JSON，或扫描二维码");
         pairing.setMinLines(3); pairing.setMaxLines(7); form.addView(pairing);
@@ -140,10 +148,14 @@ public class MainActivity extends Activity {
         run(action,true);
     }
     private void run(Work action, boolean showErrorDialog) {
+        run(action,showErrorDialog,null);
+    }
+    private void run(Work action, boolean showErrorDialog, Runnable afterSuccess) {
         if (busy || destroyed) return;
         busy = true; for (Button b : actions) b.setEnabled(false);
         worker.execute(() -> {
-            try { if (!destroyed) action.execute(); }
+            boolean succeeded=false;
+            try { if (!destroyed) {action.execute();succeeded=true;} }
             catch (Exception | LinkageError e) {
                 ((MonitorApplication)getApplication()).diagnostics.failure(e);
                 post(() -> {
@@ -153,35 +165,45 @@ public class MainActivity extends Activity {
                         new AlertDialog.Builder(this).setTitle("操作未完成").setMessage(detail).setPositiveButton("知道了",null).show();
                 });
             }
-            finally { post(() -> { busy = false; for (Button b : actions) b.setEnabled(true); }); }
+            finally {
+                final boolean completed=succeeded;
+                post(() -> {
+                    busy = false; for (Button b : actions) b.setEnabled(true);
+                    if(completed && afterSuccess!=null)afterSuccess.run();
+                });
+            }
         });
     }
     private void post(Runnable action) { ui.post(() -> { if (!destroyed) action.run(); }); }
     private void message(String value) { if (!destroyed && status != null) status.setText(value); }
     private void checkStatus(boolean manual) {
         if (tunnel == null || busy) return;
+        final boolean[] approved = {false};
         run(() -> {
             String failure=((MonitorApplication)getApplication()).networkError();
             if(failure!=null)throw new IllegalStateException(failure);
             JSONObject network = new JSONObject(tunnel.status());
             String auth = network.optString("auth_url", ""), state = network.optString("state", "未知");
+            post(() -> { networkState=state;loginURL=auth; });
             JSONObject access = null;
             if (state.equals("Running") && device != null)
                 access = new JSONObject(tunnel.deviceStatus(device.getString("gateway"),device.getString("token")));
             final JSONObject result = access;
+            approved[0] = result != null && "approved".equals(result.optString("state"));
             post(() -> {
-                loginURL = auth;
-                String detail = result == null ? "尚未配对电脑" : result.optString("state").equals("approved")
-                        ? "电脑已连接 · " + (result.optInt("can_write") == 1 ? "可管理任务" : "仅查看")
-                        : "等待电脑批准，设备 ID：" + result.optString("id");
-                message("网络：" + state + "\n" + (device == null
-                        ? (state.equals("Running") ? "网络已连接，请扫描电脑上新生成的配对二维码" : "请先完成 Tailscale 登录，再扫描电脑配对码")
-                        : device.optString("gateway")) + "\n" + detail);
-                if (autoOpen && result != null && result.optString("state").equals("approved")) {
-                    autoOpen = false; ui.postDelayed(() -> checkStatusAndOpen(),100);
+                String detail = ConnectionState.pairingDetail(device != null,
+                        result == null ? null : result.optString("state"),
+                        result != null && result.optInt("can_write") == 1,
+                        result == null ? "" : result.optString("id"));
+                message("网络：" + state + "\n" + ConnectionState.networkHint(state) + "\n" + detail);
+                if ("Running".equals(state)) openLoginWhenReady=false;
+                if (openLoginWhenReady && resumed && NavigationPolicy.login(auth)) {
+                    openLoginWhenReady=false;openBrowser(auth);
                 }
             });
-        },manual);
+        },manual,() -> {
+            if (autoOpen && resumed && approved[0]) checkStatusAndOpen();
+        });
     }
     private void pair(String payload) {
         if (tunnel == null) {message("网络模块尚未启动，请点击“启动 / 重试连接”。");return;}
@@ -189,7 +211,7 @@ public class MainActivity extends Activity {
         message("正在检查网络并申请电脑配对…");
         run(() -> {
             if (!new JSONObject(tunnel.status()).optString("state").equals("Running"))
-                throw new IllegalStateException("请先完成 Tailscale 设备授权，返回 App 刷新至 Running 后再配对。可点击“首次登录 Tailscale”和“打开网络授权页面”。");
+                throw new IllegalStateException("请先完成 Tailscale 设备授权，返回 App 刷新至 Running 后再配对。可点击“连接 / 登录 Tailscale”和“打开网络授权页面”。");
             String destination = new JSONObject(payload).getString("gateway").replaceAll("/+$", "");
             if (device != null && !destination.equals(device.getString("gateway")))
                 throw new IllegalStateException("已有其他主机的配对，请使用“更换监控电脑”。同一主机可直接重新配对并保留操作记录。");
@@ -200,6 +222,12 @@ public class MainActivity extends Activity {
     }
     private void checkStatusAndOpen() {
         if (tunnel == null || device == null) { message("请先完成网络登录和电脑配对。"); return; }
+        if (!"Running".equals(networkState)) {
+            autoOpen=true;
+            message("电脑配对已保存。"+ConnectionState.networkHint(networkState));
+            checkStatus(true);return;
+        }
+        message("正在连接监控电脑…");
         run(() -> {
             JSONObject access = new JSONObject(tunnel.deviceStatus(device.getString("gateway"),device.getString("token")));
             if (!access.optString("state").equals("approved")) throw new IllegalStateException("请先在电脑批准这部手机。");
@@ -234,6 +262,7 @@ public class MainActivity extends Activity {
     }
     private void openMonitor(String start) {
         if (destroyed) return;
+        autoOpen=false;
         destroyPages(); root.removeAllViews();
         Uri uri = Uri.parse(start); localOrigin = "http://127.0.0.1:" + uri.getPort();
         Button back = new Button(this); back.setText("‹ 连接设置 / 更换电脑");
