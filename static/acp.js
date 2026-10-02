@@ -256,13 +256,17 @@
     terminal.hidden = !(["CCI", "ACP"].includes(task?.kind) && task.state === "running" && task.name?.toLowerCase().includes("charles"));
     terminal.removeAttribute("href");
     if (!terminal.hidden) terminal.href = `/terminal?${new URLSearchParams({ site: window.MonitorSite?.id || "maoshanwang", task_id: task.id })}`;
+    const ide = byId("cci-ide-selected");
+    ide.hidden = !(!/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) && !matchMedia("(max-width:760px), (pointer:coarse)").matches && task?.kind === "CCI" && task.state === "running" && task.name?.toLowerCase().includes("charles"));
+    ide.removeAttribute("href");
+    if (!ide.hidden) ide.href = `/ide?${new URLSearchParams({ site: window.MonitorSite?.id || "maoshanwang", task_id: task.id })}`;
     const releaseButton = byId("acp-release-restart-selected");
     releaseButton.hidden = !(task?.kind === "ACP" && task.can_stop && task.state === "running" && task.name?.toLowerCase().includes("charles"));
     releaseButton.disabled = !fresh() || state.creating || state.createUnknown || state.stopping || state.stopUnknown || state.storageError;
     button.hidden = !(task?.kind === "ACP" && task.can_stop);
     button.disabled = !fresh() || state.creating || state.stopping || state.stopUnknown || state.storageError;
     byId("acp-stop-confirm").disabled = state.stopping || state.storageError || !stopFresh(state.stop?.task_id);
-    byId("detail-action-note").textContent = task?.kind === "CCI" ? "CCI 支持监控与 Web Terminal；点击后进入云控制台终端" : task?.kind === "ACP" ? fresh() ? "ACP 支持 Web Terminal、释放重启和停止；操作前需确认任务身份" : "当前为旧数据或连接不可用；成功采集后可操作任务" : "";
+    byId("detail-action-note").textContent = task?.kind === "CCI" ? "CCI 支持站内 Web Terminal；桌面端可进入 VS Code" : task?.kind === "ACP" ? fresh() ? "ACP 支持 Web Terminal、释放重启和停止；操作前需确认任务身份" : "当前为旧数据或连接不可用；成功采集后可操作任务" : "";
   }
 
   function openStop(task) {
@@ -566,6 +570,7 @@
     for (const kind of ["create", "stop"]) if (event.key === pendingKeys[kind] || event.key === null) syncPending(kind);
   });
   syncPending("create"); syncPending("stop");
+  matchMedia("(max-width:760px), (pointer:coarse)").addEventListener("change", renderSelected);
   setInterval(() => { renderSelected(); renderWaiting(); }, 10000);
   const controls = byId("acp-partition-controls"); controls.hidden = false;
   if (partitioned) {

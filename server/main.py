@@ -18,6 +18,8 @@ from .cci_terminal import CCITerminal
 from .acp_terminal import ACPTerminal
 from .terminal_bridge import TerminalBridge
 from .terminal_routes import register_terminal_routes
+from .cci_ide import CCIEditor
+from .ide_routes import register_ide_routes
 from .storage import StorageManager
 from .task_history import TaskHistory
 from .normalize import task_console_url
@@ -38,6 +40,7 @@ class SiteRuntime:
     terminal: object = None
     acp_terminal: object = None
     terminal_bridge: object = None
+    ide: object = None
 
 
 def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=None):
@@ -55,6 +58,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         if runtime.terminal is None:runtime.terminal=CCITerminal(runtime.site)
         if runtime.acp_terminal is None:runtime.acp_terminal=ACPTerminal(runtime.site)
         if runtime.terminal_bridge is None:runtime.terminal_bridge=TerminalBridge(runtime.site,runtime.terminal,runtime.acp_terminal)
+        if runtime.ide is None:runtime.ide=CCIEditor(runtime.site,runtime.terminal_bridge,runtime.terminal)
         if runtime.storage is None:runtime.storage=StorageManager(runtime.site)
         if runtime.task_history is None:runtime.task_history=TaskHistory(runtime.monitor.store,runtime.site)
     def current_site(request: Request):
@@ -79,6 +83,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
             yield
         finally:
             for runtime in runtimes.values():
+                await runtime.ide.close()
                 await runtime.terminal_bridge.close()
                 await runtime.monitor.close()
                 if hasattr(runtime.storage,"close"):await runtime.storage.close()
@@ -104,11 +109,17 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         response.headers['X-Content-Type-Options']='nosniff'
         response.headers['Referrer-Policy']='no-referrer'
         response.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        if request.url.path=='/ide':
+            response.headers['Content-Security-Policy'] += "; frame-src http://127.0.0.1:* http://localhost:*"
         return response
 
     @app.get('/')
     async def index():
         return FileResponse(ROOT/'static/index.html')
+
+    @app.get('/ide')
+    async def ide_page():
+        return FileResponse(ROOT/'static/ide.html')
 
     @app.get('/terminal')
     async def terminal_page():
@@ -158,6 +169,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         except Exception:return JSONResponse({'error':'操作暂不可用，请检查连接并核对云端任务状态。','code':'source_unavailable'},status_code=503)
 
     register_terminal_routes(app,current_site,perform,action_body,runtimes)
+    register_ide_routes(app,current_site,perform,action_body)
 
     @app.get('/api/task-history')
     async def task_history(runtime=Depends(current_site)):

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#101b19">
+    <title>CCI VS Code · iLab Server Monitor</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/ide.css">
+    <script src="/static/sites.js" defer></script>
+    <script src="/static/ide.js" defer></script>
+  </head>
+  <body>
+    <header class="ide-header">
+      <a id="ide-back" class="button" aria-label="返回监控">← 返回监控</a>
+      <div class="ide-context"><h1>CCI VS Code</h1><p id="ide-task">正在读取任务…</p></div>
+      <span class="site-badge" data-site-label></span>
+      <button id="ide-retry" class="button" type="button" hidden>重新连接</button>
+    </header>
+    <div class="ide-connection">
+      <p id="ide-status" data-state="loading" role="status" aria-live="polite">正在读取实例与容器…</p>
+      <form id="ide-picker" hidden>
+        <label>实例<select id="ide-instance" aria-label="实例"></select></label>
+        <label>容器<select id="ide-container" aria-label="容器"></select></label>
+        <button id="ide-open" class="button primary" type="submit">打开编辑器</button>
+      </form>
+    </div>
+    <iframe id="ide-frame" title="CCI VS Code 编辑器" allow="clipboard-read; clipboard-write; fullscreen" referrerpolicy="no-referrer" hidden></iframe>
+  </body>
+</html>

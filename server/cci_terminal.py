@@ -14,7 +14,7 @@ class CCITerminal:
         self.site=site;self.reader=Collector(site);self.transport=transport
         self.session_loader=session_loader or (lambda:load_session(site))
 
-    async def targets(self,task_id):
+    async def targets(self,task_id,*,include_address=False):
         kind,name=task_identity(task_id)
         if kind!='CCI':raise ActionError('仅 CCI 支持 Web Terminal。','terminal_unavailable',400)
         path='/compute/cci/data/v2'+self.site.workspace+'/apps'
@@ -36,5 +36,7 @@ class CCITerminal:
                 if (instance,container) in seen:continue
                 seen.add((instance,container))
                 query=urlencode({'container_name':container,'container_instance_name':instance,'app_name':name,'workspace':self.site.workspace})
-                targets.append({'instance':instance,'container':container,'url':self.site.console+'/cci/terminal?'+query})
+                target={'instance':instance,'container':container,'url':self.site.console+'/cci/terminal?'+query}
+                if include_address:target['address']=row.get('instance_ip')
+                targets.append(target)
         return {'site':self.site.id,'task_id':task_id,'name':task['display_name'],'targets':targets}

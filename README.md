@@ -443,3 +443,24 @@ Python 依赖版本由 `requirements.lock` 锁定，主要依赖为 FastAPI、Uv
 0.1.7 使用网站同款图标及 `ilab server monitor` 名称。启动时恢复已有登录与配对，网络恢复期间明确保留配对状态；网络已连接或仍在启动时，登录按钮不会重复申请授权。修复首次状态刷新被忙碌标记跳过的问题，恢复完成后自动进入监控。
 
 0.1.8 优化手机版：紧凑站点顶栏、底部六入口、资源/队列/存储/历史卡片、任务详情返回列表、可换行操作按钮及手机日志/命令/弹窗布局。连接页默认收起配对与诊断选项，保留已有登录和配对。APK 内置与网页同源的手机样式，仅用于受信任的本地监控页，现有电脑端无需先更新即可显示新版布局。已通过窄屏模拟检查、15 项 Android 单元测试，以及一加 13T 的覆盖安装、自动恢复连接和任务详情只读检查。
+
+## CCI 站内 VS Code（电脑版）
+
+在本人运行中的 CCI 任务详情点击「进入 VS Code」。页面内嵌 code-server，后台使用已有 IAM 会话核实任务及容器、自动准备并认证编辑器，无需再输入云平台或编辑器密码。多个实例/主容器时先选择目标。仅支持本机 HTTP `127.0.0.1` / `localhost` 桌面浏览器；ACP、手机和 APK 不显示入口，手机网关不转发此功能。
+
+此功能还需要监控电脑已有可用的 SSH 跳板别名，且该跳板能访问 CCI 实例内网 IP。默认 Maoshanwang 使用 `maoshanwangtech`，SenseCore 使用 `sensecore`；可在 `.env` 中设置 `MONITOR_CCI_IDE_SSH_HOST` / `SENSECORE_CCI_IDE_SSH_HOST`。迁移到另一台 Mac 时须在那里配置 SSH 密钥与别名，核验并保存主机指纹。例如验证 Maoshanwang 连接：
+
+```bash
+ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
+  -o UserKnownHostsFile="$HOME/.ssh/known_hosts" maoshanwangtech true
+```
+
+跳板只负责 TCP 转发；编辑器安装命令通过 IAM 终端在所选 CCI 内执行，不会把跳板当成 CCI。当前支持 Linux x86_64 且存在 Python 3 的容器；首次需要从 GitHub 下载固定的 code-server 4.139.1（约 222 MB），后端校验固定 SHA-256。安装、配置、日志、扩展及用户数据位于容器用户的 `~/.local/share/ilab-cci-editor/`，默认打开 `/workspace`，没有该目录时打开用户 HOME。已有 AFS 可通过编辑器「打开文件夹」进入；不改挂载、训练启动指令或系统 SSH。
+
+编辑器绑定该实例内网 IP 的随机端口并启用随机密码。本机后台通过 SSH 转发代办登录，再以独立 localhost 端口代理 HTTP/WebSocket；浏览器只获得 60 秒有效的一次性入口和独立 HttpOnly 会话，不获得 IAM 或编辑器密码。重复进入复用容器内进程；上游失效时「重新连接」会重新检查、准备和认证。每站最多 4 个本机代理，页面离开后无活跃 WebSocket 且闲置 15 分钟自动回收本机连接。后台重启会断开编辑器页面，重新进入即可。容器内编辑器继续运行以供复用，随容器销毁而消失。
+
+若准备失败，请检查 GitHub 下载、Python 3、本机 SSH 别名/密钥/已核验的 `known_hosts`，以及容器专用目录下的 `editor.log`。此功能会占用容器 CPU/内存与磁盘，具体取决于扩展及工作区大小；关闭页面不停止训练，也不自动结束编辑器内手动启动的进程。需要卸载时先确认并停止这个专用编辑器进程，再移除其专用目录；其他文件和训练任务无需改动。
+
+回归检查：`.venv/bin/python -m pytest tests/test_cci_ide.py tests/test_cci_terminal.py -q` 与 `.venv/bin/python scripts/cci_ide_smoke.py`。后者完全模拟 API，不连接云端或安装编辑器。
+
+2026-10-02 已在 Maoshanwang 本人运行 CCI 上验证浏览器编辑保存（独立读回核对）、内置终端命令执行及免登录重连，并清理临时文件。本机部署后已复验工作区加载。SenseCore 当时无本人运行 CCI，已完成模拟测试但未作云端实测。code-server 自带的可选 VSDA 资源探测与 GitHub 认证提供器仍可能在控制台报错，未阻断上述功能；第三方扩展账号不属于云平台/编辑器自动认证范围。

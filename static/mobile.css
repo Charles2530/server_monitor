@@ -203,3 +203,7 @@
   .task-history-pagination .button { min-height: 42px; }
   .page-footer { padding: 8px 0; margin-top: 12px; font-size: 10px; }
 }
+
+@media (max-width:760px), (pointer:coarse) {
+  #cci-ide-selected { display: none!important; }
+}
