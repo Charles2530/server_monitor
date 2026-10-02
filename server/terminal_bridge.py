@@ -174,6 +174,13 @@ class TerminalBridge:
                     url='wss://'+urlsplit(self.site.services['AEC2']).netloc+path+'?'+urlencode({'token':token,'lines':size['Height'],'columns':size['Width']})
                     socket=await self.dial(url,subprotocols=['channel.k8s.io'],origin=origin.scheme+'://'+origin.netloc,
                         proxy=None,open_timeout=20,close_timeout=3,max_size=MAX_BUFFER,compression=None)
+                    # The cloud ignores handshake dimensions: stty reports 0 0 until
+                    # channel 4 is sent. Set the PTY before accepting any input.
+                    try:
+                        await asyncio.wait_for(socket.send(b'\4'+json.dumps(size,separators=(',',':')).encode()),10)
+                    except BaseException:
+                        await socket.close()
+                        raise
                     break
                 except (AuthRequired,InvalidStatus) as exc:
                     if isinstance(exc,InvalidStatus) and exc.response.status_code not in (401,403):

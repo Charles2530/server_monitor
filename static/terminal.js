@@ -10,6 +10,7 @@
   document.title = `${kind} Web Terminal · iLab Server Monitor`;
   $("terminal-instance-label").textContent = isACP ? "Worker" : "实例";
   $("terminal-container-label").hidden = $("terminal-container").hidden = isACP;
+  $("terminal-container-field").hidden = isACP;
 
   function status(text, state = "loading") { $("terminal-status").textContent = text; $("terminal-status").dataset.state = state; }
   async function api(path, data, timeout = 30000, signal = null) {
@@ -49,15 +50,33 @@
     const t = selected(); $("terminal-official").hidden = !t;
     if (t) $("terminal-official").href = t.url;
     $("terminal-open").disabled = !t || loading || alive;
+    $("terminal-open").textContent = alive ? "已连接" : "连接终端";
   }
   function selectInstance() { if (!isACP) $("terminal-container").replaceChildren(...targets.filter(t => t.instance === $("terminal-instance").value).map(t => option(t.container))); official(); }
-  function fitScreen() { if (term && !$("terminal-workspace").hidden) fit.fit(); }
+  function fitScreen() {
+    document.documentElement.style.setProperty("--terminal-viewport-height", `${window.visualViewport?.height || innerHeight}px`);
+    if (term && !$("terminal-workspace").hidden) {
+      const size = fit.proposeDimensions();
+      // Keep the rendered grid and cloud PTY within the same supported bounds,
+      // including ultrawide screens and browser zoom-out.
+      if (size && Number.isFinite(size.cols) && Number.isFinite(size.rows)) {
+        const cols = Math.max(2, Math.min(500, size.cols)), rows = Math.max(1, Math.min(200, size.rows));
+        if (term.cols !== cols || term.rows !== rows) term.resize(cols, rows);
+      }
+      $("terminal-size").textContent = `${term.cols} × ${term.rows}`;
+    }
+  }
+  let fitFrame = null;
+  function scheduleFit() {
+    if (fitFrame !== null) return;
+    fitFrame = requestAnimationFrame(() => { fitFrame = null; fitScreen(); });
+  }
   function initialize() {
     if (term) { term.reset(); return; }
     term = new Terminal({ cursorBlink: true, fontSize: matchMedia("(max-width:620px)").matches ? 12 : 14, lineHeight: 1.22, scrollback: 5000,
       fontFamily: '"SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace', allowProposedApi: false, disableStdin: true,
       theme: { background: "#101b19", foreground: "#dfebe4", cursor: "#97e9b6", selectionBackground: "#47695b99", black: "#182722", red: "#f28585", green: "#89d4a4", yellow: "#e4ce89", blue: "#89b7ec", magenta: "#c5a4e4", cyan: "#82d1cf", white: "#dfebe4", brightBlack: "#7c9588", brightRed: "#ffa3a3", brightGreen: "#aaf0bf", brightYellow: "#f8e5ae", brightBlue: "#b2d4ff", brightMagenta: "#e0c0ff", brightCyan: "#a8f0ed", brightWhite: "#ffffff" } });
-    fit = new FitAddon.FitAddon(); term.loadAddon(fit); term.open($("terminal-screen"));
+    fit = new FitAddon.FitAddon(); term.loadAddon(fit); term.open($("terminal-mount"));
     term.onData(data => {
       // Preserve unicode codepoints while bounding each input frame, including long pastes.
       if (new TextEncoder().encode(data).length > 65536) { $("terminal-hint").textContent = "一次粘贴最多 64 KiB，请分段粘贴。"; return; }
@@ -66,15 +85,19 @@
       if (chunk) enqueue(chunk);
     });
     term.onResize(size => { if (alive) enqueue("", size); });
-    new ResizeObserver(fitScreen).observe($("terminal-screen"));
-    window.visualViewport?.addEventListener("resize", fitScreen);
+    new ResizeObserver(scheduleFit).observe($("terminal-screen"));
+    window.visualViewport?.addEventListener("resize", scheduleFit);
+    window.addEventListener("resize", scheduleFit);
+    document.fonts.ready.then(scheduleFit);
   }
   async function renderOutput(data, gen) {
     if (gen !== generation) return;
     for (const chunk of data.chunks || []) {
+      if (gen !== generation) return;
       const bytes = Uint8Array.from(atob(chunk), c => c.charCodeAt(0));
       await new Promise(resolve => term.write(bytes, resolve));
     }
+    if (gen !== generation) return;
     cursor = data.cursor;
     if (data.closed) await disconnect(data.error || "终端会话已结束。", gen);
   }
@@ -144,6 +167,7 @@
     $("terminal-led").classList.remove("connected"); $("terminal-transport").textContent = "已断开";
     $("terminal-hint").textContent = message; $("terminal-retry").hidden = false;
     $("terminal-instance").disabled = $("terminal-container").disabled = false;
+    if (old) $("terminal-connection").open = true;
     official();
     if (old) await api("/api/terminal/close", { session_id: old }, 5000).catch(() => {});
   }
@@ -158,15 +182,21 @@
       if (gen !== generation) { api("/api/terminal/close", { session_id: result.session_id }).catch(() => {}); return; }
       session = result.session_id;
       if (typeof session !== "string" || result.site !== site.id || result.task_id !== taskId) throw new Error("终端会话与所选任务不一致。");
-      alive = true;
       const realtime = await useSocket(gen);
-      if (!alive || gen !== generation) return;
+      if (gen !== generation) return;
+      alive = true;
+      // The viewport can change during authentication/handshake. Send the latest
+      // size even when fit emits no event, before accepting keyboard input.
+      $("terminal-connection").open = false;
+      fitScreen();
+      enqueue("", { cols: term.cols, rows: term.rows });
       $("terminal-transport").textContent = realtime ? "实时连接" : "兼容连接";
       if (!realtime) poll(gen);
       term.options.disableStdin = false; term.focus();
       $("terminal-target-name").textContent = target.instance + (target.container ? ` / ${target.container}` : "");
+      $("terminal-target-name").title = $("terminal-target-name").textContent;
       $("terminal-led").classList.add("connected");
-      $("terminal-hint").textContent = "已连接 · 关闭终端仅断开当前 Shell，不会停止训练任务。";
+      $("terminal-hint").textContent = "断开会关闭当前 Shell，其中的前台命令可能中断。";
       $("terminal-instance").disabled = $("terminal-container").disabled = true;
       status("终端已连接，认证由后台管理。", "ready");
     } catch (error) { if (gen === generation) { await disconnect(error.message, gen); status(error.message, "error"); } }
@@ -176,6 +206,7 @@
     if (loading) return;
     await disconnect();
     loading = true; targets = []; $("terminal-picker").hidden = true; $("terminal-retry").hidden = true;
+    $("terminal-connection").open = false;
     $("terminal-task").textContent = taskId || "未选择任务"; status(isACP ? "正在读取最新 Worker…" : "正在读取最新实例与容器…");
     try {
       if (!/^(CCI|ACP):[A-Za-z0-9][A-Za-z0-9_-]{0,62}$/.test(taskId || "")) throw new Error("请选择有效的 CCI 或 ACP 任务。");
@@ -183,9 +214,11 @@
       if (data.site !== site.id || data.task_id !== taskId || !Array.isArray(data.targets)) throw new Error("终端配置与当前站点或任务不一致。");
       targets = data.targets.map(t => ({ ...t, url: safeURL(t) }));
       $("terminal-task").textContent = `${data.name} · ${taskId}`;
+      $("terminal-task").title = $("terminal-task").textContent;
       if (!targets.length) throw new Error("当前没有可连接的运行容器，请稍后重新读取。");
       $("terminal-instance").replaceChildren(...[...new Set(targets.map(t => t.instance))].map(option));
       selectInstance(); $("terminal-picker").hidden = false;
+      $("terminal-connection").open = targets.length > 1;
       status(targets.length > 1 ? "请选择要连接的 Worker / 容器。" : "已找到运行容器。", "ready");
     } catch (error) { status(error.message || "连接失败，请重试。", "error"); }
     finally { loading = false; official(); $("terminal-retry").hidden = false; }
@@ -200,7 +233,10 @@
   $("terminal-copy").addEventListener("click", async () => { try { await navigator.clipboard.writeText(term.getSelection()); } catch { $("terminal-hint").textContent = "无法访问剪贴板，请使用系统复制操作。"; } });
   $("terminal-paste").addEventListener("click", async () => { if (alive) { try { term.paste(await navigator.clipboard.readText()); term.focus(); } catch { $("terminal-hint").textContent = "无法访问剪贴板，请使用系统粘贴操作。"; } } });
   $("terminal-fullscreen").addEventListener("click", async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await $("terminal-workspace").requestFullscreen(); } catch { $("terminal-hint").textContent = "当前浏览器不支持全屏。"; } });
-  document.addEventListener("fullscreenchange", fitScreen);
+  document.addEventListener("fullscreenchange", () => {
+    $("terminal-fullscreen").textContent = document.fullscreenElement ? "退出全屏" : "全屏";
+    scheduleFit();
+  });
   const keys = { interrupt: "\x03", tab: "\t", escape: "\x1b", up: "\x1b[A", down: "\x1b[B", left: "\x1b[D", right: "\x1b[C", enter: "\r" };
   document.querySelectorAll("[data-terminal-key]").forEach(button => button.addEventListener("click", () => { enqueue(keys[button.dataset.terminalKey]); term?.focus(); }));
   window.addEventListener("pagehide", () => {

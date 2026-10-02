@@ -179,6 +179,8 @@ MONITOR_BROWSER_CHANNEL=auto
 
 两站点的本人 charles 运行任务支持在监控网站内打开 CCI / ACP Shell，可选择实例、容器或 Worker。终端使用本地打包的 [xterm.js](https://github.com/xtermjs/xterm.js)，支持 ANSI 彩色输出、中文、复制粘贴、字号调整、全屏，以及手机端 Ctrl+C / Tab / 方向键。页面保留官方控制台入口。
 
+页面采用紧凑顶栏，连接目标收在“连接设置”中，终端随窗口占满剩余空间。连接建立时主动设置远端 PTY 行列数，窗口、字号和全屏变化后继续同步；终端旁显示当前列数 × 行数。手机横屏仍保留快捷键。
+
 后台使用该站点的 IAM 会话连接云终端，认证过期时尝试自动续登；云端凭据不会交给终端页面。本机使用 WebSocket，旧 APK 使用即时返回输出的 HTTP 长轮询，无需重装 APK。手机设备须有写入权限；另一台 Mac 同步代码后，需重新部署主服务和手机网关（`.venv/bin/python scripts/mobile_host.py install`），才能使用新增接口。
 
 断线后需手动重新连接，输入结果无法确认时不会自动重发命令。关闭终端会断开当前 Shell，可能影响该 Shell 的前台命令，但不会主动停止云训练任务。输出仅在内存中暂存，每会话待读取输出上限 1 MiB；每站点最多 8 个终端会话，客户端失联 120 秒或会话达到 8 小时后关闭，不保存终端历史。
@@ -386,7 +388,10 @@ done
 .venv/bin/python scripts/partitions_smoke.py
 .venv/bin/python scripts/storage_smoke.py
 .venv/bin/python scripts/history_smoke.py
+.venv/bin/python scripts/cci_terminal_smoke.py
 ```
+
+终端全屏程序的回归可运行 `.venv/bin/python scripts/terminal_pty_smoke.py`，需要本机安装 tmux。脚本使用独立的本机 PTY 和临时 tmux 服务，测试初始尺寸、连接期间缩放、中文长行、全屏、字号、超宽屏、手机布局与重连；结束时只清理该测试的 tmux 服务，不访问云任务。
 
 其他 `*_smoke.py` 包含对已运行面板和实时快照的验收，需要服务已启动及对应任务 / 集群数据就绪。运行前先查看脚本中的数据前置条件。截图等产物写入本机 `data/`，不提交到 Git。
 

@@ -17,31 +17,27 @@
   </head>
   <body>
     <header class="terminal-header">
-      <div class="terminal-brand"><img src="/static/favicon.svg" width="36" height="36" alt=""><span>iLab<small>Server Monitor</small></span></div>
+      <a id="terminal-back" class="button back-button" aria-label="返回监控" title="返回监控">←</a>
+      <img class="terminal-logo" src="/static/favicon.svg" width="32" height="32" alt="iLab">
+      <div class="terminal-context"><h1 id="terminal-title">Web Terminal</h1><p id="terminal-task">正在读取任务信息…</p></div>
       <span class="site-badge" data-site-label></span>
+      <a id="terminal-official" class="official-link" target="_blank" rel="noopener noreferrer" hidden>云控制台 ↗</a>
+      <button id="terminal-retry" class="button" type="button" hidden>重新连接</button>
     </header>
-    <main class="terminal-panel">
-      <div class="terminal-intro">
-        <div class="terminal-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 7 5 5-5 5M13 17h6"/></svg></div>
-        <span class="eyebrow">WORKSPACE / TERMINAL</span>
-        <h1 id="terminal-title">Web Terminal</h1>
-        <p class="terminal-description">在本站连接运行容器，登录由监控后台自动处理。</p>
-        <div class="task-context"><span>当前任务</span><p id="terminal-task">正在读取任务信息…</p></div>
-      </div>
-      <section class="terminal-connection" aria-labelledby="connection-title">
-        <div class="connection-heading"><span class="step-number" aria-hidden="true">01</span><div><h2 id="connection-title">连接目标</h2><p>从当前任务的可用实例中选择</p></div></div>
-        <p id="terminal-status" data-state="loading" role="status" aria-live="polite">正在读取最新实例与容器…</p>
+    <div class="connection-bar">
+      <p id="terminal-status" data-state="loading" role="status" aria-live="polite">正在读取最新实例与容器…</p>
+      <details id="terminal-connection">
+        <summary>连接设置</summary>
         <div id="terminal-picker" hidden>
-          <label id="terminal-instance-label" for="terminal-instance">实例</label><select id="terminal-instance" class="terminal-select"></select>
-          <label id="terminal-container-label" for="terminal-container">容器</label><select id="terminal-container" class="terminal-select"></select>
+          <div class="target-field"><label id="terminal-instance-label" for="terminal-instance">实例</label><select id="terminal-instance" class="terminal-select"></select></div>
+          <div id="terminal-container-field" class="target-field"><label id="terminal-container-label" for="terminal-container">容器</label><select id="terminal-container" class="terminal-select"></select></div>
           <button id="terminal-open" class="button primary" type="button">连接终端</button>
         </div>
-        <div class="actions"><a id="terminal-back" class="button"><span aria-hidden="true">←</span> 返回监控</a><button id="terminal-retry" class="button" type="button" hidden>重新读取</button></div>
-      </section>
-    </main>
+      </details>
+    </div>
     <section id="terminal-workspace" class="terminal-workspace" hidden aria-label="交互式终端">
       <div class="terminal-toolbar">
-        <div class="terminal-session"><span id="terminal-led" class="terminal-led"></span><strong id="terminal-target-name">Terminal</strong><span id="terminal-transport">连接中</span></div>
+        <div class="terminal-session"><span id="terminal-led" class="terminal-led"></span><strong id="terminal-target-name">Terminal</strong><span id="terminal-transport">连接中</span><span id="terminal-size" aria-label="终端列数与行数"></span></div>
         <div class="terminal-tools">
           <button id="terminal-font-down" type="button" title="缩小字号" aria-label="缩小字号">A−</button>
           <button id="terminal-font-up" type="button" title="放大字号" aria-label="放大字号">A＋</button>
@@ -51,15 +47,15 @@
           <button id="terminal-disconnect" type="button">断开</button>
         </div>
       </div>
-      <div id="terminal-screen" aria-label="命令行输入和输出"></div>
+      <div id="terminal-screen" aria-label="命令行输入和输出"><div id="terminal-mount"></div></div>
       <div class="terminal-keyboard" aria-label="终端快捷键">
         <button type="button" data-terminal-key="interrupt">Ctrl+C</button><button type="button" data-terminal-key="tab">Tab</button><button type="button" data-terminal-key="escape">Esc</button>
         <button type="button" data-terminal-key="up" aria-label="方向上">↑</button><button type="button" data-terminal-key="down" aria-label="方向下">↓</button>
         <button type="button" data-terminal-key="left" aria-label="方向左">←</button><button type="button" data-terminal-key="right" aria-label="方向右">→</button>
         <button type="button" data-terminal-key="enter">Enter</button>
       </div>
-      <p id="terminal-hint" class="terminal-hint" role="status">关闭终端仅断开当前 Shell 连接，不会停止训练任务。</p>
+      <p id="terminal-hint" class="terminal-hint" role="status">断开会关闭当前 Shell，其中的前台命令可能中断。</p>
     </section>
-    <footer class="terminal-footer">iLab Server Monitor<span><a id="terminal-official" target="_blank" rel="noopener noreferrer" hidden>在官方控制台打开 ↗</a></span></footer>
+
   </body>
 </html>

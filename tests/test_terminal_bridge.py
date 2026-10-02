@@ -32,7 +32,7 @@ async def test_bridge_uses_verified_target_and_private_cloud_token(site,kind):
         assert output['chunks']==['aGVsbG8bWzMybQ=='] and output['cursor']==1
         await bridge.write(result['session_id'],1,'echo hi\r',None,'local')
         await bridge.write(result['session_id'],1,'echo hi\r',None,'local')
-        assert socket.sent==[b'\0echo hi\r']
+        assert socket.sent==[b'\x04{"Width":80,"Height":24}',b'\0echo hi\r']
         await bridge.write(result['session_id'],2,'',{'cols':120,'rows':40},'local')
         assert socket.sent[-1]==b'\x04{"Width":120,"Height":40}'
         with pytest.raises(ActionError):await bridge.read(result['session_id'],0,'other-device')
@@ -73,10 +73,11 @@ async def test_invalid_foreign_target_and_input_do_not_reach_cloud():
 @pytest.mark.asyncio
 async def test_upstream_failure_sanitized_and_no_input_retry():
     from server.terminal_bridge import TerminalBridge
-    socket=FakeSocket();socket.send=AsyncMock(side_effect=RuntimeError('PRIVATE cloud URL token'))
+    socket=FakeSocket()
     bridge=TerminalBridge(MAOSHANWANG,resolver('CCI'),resolver('ACP'),session_loader=lambda:{'headers':{'authorization':'Bearer PRIVATE'}},dial=AsyncMock(return_value=socket))
     try:
         result=await bridge.open({'task_id':'ACP:job','instance':'worker-0','container':'','cols':80,'rows':24},'local')
+        socket.send=AsyncMock(side_effect=RuntimeError('PRIVATE cloud URL token'))
         with pytest.raises(ActionError) as e:await bridge.write(result['session_id'],1,'command',None,'local')
         assert 'PRIVATE' not in str(e.value)
         with pytest.raises(ActionError):await bridge.write(result['session_id'],1,'command',None,'local')
@@ -110,7 +111,7 @@ async def test_input_order_replay_changed_payload_and_isolation():
         for seq,text,who in [(1,'different','phone-a'),(3,'skip','phone-a'),(2,'foreign','phone-b')]:
             with pytest.raises(ActionError):await bridge.write(key,seq,text,None,who)
         with pytest.raises(ActionError):other.get(key,'phone-a')
-        assert socket.sent==[b'\0one']
+        assert socket.sent==[b'\x04{"Width":80,"Height":24}',b'\0one']
         with pytest.raises(ActionError):await bridge.read(key,100,'phone-a')
         await bridge.disconnect(key,'phone-a')
         assert socket.closed and not bridge.sessions
@@ -182,3 +183,27 @@ def test_cloud_websocket_never_follows_redirect():
     from websockets.datastructures import Headers
     error=InvalidStatus(Response(302,'Found',Headers({'Location':'wss://evil.test/'})))
     assert CloudConnection.process_redirect(None,error) is error
+
+
+@pytest.mark.asyncio
+async def test_initial_pty_resize_sent_before_session_is_exposed():
+    """Cloud handshake query doesn't initialize PTY size (observed as stty 0 0)."""
+    from server.terminal_bridge import TerminalBridge
+    socket=FakeSocket()
+    bridge=TerminalBridge(MAOSHANWANG,resolver('CCI'),resolver('ACP'),session_loader=lambda:{'headers':{'authorization':'Bearer PRIVATE'}},dial=AsyncMock(return_value=socket))
+    try:
+        await bridge.open({'task_id':'CCI:job','instance':'worker-0','container':'main','cols':155,'rows':38},'local')
+        assert socket.sent==[b'\x04{"Width":155,"Height":38}']
+    finally:await bridge.close()
+
+
+@pytest.mark.asyncio
+async def test_initial_resize_failure_closes_unpublished_socket():
+    from server.terminal_bridge import TerminalBridge
+    socket=FakeSocket();socket.send=AsyncMock(side_effect=OSError('private handshake data'))
+    bridge=TerminalBridge(MAOSHANWANG,resolver('CCI'),resolver('ACP'),session_loader=lambda:{'headers':{'authorization':'Bearer PRIVATE'}},dial=AsyncMock(return_value=socket))
+    try:
+        with pytest.raises(ActionError) as caught:
+            await bridge.open({'task_id':'ACP:job','instance':'worker-0','container':'','cols':155,'rows':38},'local')
+        assert socket.closed and not bridge.sessions and 'private' not in str(caught.value)
+    finally:await bridge.close()
