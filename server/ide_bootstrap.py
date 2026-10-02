@@ -15,6 +15,7 @@ def bootstrap_script(instance, address):
 _SCRIPT = r'''
 import fcntl, hashlib, json, os, pathlib, platform, secrets, shutil, socket, subprocess, tarfile, tempfile, time, urllib.request
 s = json.loads(SETTINGS)
+progress = globals().get('_ilab_report_progress', lambda *args: None)
 if socket.gethostname() != s['instance']:
     raise RuntimeError('容器身份已变化，请刷新任务后重试。')
 if platform.system() != 'Linux' or platform.machine() not in ('x86_64', 'amd64'):
@@ -26,7 +27,9 @@ if base.is_symlink() or base.stat().st_uid != os.getuid():
     raise RuntimeError('编辑器目录权限异常。')
 os.chmod(base, 0o700)
 lock = (base / 'install.lock').open('a')
+progress('waiting_lock')
 fcntl.flock(lock, fcntl.LOCK_EX)
+progress('checking')
 version = s['version']
 folder = base / ('code-server-' + version + '-linux-amd64')
 binary = folder / 'bin/code-server'
@@ -35,7 +38,7 @@ env = dict(os.environ)
 for key in ('PASSWORD', 'HASHED_PASSWORD', 'CODE_SERVER_CONFIG', 'NODE_OPTIONS'):
     env.pop(key, None)
 env['SHELL'] = '/bin/bash'
-codex = prepare_codex(base, env, binary) if binary.is_file() else None
+codex = prepare_codex(base, env, binary, progress=progress) if binary.is_file() else None
 
 def owned_process(state):
     try:
@@ -72,7 +75,10 @@ else:
             url = 'https://github.com/coder/code-server/releases/download/v' + version + '/code-server-' + version + '-linux-amd64.tar.gz'
             digest = hashlib.sha256()
             total = 0
+            progress('download_editor', 0)
             with urllib.request.urlopen(url, timeout=60) as response, archive.open('wb') as output:
+                expected = download_size(response)
+                progress('download_editor', 0, expected)
                 while True:
                     chunk = response.read(1024 * 1024)
                     if not chunk: break
@@ -80,8 +86,11 @@ else:
                     if total > 250 * 1024 * 1024: raise RuntimeError('编辑器下载大小异常。')
                     digest.update(chunk)
                     output.write(chunk)
+                    progress('download_editor', total, expected)
+            progress('verify_editor')
             if digest.hexdigest() != s['sha256']:
                 raise RuntimeError('编辑器下载校验失败，请重试。')
+            progress('extract_editor')
             with tarfile.open(str(archive)) as bundle:
                 root = temporary.resolve()
                 for member in bundle.getmembers():
@@ -95,7 +104,8 @@ else:
             (temporary / folder.name).rename(folder)
         finally:
             shutil.rmtree(str(temporary), ignore_errors=True)
-    if codex is None: codex = prepare_codex(base, env, binary)
+    if codex is None: codex = prepare_codex(base, env, binary, progress=progress)
+    progress('start_editor')
     with socket.socket() as probe:
         probe.bind((s['address'], 0))
         port = probe.getsockname()[1]

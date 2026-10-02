@@ -10,12 +10,12 @@ from v2_browser_smoke import ROOT,Handler
 async def main():
  server=ThreadingHTTPServer(('127.0.0.1',0),functools.partial(Handler,directory=str(ROOT)))
  threading.Thread(target=server.serve_forever,daemon=True).start()
- now=datetime.now(timezone.utc).isoformat();calls=[];partial=False;fresh=True;slow=False
+ now=datetime.now(timezone.utc).isoformat();calls=[];partial=False;fresh=True;slow=False;rejected=False
  task={'id':'ACP:original','kind':'ACP','name':'charles original','state':'running','can_stop':True,'cluster':'original-cluster','gpu_count':8,'replicas':2,'updated_at':now,'metrics':{}}
  template={'id':task['id'],'name':task['name'],'state':'RUNNING'}
  config={'images':['original/image'],'afs_mounts':[{'id':'original-afs','zone':'cn-sh-01a','mount_path':'/data','subdir':'/'}]}
  async def api(route):
-  nonlocal partial
+  nonlocal partial,rejected
   req=route.request;path=urlparse(req.url).path;site=req.headers.get('x-monitor-site');body=req.post_data_json if req.method=='POST' else None
   calls.append((site,path,body))
   if body is not None:assert req.headers.get('x-monitor-request')=='1'
@@ -34,6 +34,8 @@ async def main():
    assert body=={'preview_id':'release-stable'}
    key='charles-monitor.acp.create.pending'+('.sensecore' if site=='sensecore' else '')
    assert await req.frame.evaluate('key=>JSON.parse(localStorage.getItem(key))',key)==body
+   if rejected:
+    rejected=False;await route.fulfill(status=409,json={'code':'release_failed','error':'新任务未能提交，未停止原任务。云平台拒绝了操作（HTTP 400），请核对资源和任务配置。'});return
    if partial:
     partial=False;await route.fulfill(status=409,json={'code':'release_incomplete','error':'新任务 ACP:new 已提交；原任务 ACP:original 的释放尚未确认。核对此次请求不会重复创建。'});return
    data={'release_restart':True,'id':'ACP:new','name':'charles original','state':'WAIT_QUOTA','original_id':'ACP:original','original_state':'SUSPENDING'}
@@ -61,6 +63,12 @@ async def main():
     await expect(page.locator('#acp-preview-details')).to_contain_text('ACP:original')
     assert not any(path=='/api/acp/create' for sid,path,_ in calls if sid==site)
     await page.locator('#acp-create-cancel').click();await expect(page.locator('#acp-restart-command')).to_have_value('python changed.py')
+    await page.locator('#acp-restart-preview').click();rejected=True;await page.locator('#acp-create-confirm').click()
+    await expect(page.locator('#acp-create-message')).to_contain_text('HTTP 400')
+    await expect(page.locator('#acp-create-message')).to_contain_text('未停止原任务')
+    await expect(page.locator('#acp-create-confirm')).to_be_disabled()
+    await page.locator('#acp-create-cancel').click()
+    await expect(page.locator('#acp-restart-command')).to_have_value('python changed.py')
     await page.locator('#acp-restart-preview').click();partial=True;await page.locator('#acp-create-confirm').click()
     await expect(page.locator('#acp-create-message')).to_contain_text('原任务 ACP:original 的释放尚未确认')
     assert 'python changed.py' not in await page.evaluate('JSON.stringify(localStorage)')
@@ -71,7 +79,8 @@ async def main():
     await page.locator('#refresh-button').click();await expect(release).to_be_enabled()
     slow=True;await release.click();await page.locator('#acp-restart-cancel').click();await asyncio.sleep(1)
     await expect(page.locator('#acp-restart-command')).to_have_value('');slow=False
-   await page.set_viewport_size({'width':390,'height':844});await expect(release).to_be_visible()
+   await page.set_viewport_size({'width':390,'height':844})
+   await page.locator('.task-card').filter(has_text='charles original').click();await expect(release).to_be_visible()
    initial=await page.evaluate('({width:innerWidth,scroll:document.documentElement.scrollWidth,overflow:[...document.querySelectorAll("body *")].filter(el=>el.getBoundingClientRect().right>innerWidth).map(el=>({tag:el.tagName,id:el.id,cls:el.className,width:el.getBoundingClientRect().width})).slice(0,8)})')
    await page.wait_for_function('document.documentElement.scrollWidth<=innerWidth',timeout=3000)
    if initial['scroll']>initial['width']:print('Resize settled after chart resize event:',initial)

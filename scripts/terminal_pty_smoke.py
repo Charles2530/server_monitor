@@ -74,6 +74,11 @@ async def main():
                 page=await browser.new_page(viewport={'width':1440,'height':1000})
                 page.on('pageerror',lambda e:errors.append(str(e)))
                 await page.add_init_script("""Object.defineProperty(window,'Terminal',{configurable:true,set(Base){delete window.Terminal;window.Terminal=class extends Base {constructor(...args){super(...args);window.__testTerminal=this;}};}});""")
+                await page.add_init_script("""window.__terminalSockets=[];const NativeSocket=WebSocket;
+                  window.WebSocket=class extends NativeSocket {constructor(...args){super(...args);window.__terminalSockets.push(this);
+                    this.addEventListener('message',event=>{if(window.__dropInputAck && JSON.parse(event.data).type==='ack'){
+                      window.__dropInputAck=false;event.stopImmediatePropagation();this.close();}});
+                  }};""")
                 await page.goto(f'http://127.0.0.1:{port}/terminal?task_id=CCI:test')
                 await opening.wait()
                 await page.set_viewport_size({'width':1250,'height':800})
@@ -95,6 +100,36 @@ async def main():
                 # A status line on the last xterm row proves full-height rendering.
                 async def status_bottom():return 'smoke' in await page.evaluate("__testTerminal.buffer.active.getLine(__testTerminal.rows-1).translateToString()")
                 await until(status_bottom)
+                # Drop only the browser transport while tmux is attached. Resume
+                # the same PTY, alternate screen and rendered output, not a new shell.
+                original_shell=shells[-1]
+                # Freeze all page JavaScript beyond the former 45 s application
+                # ping deadline; native transport and the cloud PTY must survive.
+                cdp=await page.context.new_cdp_session(page)
+                await cdp.send('Page.setWebLifecycleState',{'state':'frozen'})
+                await asyncio.sleep(47)
+                assert not original_shell.closed
+                await cdp.send('Page.setWebLifecycleState',{'state':'active'})
+                await page.evaluate("window.dispatchEvent(new Event('focus'))")
+                await until(in_tmux);await until(status_bottom)
+                await page.evaluate("__terminalSockets.at(-1).close()")
+                await expect(page.locator('#terminal-status')).to_contain_text('已恢复',timeout=15000)
+                assert shells==[original_shell] and not original_shell.closed
+                await until(in_tmux);await until(status_bottom)
+                await command("printf '\\nRECONNECTED_OK\\n'")
+                await expect(page.locator('.xterm-rows')).to_contain_text('RECONNECTED_OK')
+                # The cloud accepted this input but the browser loses its ack.
+                # Recovery must synchronize sequence without replaying the command.
+                await page.locator('.xterm-helper-textarea').press_sequentially('REPLAY_COUNT=$(( ${REPLAY_COUNT:-0} + 1 ))')
+                await page.wait_for_timeout(200)
+                socket_count=await page.evaluate('__terminalSockets.length')
+                await page.evaluate('window.__dropInputAck=true')
+                await page.locator('.xterm-helper-textarea').press('Enter')
+                await page.wait_for_function('n => __terminalSockets.length > n',arg=socket_count)
+                await expect(page.locator('#terminal-led')).to_have_class('terminal-led connected')
+                await command("printf '\\nCOUNT_%s_END\\n' \"$REPLAY_COUNT\"")
+                await expect(page.locator('.xterm-rows')).to_contain_text('COUNT_1_END')
+                assert shells==[original_shell] and not original_shell.closed
                 for viewport in ({'width':1024,'height':720},{'width':5120,'height':1440},{'width':1600,'height':1050}):
                     await page.set_viewport_size(viewport);await until(same_size);await until(status_bottom)
                     current=await dimensions();assert current['cols']<=500 and current['rows']<=200
@@ -125,15 +160,40 @@ async def main():
                     for key in ('interrupt','tab','escape'):
                         await expect(page.locator(f'[data-terminal-key={key}]')).to_be_visible()
                     assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-                # Reconnect while dimensions change during preparation; latest size must win.
+                # Manual recovery keeps the shell while latest dimensions win.
                 await page.locator('#terminal-retry').click()
                 await page.set_viewport_size({'width':1250,'height':800})
                 await expect(page.locator('#terminal-led')).to_have_class('terminal-led connected')
                 await until(same_size)
                 await page.locator('#terminal-disconnect').click()
+                # Existing APKs use HTTP polling instead of WebSockets. A failed
+                # read must also resume the same PTY and synchronize input sequence.
+                mobile=await browser.new_page(viewport={'width':390,'height':844})
+                mobile.on('pageerror',lambda e:errors.append(str(e)))
+                await mobile.add_init_script("""const NativeSocket=WebSocket;window.WebSocket=class extends NativeSocket{
+                  constructor(url){super(url.replace('/api/terminal/socket','/api/terminal/unavailable'));}};""")
+                await mobile.goto(f'http://127.0.0.1:{port}/terminal?task_id=CCI:test')
+                await expect(mobile.locator('#terminal-led')).to_have_class('terminal-led connected')
+                await expect(mobile.locator('#terminal-transport')).to_have_text('兼容连接')
+                mobile_shell=shells[-1];shell_count=len(shells)
+                failed=[False]
+                async def fail_read_once(route):
+                    if not failed[0]:
+                        failed[0]=True
+                        await route.fulfill(status=503,json={'error':'temporary test interruption'})
+                    else:await route.continue_()
+                await mobile.route('**/api/terminal/read*',fail_read_once)
+                await mobile.locator('.xterm-helper-textarea').press_sequentially("HTTP_MARKER=retained; printf '\\nHTTP_READY\\n'")
+                await mobile.locator('.xterm-helper-textarea').press('Enter')
+                await expect(mobile.locator('#terminal-status')).to_contain_text('已恢复',timeout=40000)
+                await mobile.locator('.xterm-helper-textarea').press_sequentially('echo HTTP_$HTTP_MARKER')
+                await mobile.locator('.xterm-helper-textarea').press('Enter')
+                await expect(mobile.locator('.xterm-rows')).to_contain_text('HTTP_retained')
+                assert len(shells)==shell_count and not mobile_shell.closed
+                await mobile.locator('#terminal-disconnect').click()
                 assert not errors,errors
                 await browser.close()
-                print('PTY/tmux passed: initial size, Unicode wrapping, alternate screen, resize, font, fullscreen, detach, mobile, reconnect.')
+                print('PTY/tmux passed: initial size, Unicode wrapping, alternate screen, resize, font, fullscreen, detach, mobile, frozen-page keepalive, same-shell transport recovery, lost input ack, HTTP fallback recovery.')
         finally:
             subprocess.run([tmux,'-L',tmux_name,'kill-server'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             server.should_exit=True;await job

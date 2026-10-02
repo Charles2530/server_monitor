@@ -37,7 +37,7 @@ def test_explicit_codex_home_wins_and_obsolete_extension_requires_install(tmp_pa
     base=tmp_path/'editor';old=existing_extension(base)
     (base/'extensions/.obsolete').write_text(json.dumps({old.name:True}))
     calls=[]
-    def install(base,binary,env):calls.append(env['CODEX_HOME']);(base/'extensions/.obsolete').unlink()
+    def install(base,binary,env,**kwargs):calls.append(env['CODEX_HOME']);(base/'extensions/.obsolete').unlink()
     monkeypatch.setattr(module,'install_codex',install)
     env={'HOME':str(tmp_path),'CODEX_HOME':str(root)}
     assert module.prepare_codex(base,env,Path('/code-server'))['installed']
@@ -58,7 +58,7 @@ def test_download_hash_failure_never_executes_installer(tmp_path,monkeypatch):
 def test_unavailable_registry_keeps_editor_usable_and_reports_missing_plugin(tmp_path,monkeypatch):
     import server.ide_codex as module
     codex=tmp_path/'.codex';codex.mkdir();(codex/'config.toml').write_text('unchanged')
-    def fail(*a):raise OSError('registry unavailable')
+    def fail(*a,**kw):raise OSError('registry unavailable')
     monkeypatch.setattr(module,'install_codex',fail)
     assert module.prepare_codex(tmp_path/'editor',{'HOME':str(tmp_path)},Path('/code-server'))=={'configured':True,'installed':False}
     assert (codex/'config.toml').read_text()=='unchanged'

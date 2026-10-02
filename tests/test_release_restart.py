@@ -144,3 +144,56 @@ async def test_lost_in_memory_preview_before_any_child_write_keeps_original(setu
     store.begin_operation(key,'release_restart','pt-template','charles_latest',result=context)
     with pytest.raises(ActionError) as error:await restored(m,c,store).create(key)
     assert error.value.code=='release_failed' and not c.writes and store.operation(key)['status']=='failed'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('release,state',[(True,'RUNNING'),(False,'FAILED')])
+@pytest.mark.parametrize('replicas',[1,2])
+async def test_restart_submits_total_replicas_without_copying_observed_allocations(setup,release,state,replicas):
+    import copy
+    m,c,_=setup;source=c.jobs[0];source['state']=state
+    role=source['roles'][0]
+    role['total_replicas']=replicas
+    role['resource_spec']=[{'name':'N6lS.Iu.I80.8','replicas':replicas,'limits':{'device':'8'},'requests':{'device':'8'}}]
+    original_source=copy.deepcopy(source)
+    original=c.__call__
+    async def cloud(request):
+        if request.method=='POST' and not request.url.path.endswith(':stop'):
+            for role in json.loads(request.content)['roles']:
+                # The official copy form uses total_replicas and zero per-spec allocations.
+                if role.get('total_replicas',0)>0 and any(s.get('replicas',0)>0 for s in role['resource_spec']):
+                    return httpx.Response(400,json={'code':'INVALID_ARGUMENT'})
+        return await original(request)
+    m.transport=httpx.MockTransport(cloud)
+    options=await m.restart_options('ACP:pt-template',release=release)
+    p=await m.restart_preview({'task_id':'ACP:pt-template','revision':options['revision'],'command':'python train.py'},release=release)
+    assert not c.writes and p['total_gpus']==8*replicas
+    result=await m.create(p['preview_id'])
+    assert result['id']!='ACP:pt-template'
+    body=json.loads(c.writes[0].content)
+    assert body['roles'][0]['total_replicas']==replicas
+    assert body['roles'][0]['resource_spec']==[{'name':'N6lS.Iu.I80.8','replicas':0}]
+    for field in ('mount','env','framework','scheduling','resource_pool'):
+        assert body[field]==original_source[field]
+    assert source['roles']==original_source['roles']
+    assert len(c.writes)==(2 if release else 1)
+    assert source['state']==('SUSPENDING' if release else state)
+
+
+@pytest.mark.asyncio
+async def test_release_failure_keeps_safe_action_reason_and_does_not_stop(setup):
+    m,c,store=setup;c.jobs[0]['state']='RUNNING';p=await preview(m)
+    c.jobs[0]['roles'][0]['image_path']='changed'
+    with pytest.raises(ActionError) as error:await m.create(p['preview_id'])
+    assert '原任务配置已变化' in str(error.value)
+    assert '未停止原任务' in str(error.value) and not c.writes
+    assert '原任务配置已变化' in store.operation(p['preview_id'])['error']
+
+
+@pytest.mark.asyncio
+async def test_release_cloud_rejection_exposes_status_without_private_body(setup):
+    m,c,store=setup;c.jobs[0]['state']='RUNNING';p=await preview(m);c.reject=True
+    with pytest.raises(ActionError) as error:await m.create(p['preview_id'])
+    assert 'HTTP 400' in str(error.value) and 'SECRET' not in str(error.value)
+    assert '未停止原任务' in str(error.value) and len(c.writes)==1
+    assert c.jobs[0]['state']=='RUNNING'

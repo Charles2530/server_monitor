@@ -29,6 +29,11 @@
         <button id="ide-open" class="button primary" type="submit">打开编辑器</button>
       </form>
     </div>
+    <div id="ide-progress" class="ide-progress" hidden>
+      <div class="ide-progress-heading"><span id="ide-progress-stage"></span><span id="ide-progress-value"></span></div>
+      <progress id="ide-progress-bar" max="100" aria-label="编辑器准备进度" aria-describedby="ide-progress-detail"></progress>
+      <p id="ide-progress-detail"></p>
+    </div>
     </div>
     <iframe id="ide-frame" title="CCI VS Code 编辑器" allow="clipboard-read; clipboard-write; fullscreen" referrerpolicy="no-referrer" hidden></iframe>
   </body>

@@ -73,7 +73,7 @@ async def test_proxy_health_detects_expired_auth_and_transport_failure():
 
 
 @pytest.mark.asyncio
-async def test_failed_editor_is_disposed_before_reprepare(monkeypatch):
+async def test_failed_preparation_preserves_existing_editor_proxy(monkeypatch):
     from types import SimpleNamespace
     from server.cci_ide import CCIEditor
     from server.sites import MAOSHANWANG
@@ -88,13 +88,13 @@ async def test_failed_editor_is_disposed_before_reprepare(monkeypatch):
         process=SimpleNamespace(returncode=None)
         async def close(self):closed.append('ssh')
     async def resolve(data):return {'name':'charles test'},'10.0.0.1'
-    async def bootstrap(*args):raise ActionError('test bootstrap reached')
+    async def bootstrap(*args,**kwargs):raise ActionError('test bootstrap reached')
     editor.resolve=resolve
     key=(data['task_id'],data['instance'],data['container'],'http://localhost:8766')
     editor.sessions[key]={'address':'10.0.0.1','proxy':Proxy(),'forward':Forward()}
     monkeypatch.setattr(module,'run_python',bootstrap)
     with pytest.raises(ActionError,match='test bootstrap reached'):await editor.open(data,key[-1])
-    assert closed==['proxy','ssh'] and not editor.sessions
+    assert closed==[] and key in editor.sessions
 
 
 @pytest.mark.asyncio
@@ -129,18 +129,28 @@ def test_ide_routes_use_local_guards_and_narrow_frame_policy(tmp_path):
         assert 'frame-src' in client.get('/ide').headers['content-security-policy']
         assert 'frame-src' not in client.get('/').headers['content-security-policy']
         assert client.post('/api/cci/ide/targets',json={'task_id':'CCI:job'}).status_code==403
+        recovery={'task_id':'CCI:job','instance':'pod','container':'main'}
+        assert client.post('/api/cci/ide/recover',json=recovery).status_code==403
+        assert client.post('/api/cci/ide/recover',json=recovery,headers={**headers,'origin':'http://evil.test'}).status_code==403
+        assert client.post('/api/cci/ide/recover',json={**recovery,'url':'http://arbitrary'},headers=headers).status_code==400
         assert client.post('/api/cci/ide/targets',json={'task_id':'ACP:job'},headers=headers).status_code==400
         assert client.post('/api/cci/ide/open',json={'task_id':'CCI:job','instance':'pod','container':'main','url':'http://arbitrary'},headers=headers).status_code==400
         assert client.post('/api/cci/ide/status',json={'request_id':[]},headers=headers).status_code==404
 
 
 @pytest.mark.asyncio
-async def test_proxy_websocket_auth_and_binary_transport():
+async def test_proxy_websocket_auth_and_binary_transport(monkeypatch):
     from websockets.asyncio.server import serve
     from websockets.asyncio.client import connect
     from websockets.exceptions import InvalidStatus
     from server.ide_proxy import EditorProxy
     received=[]
+    import server.ide_proxy as proxy_module
+    original_connect = proxy_module.connect
+    def tolerant_connect(*args, **kwargs):
+        assert kwargs.get('ping_timeout') == 120
+        return original_connect(*args, **kwargs)
+    monkeypatch.setattr(proxy_module, 'connect', tolerant_connect)
     async def echo(ws):
         received.append(ws.request.headers.get('Cookie'))
         async for message in ws:await ws.send(message)
@@ -149,6 +159,7 @@ async def test_proxy_websocket_auth_and_binary_transport():
         proxy=EditorProxy(port,'private=upstream','http://127.0.0.1:8766')
         await proxy.start()
         try:
+            assert proxy.server.config.ws_ping_timeout == 120
             url=proxy.origin.replace('http:','ws:')+'/socket'
             with pytest.raises(InvalidStatus):
                 async with connect(url,origin=proxy.origin,proxy=None):pass
@@ -199,7 +210,7 @@ async def test_missing_codex_plugin_retries_without_replacing_healthy_editor(mon
         async def healthy(self):return True
         def ticket(self):return 'ticket'
     async def resolve(data):return {'name':'charles'},'10.0.0.1'
-    async def bootstrap(*args):calls.append(1);return {'codex':{'configured':True,'installed':True}}
+    async def bootstrap(*args,**kwargs):calls.append(1);return {'codex':{'configured':True,'installed':True}}
     editor.resolve=resolve;monkeypatch.setattr(module,'run_python',bootstrap)
     key=(data['task_id'],data['instance'],data['container'],origin)
     session={'address':'10.0.0.1','proxy':Proxy(),'forward':SimpleNamespace(process=SimpleNamespace(returncode=None)),'codex':{'configured':True,'installed':False}}
@@ -207,3 +218,46 @@ async def test_missing_codex_plugin_retries_without_replacing_healthy_editor(mon
     assert (await editor.open(data,origin))['codex']['installed']
     assert (await editor.open(data,origin))['codex']['installed']
     assert calls==[1] and editor.sessions[key] is session
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('action,expected',[('targets','读取'),('open','连接')])
+async def test_pending_status_does_not_claim_download_before_installation(action,expected):
+    from server.cci_ide import CCIEditor
+    from server.sites import MAOSHANWANG
+    editor=CCIEditor(MAOSHANWANG,None,None)
+    gate=asyncio.Event()
+    async def pending(*args,**kwargs):await gate.wait()
+    editor.targets=editor.open=pending
+    data={'task_id':'CCI:job'}
+    if action=='open':data.update(instance='pod',container='main')
+    try:
+        started=await editor.begin(action,data,'http://localhost:8766')
+        status=await editor.status(started['request_id'],'http://localhost:8766')
+        assert status['pending'] and expected in status['message']
+        assert all(word not in status['message'] for word in ('首次','下载','220 MB','15 分钟'))
+    finally:await editor.close()
+
+
+@pytest.mark.asyncio
+async def test_repeated_open_reuses_healthy_editor_without_bootstrap(monkeypatch):
+    from types import SimpleNamespace
+    import server.cci_ide as module
+    from server.sites import MAOSHANWANG
+    editor=module.CCIEditor(MAOSHANWANG,None,None)
+    data={'task_id':'CCI:job','instance':'pod','container':'main'}
+    origin='http://localhost:8766'
+    class Proxy:
+        port=23456
+        async def healthy(self):return True
+        def ticket(self):return 'ticket'
+    async def resolve(data):return {'name':'charles'},'10.0.0.1'
+    async def forbidden(*args,**kwargs):raise AssertionError('Healthy sessions must not run installation')
+    editor.resolve=resolve
+    monkeypatch.setattr(module,'run_python',forbidden)
+    key=(data['task_id'],data['instance'],data['container'],origin)
+    session={'address':'10.0.0.1','proxy':Proxy(),'forward':SimpleNamespace(process=SimpleNamespace(returncode=None)),'codex':{'configured':True,'installed':True}}
+    editor.sessions[key]=session
+    for _ in range(2):
+        assert (await editor.open(data,origin))['port']==23456
+    assert editor.sessions[key] is session

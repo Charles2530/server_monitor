@@ -57,5 +57,17 @@ body:not(:has(#ide-frame:not([hidden]))) #ide-open { min-height: 38px; }
   .ide-brand-icon { display: none; }
   body:not(:has(#ide-frame:not([hidden]))) .ide-setup { margin-top: 18px; padding: 22px; }
   .session-welcome h2 { font-size: 22px; }
-  #ide-frame, #ide-picker, #ide-retry { display: none!important; }
+  body:not(:has(#ide-frame:not([hidden]))) :is(#ide-frame, #ide-picker, #ide-retry) { display: none!important; }
 }
+
+.ide-progress { margin-top: 18px; padding: 16px; border: 1px solid #d9e7f0; border-radius: 10px; background: #f5f9fc; }
+.ide-progress-heading { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 10px; color: #345c7a; font-size: 12px; font-weight: 600; }
+#ide-progress-value { font-variant-numeric: tabular-nums; }
+#ide-progress-bar { display: block; width: 100%; height: 8px; border: 0; border-radius: 8px; overflow: hidden; accent-color: #428db4; background: #dfeaf1; }
+#ide-progress-bar::-webkit-progress-bar { background: #dfeaf1; border-radius: 8px; }
+#ide-progress-bar::-webkit-progress-value { background: #428db4; border-radius: 8px; }
+#ide-progress-bar::-moz-progress-bar { background: #428db4; border-radius: 8px; }
+#ide-progress-bar:indeterminate { background: linear-gradient(90deg, #dfeaf1 25%, #77aac9 50%, #dfeaf1 75%); background-size: 200% 100%; }
+#ide-progress-detail { margin: 9px 0 0; color: #698398; font-size: 11px; font-variant-numeric: tabular-nums; }
+@media(prefers-reduced-motion: no-preference) { #ide-progress-bar:indeterminate { animation: ide-progress-pulse 1.8s linear infinite; } }
+@keyframes ide-progress-pulse { to { background-position: -200% 0; } }

@@ -347,12 +347,13 @@ class ACPManager:
                             'gpus_per_replica':int(spec['device']['number']),'command':data['command']})
         token=uuid.uuid4().hex;now=time.time()
         payload=build_payload(template,binding,spec,form,'cm-'+token[:24])
-        # Retain the exact original framework, scheduling, network and resource allocation.
+        # Retain the original framework, scheduling, network and requested resource spec.
         payload['framework']=template['framework']
         payload['resource_pool']={k:pool[k] for k in ('name','zone','vpc_id')}
         if 'scheduling' in template:payload['scheduling']=copy.deepcopy(template['scheduling'])
         else:payload.pop('scheduling',None)
-        payload['roles'][0]['resource_spec']=[{k:v for k,v in role['resource_spec'][0].items() if k in ('name','replicas')}]
+        # GET reports allocated replicas per spec. The copy form submits total_replicas
+        # with per-spec replicas=0; build_payload already uses that creation format.
         quota=cluster_from_raw(binding,now)
         demand={'available_gpus':form['replicas']*form['gpus_per_replica'],
                 'available_vcpu':form['replicas']*spec['cpu']['vcpu_allocatable'],
@@ -409,7 +410,8 @@ class ACPManager:
             except Exception as exc:
                 child=self.store.operation(create_key)
                 if not child or child['status']=='failed':
-                    text='新任务未能提交，未停止原任务。请核对配置后重新预览。'
+                    reason=str(exc) if isinstance(exc,ActionError) else '请核对配置后重新预览。'
+                    text='新任务未能提交，未停止原任务。'+reason
                     self.store.finish_operation(preview_id,'failed',result=context,error=text)
                     raise ActionError(text,'release_failed',409) from None
                 text='新任务 '+context['new_id']+' 的提交结果尚未确认，未发送原任务停止请求。请核对此次请求，不要重新创建。'
@@ -458,7 +460,7 @@ class ACPManager:
         if response.status_code>=500 or response.status_code in (408,409):
             raise ActionError('云端结果暂不明确，请核对任务状态；该请求不会自动重复提交。','outcome_unknown',502)
         if response.status_code in (401,403):raise ActionError('云会话已失效或没有操作权限，请重新连接。','auth_required',403)
-        if not 200<=response.status_code<300:raise ActionError('云平台拒绝了操作，请核对资源和任务配置。','cloud_rejected',400)
+        if not 200<=response.status_code<300:raise ActionError('云平台拒绝了操作（HTTP '+str(response.status_code)+'），请核对资源和任务配置。','cloud_rejected',400)
         try:return response.json() if response.content else {}
         except ValueError:raise ActionError('云端响应无法确认，请核对任务状态，不要重复创建。','outcome_unknown',502) from None
 

@@ -4,18 +4,44 @@
   const taskId = new URL(location.href).searchParams.get("task_id");
   const mobileMedia = matchMedia("(max-width:760px), (pointer:coarse)");
   let targets = [], generation = 0, controller = null, busy = false;
+  let connection = null, nextCheck = 0, recoveryFailures = 0;
   $("ide-back").href = `/?site=${encodeURIComponent(site.id)}#tasks`;
   $("ide-task").textContent = taskId || "未指定任务";
 
   function status(message, state = "loading") { $("ide-status").textContent = message; $("ide-status").dataset.state = state; }
+  function progress(value) {
+    const labels = {download_editor: "下载 VS Code 编辑器", verify_editor: "校验编辑器安装包", extract_editor: "解压编辑器", download_codex: "下载 Codex 插件", verify_codex: "校验 Codex 插件", install_codex: "安装 Codex 插件", start_editor: "启动编辑器"};
+    const label = value && labels[value.stage];
+    $("ide-progress").hidden = !label;
+    $("ide-progress-bar").removeAttribute("value");
+    $("ide-progress-value").textContent = "";
+    $("ide-progress-detail").textContent = "";
+    if (!label) return;
+    $("ide-progress-stage").textContent = label;
+    const bytes = value.downloaded_bytes, total = value.total_bytes;
+    const download = value.stage.startsWith("download_");
+    const validBytes = Number.isSafeInteger(bytes) && bytes >= 0;
+    const knownTotal = validBytes && Number.isSafeInteger(total) && total > 0 && total >= bytes;
+    const size = n => `${(n / 1048576).toFixed(1)} MiB`;
+    if (download && knownTotal) {
+      const percent = Math.floor(bytes / total * 100);
+      $("ide-progress-bar").value = percent;
+      $("ide-progress-value").textContent = `${percent}%`;
+      $("ide-progress-detail").textContent = `${size(bytes)} / ${size(total)} · 当前安装包下载进度`;
+    } else if (download) {
+      $("ide-progress-detail").textContent = validBytes ? `已下载 ${size(bytes)} · 总大小未知` : "正在等待下载服务器响应…";
+    } else {
+      $("ide-progress-detail").textContent = "此阶段无法计算百分比，完成后会自动继续。";
+    }
+  }
   function unsupported() {
     if (/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || mobileMedia.matches) return "VS Code 仅支持桌面浏览器，请在电脑上打开此任务。";
     if (location.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(location.hostname)) return "请在本机通过 http://127.0.0.1 或 http://localhost 打开桌面监控，再进入 VS Code。";
     if (!taskId?.startsWith("CCI:") || taskId.length <= 4) return "VS Code 仅支持运行中的 charles CCI 任务，请返回监控选择任务。";
     return "";
   }
-  function cancel() { generation += 1; controller?.abort(); controller = null; busy = false; }
-  function resetFrame() { $("ide-frame").hidden = true; $("ide-frame").removeAttribute("src"); }
+  function cancel() { progress(null); generation += 1; controller?.abort(); controller = null; busy = false; }
+  function resetFrame() { progress(null); $("ide-frame").hidden = true; $("ide-frame").removeAttribute("src"); }
   function controls() { ["ide-instance", "ide-container", "ide-open"].forEach(id => { $(id).disabled = busy; }); }
   function active(gen) { if (gen !== generation) throw new DOMException("Cancelled", "AbortError"); }
   async function api(path, data, gen) {
@@ -42,10 +68,12 @@
     while (Date.now() < deadline) {
       const result = await api("status", { request_id: start.request_id }, gen);
       if (result.pending === false) {
+        progress(null);
         if (result.error) throw new Error(result.error);
         return result.result;
       }
       if (result.pending !== true) throw new Error("准备状态无效，请重试。");
+      progress(result.progress);
       if (typeof result.message === "string" && result.message) status(result.message);
       await new Promise(resolve => setTimeout(resolve, 400));
       active(gen);
@@ -60,22 +88,48 @@
   function selected() { return targets.find(t => t.instance === $("ide-instance").value && t.container === $("ide-container").value); }
   function failure(error, gen) {
     if (gen !== generation) return;
-    busy = false; controls(); resetFrame(); status(error.message || "无法打开编辑器，请重试。", "error"); $("ide-retry").hidden = false;
+    busy = false; controls(); if (!connection) resetFrame(); status(error.message || "无法打开编辑器，请重试。", "error"); $("ide-retry").hidden = false;
   }
   async function open(target, gen) {
-    busy = true; controls(); resetFrame();
-    status("正在准备编辑器；首次安装可能需要 15 分钟…");
+    busy = true; controls(); if (!connection) resetFrame();
+    status("正在检查已有编辑器并建立连接，请稍候…");
     const result = await prepare("open", { task_id: taskId, instance: target.instance, container: target.container }, gen);
     identity(result);
     if (result.instance !== target.instance || result.container !== target.container || !Number.isInteger(result.port) || result.port < 1024 || result.port > 65535 || !/^[A-Za-z0-9_-]{40,100}$/.test(result.ticket || "") || typeof result.ticket !== "string") throw new Error("编辑器连接信息无效，请重试。");
     const destination = new URL(`${location.protocol}//${location.hostname}:${result.port}/_ilab_open/${result.ticket}`);
     if (destination.origin === location.origin) throw new Error("编辑器必须使用独立端口，请重试。");
     active(gen);
+    connection = { instance: target.instance, container: target.container, port: result.port };
+    nextCheck = Date.now() + 30000;
     $("ide-frame").src = destination.href;
     $("ide-frame").hidden = false;
     busy = false; controls();
-    const codexNotice = result.codex?.configured && result.codex.installed === false ? " · Codex 插件准备失败，可稍后重新连接重试" : "";
+    const codexNotice = result.codex?.configured && result.codex.installed === false ? " · Codex 插件准备失败，可保留当前内容后重新打开页面重试" : "";
     status(`${target.instance} / ${target.container} · 编辑器已就绪${codexNotice}`, "ready");
+  }
+  async function recover(force = false) {
+    if (!connection || busy || document.hidden || (!force && Date.now() < nextCheck)) return;
+    if (navigator.onLine === false) {
+      status("网络已离线；已保留编辑器，网络恢复后会重试连接。", "error");
+      return;
+    }
+    cancel(); controller = new AbortController(); const gen = generation;
+    busy = true; controls(); nextCheck = Date.now() + 30000;
+    if (force) status("正在检查并恢复编辑器连接；已保留当前编辑内容…");
+    try {
+      const result = await prepare("recover", { task_id: taskId, instance: connection.instance, container: connection.container }, gen);
+      identity(result);
+      if (result.instance !== connection.instance || result.container !== connection.container || result.port !== connection.port) throw new Error("编辑器连接已变化；请保留未保存内容后重新打开页面。");
+      active(gen);
+      recoveryFailures = 0;
+      busy = false; controls();
+      status(`${connection.instance} / ${connection.container} · 连接可用；若编辑器仍提示断线，请在编辑器内重连。`, "ready");
+    } catch (error) {
+      if (gen !== generation) return;
+      recoveryFailures += 1;
+      nextCheck = Date.now() + Math.min(120000, 30000 * 2 ** Math.min(recoveryFailures, 2));
+      failure(error, gen);
+    }
   }
   async function load() {
     cancel(); resetFrame(); $("ide-picker").hidden = true;
@@ -104,8 +158,15 @@
     cancel(); controller = new AbortController(); const gen = generation;
     try { await open(target, gen); } catch (error) { failure(error, gen); }
   });
-  $("ide-retry").addEventListener("click", load);
-  mobileMedia.addEventListener("change", load);
+  $("ide-retry").addEventListener("click", () => connection ? recover(true) : load());
+  // A desktop window crossing the layout breakpoint must not unload the editor.
+  mobileMedia.addEventListener("change", () => { if (!connection) load(); });
+  window.addEventListener("focus", () => recover());
+  window.addEventListener("online", () => recover(true));
+  window.addEventListener("offline", () => { if (connection) status("网络已离线；已保留编辑器，网络恢复后会重试连接。", "error"); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) recover(); });
+  window.addEventListener("pageshow", () => recover());
+  setInterval(() => recover(), 30000);
   window.addEventListener("pagehide", cancel);
   load();
 })();

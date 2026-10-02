@@ -359,7 +359,7 @@ async def test_restart_uses_exact_history_config_and_original_failed_command(set
     for key in ('framework','mount','env','scheduling','resource_pool'):
         assert body[key]==source[key]
     assert body['roles'][0]['image_path']==source['roles'][0]['image_path']
-    assert body['roles'][0]['resource_spec']==[{'name':'custom-small','replicas':1}]
+    assert body['roles'][0]['resource_spec']==[{'name':'custom-small','replicas':0}]
     assert body['roles'][0]['startup_script']=='python retry.py\nsleep inf'
 
 @pytest.mark.asyncio

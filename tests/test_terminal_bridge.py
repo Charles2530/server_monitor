@@ -207,3 +207,31 @@ async def test_initial_resize_failure_closes_unpublished_socket():
             await bridge.open({'task_id':'ACP:job','instance':'worker-0','container':'','cols':155,'rows':38},'local')
         assert socket.closed and not bridge.sessions and 'private' not in str(caught.value)
     finally:await bridge.close()
+
+
+@pytest.mark.asyncio
+async def test_attached_background_session_survives_idle_and_detach_can_resume(monkeypatch):
+    import time
+    from server.terminal_bridge import TerminalBridge,IDLE_SECONDS
+    socket=FakeSocket();bridge=TerminalBridge(MAOSHANWANG,resolver('CCI'),resolver('ACP'),session_loader=lambda:{'headers':{'authorization':'Bearer private'}},dial=AsyncMock(return_value=socket))
+    try:
+        key=(await bridge.open({'task_id':'ACP:job','instance':'worker-0','container':'','cols':80,'rows':24},'local'))['session_id']
+        lease=bridge.attach(key,0,'local')
+        s=bridge.sessions[key];s.touched=time.monotonic()-IDLE_SECONDS-1
+        assert bridge.get(key,'local') is s
+        await bridge.write(key,1,'one',None,'local')
+        await socket.messages.put(b'\1retained')
+        first=await bridge.read(key,0,'local')
+        bridge.detach(key,lease,'local')
+        assert not socket.closed
+        replacement=bridge.attach(key,0,'local')
+        assert replacement is not lease
+        bridge.detach(key,lease,'local')  # stale transport cannot detach the replacement
+        assert s.transport is replacement
+        resumed=await bridge.read(key,0,'local')
+        assert resumed['chunks']==first['chunks'] and resumed['sequence']==1
+        with pytest.raises(ActionError):bridge.attach(key,0,'other')
+        bridge.detach(key,replacement,'local')
+        s.touched=time.monotonic()-IDLE_SECONDS-1
+        with pytest.raises(ActionError):bridge.get(key,'local')
+    finally:await bridge.close()

@@ -61,9 +61,9 @@ def register_terminal_routes(app,current_site,perform,action_body,runtimes):
         if urlsplit('//'+host).hostname not in ('127.0.0.1','localhost','::1') or origin!='http://'+host:
             await ws.close(code=1008);return
         await ws.accept()
-        bridge=None;key=None;jobs=[];attached=False
+        bridge=None;key=None;jobs=[];lease=None
         async def message():
-            raw=await asyncio.wait_for(ws.receive_text(),45)
+            raw=await ws.receive_text()
             if len(raw.encode())>32768:raise ActionError('终端请求过长。')
             data=json.loads(raw)
             if not isinstance(data,dict):raise ActionError('终端请求无效。')
@@ -73,22 +73,35 @@ def register_terminal_routes(app,current_site,perform,action_body,runtimes):
             async with send_lock:await ws.send_json(data)
         try:
             hello=await asyncio.wait_for(message(),5)
-            if set(hello)!={'site','session_id'} or not isinstance(hello['site'],str) or hello['site'] not in runtimes:
+            if set(hello) not in ({'site','session_id'},{'site','session_id','cursor'}) or not isinstance(hello['site'],str) or hello['site'] not in runtimes:
                 raise ActionError('终端站点无效。')
             bridge=runtimes[hello['site']].terminal_bridge;key=hello['session_id']
-            bridge.get(key,owner(ws))
-            await send({'type':'ready'})
+            session=bridge.get(key,owner(ws))
+            cursor=hello.get('cursor',0)
+            lease=bridge.attach(key,cursor,owner(ws))
+            await send({'type':'ready','sequence':session.sequence})
             if await asyncio.wait_for(message(),5)!={'type':'attach'}:raise ActionError('终端连接确认无效。')
-            attached=True
+            acknowledged=asyncio.Event();sent_cursor=None
             async def output():
-                cursor=0
-                while True:
+                nonlocal cursor,sent_cursor
+                while session.transport is lease:
                     data=await bridge.read(key,cursor,owner(ws))
-                    await send(data);cursor=data['cursor']
+                    if session.transport is not lease:return
+                    sent_cursor=data['cursor'];acknowledged.clear()
+                    await send(data)
                     if data['closed']:break
+                    # Keep buffered output until xterm has rendered it. Background
+                    # tabs can pause rendering; this wait must not kill the shell.
+                    await acknowledged.wait()
+                    cursor=sent_cursor
             async def inputs():
                 while True:
                     data=await message()
+                    if session.transport is not lease:return
+                    if data.get('type')=='output-ack':
+                        if set(data)!={'type','cursor'} or type(data['cursor']) is not int or data['cursor']!=sent_cursor:
+                            raise ActionError('终端输出确认无效。')
+                        acknowledged.set();continue
                     if data=={'type':'ping'}:
                         bridge.get(key,owner(ws));await send({'type':'pong'});continue
                     if set(data)!={'sequence','data','size'}:raise ActionError('终端输入无效。')
@@ -104,8 +117,8 @@ def register_terminal_routes(app,current_site,perform,action_body,runtimes):
             with anyio.CancelScope(shield=True):
                 for job in jobs:job.cancel()
                 await asyncio.gather(*jobs,return_exceptions=True)
-                if bridge and key and attached:
-                    try:await bridge.disconnect(key,owner(ws))
+                if bridge and key and lease is not None:
+                    try:bridge.detach(key,lease,owner(ws))
                     except ActionError:pass
                 try:await ws.close()
                 except Exception:pass

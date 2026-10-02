@@ -1,6 +1,8 @@
 """An isolated localhost origin: editor credentials never reach the browser."""
 import asyncio
 from contextlib import nullcontext
+import logging
+import re
 import secrets
 import socket
 import time
@@ -12,6 +14,8 @@ from fastapi import FastAPI, Request, WebSocket
 from fastapi.responses import PlainTextResponse, RedirectResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from websockets.asyncio.client import connect
+
+logger = logging.getLogger(__name__)
 
 HOP = {'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade'}
 
@@ -64,7 +68,7 @@ class EditorProxy:
         excluded = HOP | {'host', 'cookie', 'authorization', 'origin', 'referer', 'forwarded', 'accept-encoding'}
         excluded |= {x.strip().lower() for x in request.headers.get('connection', '').split(',')}
         headers = {k: v for k, v in request.headers.items() if k.lower() not in excluded and not k.lower().startswith('x-forwarded-')}
-        headers.update({'host': self.host + ':' + str(self.port), 'cookie': self.cookie, 'accept-encoding': 'identity'})
+        headers.update({'host': self.host + ':' + str(self.port), 'cookie': self.cookie, 'accept-encoding': request.headers.get('accept-encoding', 'identity')})
         return headers
 
     async def http(self, request: Request):
@@ -87,7 +91,26 @@ class EditorProxy:
         try:
             url = self.upstream + request.scope['raw_path'].decode('ascii')
             if request.url.query: url += '?' + request.url.query
-            upstream = await self.client.send(self.client.build_request(request.method, url, headers=self.headers(request), content=request.stream()), stream=True)
+            # Passing an async stream for a bodyless GET makes HTTPX add
+            # Transfer-Encoding: chunked. code-server's webview/static routes
+            # reject that framing (400 or a closed connection before headers).
+            bodyless = (request.method in ('GET', 'HEAD')
+                        and request.headers.get('content-length', '0') == '0'
+                        and 'transfer-encoding' not in request.headers)
+            content = None if bodyless else request.stream()
+            outgoing = self.client.build_request(request.method, url, headers=self.headers(request), content=content)
+            resource = (outgoing.url.path.startswith('/_static/') or
+                        re.match(r'^/stable-[a-f0-9]{40}/(?:static/|vscode-remote-resource$)', outgoing.url.path))
+            try:
+                upstream = await self.client.send(outgoing, stream=True)
+            except httpx.RemoteProtocolError:
+                # An upstream keep-alive can close before the response headers.
+                # Retry only bodyless editor resource reads, never writes or
+                # arbitrary forwarded application endpoints. HTTPX discards the
+                # failed connection; no partial response has reached the browser.
+                if not bodyless or not resource: raise
+                logger.info('Retrying editor resource after upstream connection reset')
+                upstream = await self.client.send(self.client.build_request(request.method, url, headers=self.headers(request)), stream=True)
             location = upstream.headers.get('location', '')
             target = urlsplit(location)
             if upstream.status_code in (401, 403) or target.path.rstrip('/') == '/login':
@@ -107,7 +130,8 @@ class EditorProxy:
             headers['content-security-policy'] = '; '.join(directives)
             headers['referrer-policy'] = 'no-referrer'
             return StreamingResponse(upstream.aiter_raw(), status_code=upstream.status_code, headers=headers, background=BackgroundTask(upstream.aclose))
-        except (httpx.HTTPError, OSError):
+        except (httpx.HTTPError, OSError) as exc:
+            logger.warning('Editor HTTP transport failed (%s)', type(exc).__name__)
             return PlainTextResponse('编辑器连接中断，请返回重新连接。', 502)
 
     async def websocket(self, ws: WebSocket):
@@ -115,13 +139,16 @@ class EditorProxy:
             await ws.close(code=1008)
             return
         jobs = []
+        close_code = 1000
+        phase = 'connect'
         self.active_sockets += 1
         try:
             url = self.upstream.replace('http:', 'ws:') + ws.scope['raw_path'].decode('ascii')
             if ws.url.query: url += '?' + ws.url.query
             protocols = [x.strip() for x in ws.headers.get('sec-websocket-protocol', '').split(',') if x.strip()]
-            async with connect(url, additional_headers={'Cookie': self.cookie}, origin=self.upstream, subprotocols=protocols or None, proxy=None, max_size=16 * 1024 * 1024, open_timeout=15) as remote:
+            async with connect(url, additional_headers={'Cookie': self.cookie}, origin=self.upstream, subprotocols=protocols or None, proxy=None, max_size=16 * 1024 * 1024, open_timeout=15, ping_interval=20, ping_timeout=120) as remote:
                 await ws.accept(subprotocol=remote.subprotocol)
+                phase = 'relay'
                 async def incoming():
                     while True:
                         msg = await ws.receive()
@@ -136,14 +163,16 @@ class EditorProxy:
                 jobs = [asyncio.create_task(incoming()), asyncio.create_task(outgoing())]
                 done, _ = await asyncio.wait(jobs, return_when=asyncio.FIRST_COMPLETED)
                 for job in done: job.result()
-        except Exception:
-            pass
+        except Exception as exc:
+            close_code = 1011
+            # Paths, queries, cookies and exception messages may contain secrets.
+            logger.warning('Editor WebSocket %s failed (%s)', phase, type(exc).__name__)
         finally:
             for job in jobs: job.cancel()
             await asyncio.gather(*jobs, return_exceptions=True)
             self.active_sockets -= 1
             self.touched = time.monotonic()
-            try: await ws.close()
+            try: await ws.close(code=close_code)
             except Exception: pass
 
     async def healthy(self):
@@ -157,7 +186,7 @@ class EditorProxy:
         sock = socket.socket()
         sock.bind(('127.0.0.1', 0))
         self.port = sock.getsockname()[1]
-        self.server = LocalProxyServer(uvicorn.Config(self.app, log_level='critical', access_log=False, lifespan='off', ws_max_size=16 * 1024 * 1024))
+        self.server = LocalProxyServer(uvicorn.Config(self.app, log_level='critical', access_log=False, lifespan='off', ws_max_size=16 * 1024 * 1024, ws_ping_interval=20, ws_ping_timeout=120))
         self.server_task = asyncio.create_task(self.server.serve(sockets=[sock]))
         for _ in range(100):
             if self.server.started: return

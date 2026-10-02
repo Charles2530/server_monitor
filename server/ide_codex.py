@@ -33,13 +33,25 @@ def codex_installed(extensions):
     return False
 
 
-def install_codex(base, binary, env):
+def download_size(response):
+    try:
+        value = int(response.headers.get('Content-Length', ''))
+        return value if 0 < value <= 250 * 1024 * 1024 else None
+    except (AttributeError, ValueError, TypeError):
+        return None
+
+
+def install_codex(base, binary, env, progress=None):
+    progress = progress or (lambda *args: None)
     base.mkdir(parents=True, exist_ok=True, mode=0o700)
     temporary = Path(tempfile.mkdtemp(prefix='codex-install-', dir=str(base)))
     try:
         archive = temporary / ('openai.chatgpt-' + CODEX_VERSION + '.vsix')
         digest = hashlib.sha256(); total = 0; started = time.monotonic()
+        progress('download_codex', 0)
         with urllib.request.urlopen(CODEX_URL, timeout=45) as response, archive.open('wb') as output:
+            expected = download_size(response)
+            progress('download_codex', 0, expected)
             while True:
                 chunk = response.read(1024 * 1024)
                 if not chunk: break
@@ -47,8 +59,11 @@ def install_codex(base, binary, env):
                 if total > 250 * 1024 * 1024 or time.monotonic() - started > 240:
                     raise RuntimeError('Codex 插件下载超出限制。')
                 digest.update(chunk); output.write(chunk)
+                progress('download_codex', total, expected)
+        progress('verify_codex')
         if digest.hexdigest() != CODEX_SHA256:
             raise RuntimeError('Codex 插件下载校验失败。')
+        progress('install_codex')
         install_config = temporary / 'config.json'
         install_config.write_text('{}')
         with (base / 'codex-install.log').open('ab') as log:
@@ -63,7 +78,7 @@ def install_codex(base, binary, env):
         shutil.rmtree(str(temporary), ignore_errors=True)
 
 
-def prepare_codex(base, env, binary):
+def prepare_codex(base, env, binary, progress=None):
     home = Path(env.get('HOME') or str(Path.home()))
     configured = env.get('CODEX_HOME')
     codex_home = Path(configured).expanduser() if configured else home / '.codex'
@@ -76,7 +91,7 @@ def prepare_codex(base, env, binary):
     env['CODEX_HOME'] = str(codex_home)
     if not codex_installed(base / 'extensions'):
         try:
-            install_codex(base, binary, env)
+            install_codex(base, binary, env, progress=progress)
         except (OSError, RuntimeError, subprocess.TimeoutExpired):
             return {'configured': True, 'installed': False}
     return {'configured': True, 'installed': True}

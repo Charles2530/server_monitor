@@ -25,6 +25,13 @@ def register_ide_routes(app, current_site, perform, action_body):
             return await runtime.ide.begin('open', data, origin(request))
         return await perform(run)
 
+    @app.post('/api/cci/ide/recover')
+    async def recover_editor(request: Request, runtime=Depends(current_site)):
+        async def run():
+            data = await action_body(request, ('task_id', 'instance', 'container'))
+            return await runtime.ide.begin('recover', data, origin(request))
+        return await perform(run)
+
     @app.post('/api/cci/ide/status')
     async def status(request: Request, runtime=Depends(current_site)):
         async def run():

@@ -17,7 +17,7 @@ from .task_logs import task_identity
 
 MAX_SESSIONS=8
 MAX_BUFFER=1024*1024
-IDLE_SECONDS=120
+IDLE_SECONDS=15*60
 LIFETIME_SECONDS=8*3600
 READ_TIMEOUT=20
 PREPARATION_POLL_SECONDS=10
@@ -41,7 +41,7 @@ class Session:
         self.created=self.touched=time.monotonic()
         self.frames=deque();self.size=0;self.cursor=0
         self.sequence=0;self.last_digest=None
-        self.ended=False;self.error=None
+        self.ended=False;self.error=None;self.transport=None
         self.event=asyncio.Event();self.write_lock=asyncio.Lock()
         self.pump=asyncio.create_task(self.receive())
         self.heartbeat=asyncio.create_task(self.keepalive())
@@ -70,7 +70,7 @@ class Session:
         try:
             while not self.ended:
                 await asyncio.sleep(15)
-                if time.monotonic()-self.touched>IDLE_SECONDS or time.monotonic()-self.created>LIFETIME_SECONDS:
+                if (self.transport is None and time.monotonic()-self.touched>IDLE_SECONDS) or time.monotonic()-self.created>LIFETIME_SECONDS:
                     self.error='终端会话已过期，请重新连接。'
                     break
                 async with self.write_lock:
@@ -154,7 +154,7 @@ class TerminalBridge:
         async with self.open_lock:
             now=time.monotonic()
             for key,s in list(self.sessions.items()):
-                if s.ended or now-s.touched>IDLE_SECONDS or now-s.created>LIFETIME_SECONDS:
+                if s.ended or (s.transport is None and now-s.touched>IDLE_SECONDS) or now-s.created>LIFETIME_SECONDS:
                     await s.close();del self.sessions[key]
             if len(self.sessions)>=MAX_SESSIONS:raise ActionError('已打开太多终端，请先断开不使用的会话。','terminal_limit',429)
             started=time.monotonic()
@@ -173,7 +173,7 @@ class TerminalBridge:
                     origin=urlsplit(self.site.console)
                     url='wss://'+urlsplit(self.site.services['AEC2']).netloc+path+'?'+urlencode({'token':token,'lines':size['Height'],'columns':size['Width']})
                     socket=await self.dial(url,subprotocols=['channel.k8s.io'],origin=origin.scheme+'://'+origin.netloc,
-                        proxy=None,open_timeout=20,close_timeout=3,max_size=MAX_BUFFER,compression=None)
+                        proxy=None,open_timeout=20,close_timeout=3,max_size=MAX_BUFFER,compression=None,ping_interval=20,ping_timeout=120)
                     # The cloud ignores handshake dimensions: stty reports 0 0 until
                     # channel 4 is sent. Set the PTY before accepting any input.
                     try:
@@ -197,10 +197,24 @@ class TerminalBridge:
         s=self.sessions.get(key) if isinstance(key,str) else None
         if s is None or s.owner!=owner:
             raise ActionError('终端会话已失效，请重新连接。','terminal_expired',404)
-        if time.monotonic()-s.touched>IDLE_SECONDS or time.monotonic()-s.created>LIFETIME_SECONDS:
+        if (s.transport is None and time.monotonic()-s.touched>IDLE_SECONDS) or time.monotonic()-s.created>LIFETIME_SECONDS:
             raise ActionError('终端会话已过期，请重新连接。','terminal_expired',410)
         s.touched=time.monotonic()
         return s
+
+    def attach(self,key,cursor,owner):
+        s=self.get(key,owner)
+        if type(cursor) is not int or not 0<=cursor<=s.cursor:
+            raise ActionError('终端读取位置无效。')
+        # A replacement transport owns the lease; late cleanup from the old one
+        # must not expire or close the same cloud shell.
+        s.transport=object()
+        return s.transport
+
+    def detach(self,key,lease,owner):
+        s=self.sessions.get(key)
+        if s and s.owner==owner and s.transport is lease:
+            s.transport=None;s.touched=time.monotonic()
 
     async def read(self,key,cursor,owner):
         s=self.get(key,owner)
@@ -216,7 +230,7 @@ class TerminalBridge:
         frames=[(seq,data) for seq,data in s.frames if seq>cursor]
         return {'type':'output','cursor':frames[-1][0] if frames else cursor,
                 'chunks':[base64.b64encode(data).decode('ascii') for _,data in frames],
-                'closed':s.ended,'error':s.error}
+                'closed':s.ended,'error':s.error,'sequence':s.sequence}
 
     async def write(self,key,sequence,data,size,owner):
         s=self.get(key,owner)
