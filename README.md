@@ -175,6 +175,14 @@ MONITOR_BROWSER_CHANNEL=auto
 
 任务历史通过 `#history` 进入。成功和失败使用平台最终状态；已停止任务必须有有效开始时间或本机曾观测到运行的证据，没有运行依据的记录会过滤并显示数量。CCI 历史接口没有开始时间且停止后不保留实例，旧 CCI 任务无法确认曾运行时暂不列入；后续本机运行观测标记长期保留，不随 7 天指标清理。CCI 的最近更新时间不会当成准确停止时间。任务列表按结束时间排序，缺少结束时间时使用最近更新时间；两个站点独立读取，云端失败保留旧结果并提示。
 
+### 站内 Terminal
+
+两站点的本人 charles 运行任务支持在监控网站内打开 CCI / ACP Shell，可选择实例、容器或 Worker。终端使用本地打包的 [xterm.js](https://github.com/xtermjs/xterm.js)，支持 ANSI 彩色输出、中文、复制粘贴、字号调整、全屏，以及手机端 Ctrl+C / Tab / 方向键。页面保留官方控制台入口。
+
+后台使用该站点的 IAM 会话连接云终端，认证过期时尝试自动续登；云端凭据不会交给终端页面。本机使用 WebSocket，旧 APK 使用即时返回输出的 HTTP 长轮询，无需重装 APK。手机设备须有写入权限；另一台 Mac 同步代码后，需重新部署主服务和手机网关（`.venv/bin/python scripts/mobile_host.py install`），才能使用新增接口。
+
+断线后需手动重新连接，输入结果无法确认时不会自动重发命令。关闭终端会断开当前 Shell，可能影响该 Shell 的前台命令，但不会主动停止云训练任务。输出仅在内存中暂存，每会话待读取输出上限 1 MiB；每站点最多 8 个终端会话，客户端失联 120 秒或会话达到 8 小时后关闭，不保存终端历史。
+
 ## ACP 任务管理
 
 ### 创建流程
@@ -397,7 +405,7 @@ done
 
 ## 依赖与许可
 
-Python 依赖版本由 `requirements.lock` 锁定，主要依赖为 FastAPI、Uvicorn、HTTPX、Playwright 和 python-dotenv。
+Python 依赖版本由 `requirements.lock` 锁定，主要依赖为 FastAPI、Uvicorn、HTTPX、Playwright、websockets 和 python-dotenv。
 
 前端使用本地打包资源，保留上游许可证：
 
@@ -405,6 +413,8 @@ Python 依赖版本由 `requirements.lock` 锁定，主要依赖为 FastAPI、Uv
 | --- | --- |
 | Tabler | [MIT](static/vendor/tabler-LICENSE) |
 | Apache ECharts | [Apache-2.0](static/vendor/echarts-LICENSE) |
+| [xterm.js 5.5.0](https://github.com/xtermjs/xterm.js) | [MIT](static/vendor/xterm-LICENSE) |
+| xterm addon-fit 0.10.0 | [MIT](static/vendor/xterm-addon-fit-LICENSE) |
 
 ## 已知限制
 

@@ -104,7 +104,7 @@ def test_cci_terminal_route_is_read_only_no_store_and_sanitizes_errors(tmp_path)
             return {'task_id':task_id,'targets':[],'site':'maoshanwang'}
     monitor=Monitor(Store(tmp_path/'db'),None)
     app=create_app(monitor,background=False)
-    app.state.runtimes['maoshanwang'].terminal=Terminal()
+    app.state.runtimes['maoshanwang'].terminal_bridge.resolvers['CCI']=Terminal()
     with TestClient(app,base_url='http://localhost:8766') as client:
         assert client.get('/terminal?site=maoshanwang&task_id=CCI:app').status_code==200
         response=client.get('/api/cci/terminal-targets?task_id=CCI:app')
@@ -121,7 +121,7 @@ def test_acp_terminal_route_is_read_only_and_no_store(tmp_path):
             if task_id=='ACP:bad':raise RuntimeError('PRIVATE_TOKEN')
             return {'task_id':task_id,'targets':[],'site':'maoshanwang'}
     app=create_app(Monitor(Store(tmp_path/'db'),None),background=False)
-    app.state.runtimes['maoshanwang'].acp_terminal=Terminal()
+    app.state.runtimes['maoshanwang'].terminal_bridge.resolvers['ACP']=Terminal()
     with TestClient(app,base_url='http://localhost:8766') as client:
         response=client.get('/api/acp/terminal-targets?task_id=ACP:app')
         assert response.json()['task_id']=='ACP:app' and response.headers['cache-control']=='no-store'

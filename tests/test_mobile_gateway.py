@@ -72,3 +72,15 @@ def test_upstream_failure_is_sanitized_no_retry(tmp_path):
         response=client.post('/api/acp/create',headers={'Authorization':'Bearer '+device['token']},json={})
         assert response.status_code==503 and 'PRIVATE' not in response.text and '未知' in response.text
     assert len(calls)==1
+
+
+def test_terminal_requires_write_access_and_binds_device_identity(tmp_path):
+    for write in (False,True):
+        _,device,calls,client=setup(tmp_path/str(write),write=write)
+        with client:
+            for path in ('open','read','write','close'):
+                r=client.post('/api/terminal/'+path,headers={'Authorization':'Bearer '+device['token'],'X-Monitor-Device':'forged'},json={'session_id':'opaque'})
+                assert r.status_code==(200 if write else 403)
+            if write:
+                assert all(c.headers['x-monitor-device']==device['device_id'] for c in calls)
+            else:assert not calls

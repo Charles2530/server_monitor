@@ -8,8 +8,11 @@
     <title>Web Terminal · iLab Server Monitor</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/static/selects.css">
+    <link rel="stylesheet" href="/static/vendor/xterm.css">
     <link rel="stylesheet" href="/static/terminal.css">
     <script src="/static/sites.js" defer></script>
+    <script src="/static/vendor/xterm.js" defer></script>
+    <script src="/static/vendor/xterm-addon-fit.js" defer></script>
     <script src="/static/terminal.js" defer></script>
   </head>
   <body>
@@ -22,7 +25,7 @@
         <div class="terminal-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 7 5 5-5 5M13 17h6"/></svg></div>
         <span class="eyebrow">WORKSPACE / TERMINAL</span>
         <h1 id="terminal-title">Web Terminal</h1>
-        <p class="terminal-description">选择运行中的目标，进入云控制台终端。</p>
+        <p class="terminal-description">在本站连接运行容器，登录由监控后台自动处理。</p>
         <div class="task-context"><span>当前任务</span><p id="terminal-task">正在读取任务信息…</p></div>
       </div>
       <section class="terminal-connection" aria-labelledby="connection-title">
@@ -31,11 +34,32 @@
         <div id="terminal-picker" hidden>
           <label id="terminal-instance-label" for="terminal-instance">实例</label><select id="terminal-instance" class="terminal-select"></select>
           <label id="terminal-container-label" for="terminal-container">容器</label><select id="terminal-container" class="terminal-select"></select>
-          <a id="terminal-open" class="button primary" rel="noreferrer">进入 Terminal <span aria-hidden="true">↗</span></a>
+          <button id="terminal-open" class="button primary" type="button">连接终端</button>
         </div>
         <div class="actions"><a id="terminal-back" class="button"><span aria-hidden="true">←</span> 返回监控</a><button id="terminal-retry" class="button" type="button" hidden>重新读取</button></div>
       </section>
     </main>
-    <footer class="terminal-footer">iLab Server Monitor<span>Web Terminal · 云控制台会话</span></footer>
+    <section id="terminal-workspace" class="terminal-workspace" hidden aria-label="交互式终端">
+      <div class="terminal-toolbar">
+        <div class="terminal-session"><span id="terminal-led" class="terminal-led"></span><strong id="terminal-target-name">Terminal</strong><span id="terminal-transport">连接中</span></div>
+        <div class="terminal-tools">
+          <button id="terminal-font-down" type="button" title="缩小字号" aria-label="缩小字号">A−</button>
+          <button id="terminal-font-up" type="button" title="放大字号" aria-label="放大字号">A＋</button>
+          <button id="terminal-copy" type="button">复制选中</button>
+          <button id="terminal-paste" type="button">粘贴</button>
+          <button id="terminal-fullscreen" type="button">全屏</button>
+          <button id="terminal-disconnect" type="button">断开</button>
+        </div>
+      </div>
+      <div id="terminal-screen" aria-label="命令行输入和输出"></div>
+      <div class="terminal-keyboard" aria-label="终端快捷键">
+        <button type="button" data-terminal-key="interrupt">Ctrl+C</button><button type="button" data-terminal-key="tab">Tab</button><button type="button" data-terminal-key="escape">Esc</button>
+        <button type="button" data-terminal-key="up" aria-label="方向上">↑</button><button type="button" data-terminal-key="down" aria-label="方向下">↓</button>
+        <button type="button" data-terminal-key="left" aria-label="方向左">←</button><button type="button" data-terminal-key="right" aria-label="方向右">→</button>
+        <button type="button" data-terminal-key="enter">Enter</button>
+      </div>
+      <p id="terminal-hint" class="terminal-hint" role="status">关闭终端仅断开当前 Shell 连接，不会停止训练任务。</p>
+    </section>
+    <footer class="terminal-footer">iLab Server Monitor<span><a id="terminal-official" target="_blank" rel="noopener noreferrer" hidden>在官方控制台打开 ↗</a></span></footer>
   </body>
 </html>

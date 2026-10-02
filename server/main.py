@@ -16,6 +16,8 @@ from .acp_actions import ACPManager, ActionError
 from .task_logs import TaskLogs
 from .cci_terminal import CCITerminal
 from .acp_terminal import ACPTerminal
+from .terminal_bridge import TerminalBridge
+from .terminal_routes import register_terminal_routes
 from .storage import StorageManager
 from .task_history import TaskHistory
 from .normalize import task_console_url
@@ -35,6 +37,7 @@ class SiteRuntime:
     task_history: object = None
     terminal: object = None
     acp_terminal: object = None
+    terminal_bridge: object = None
 
 
 def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=None):
@@ -51,6 +54,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     for runtime in runtimes.values():
         if runtime.terminal is None:runtime.terminal=CCITerminal(runtime.site)
         if runtime.acp_terminal is None:runtime.acp_terminal=ACPTerminal(runtime.site)
+        if runtime.terminal_bridge is None:runtime.terminal_bridge=TerminalBridge(runtime.site,runtime.terminal,runtime.acp_terminal)
         if runtime.storage is None:runtime.storage=StorageManager(runtime.site)
         if runtime.task_history is None:runtime.task_history=TaskHistory(runtime.monitor.store,runtime.site)
     def current_site(request: Request):
@@ -75,6 +79,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
             yield
         finally:
             for runtime in runtimes.values():
+                await runtime.terminal_bridge.close()
                 await runtime.monitor.close()
                 if hasattr(runtime.storage,"close"):await runtime.storage.close()
                 if hasattr(runtime.task_history,"close"):await runtime.task_history.close()
@@ -152,6 +157,8 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         except AuthRequired:return JSONResponse({'error':'请重新连接云会话。','code':'auth_required'},status_code=403)
         except Exception:return JSONResponse({'error':'操作暂不可用，请检查连接并核对云端任务状态。','code':'source_unavailable'},status_code=503)
 
+    register_terminal_routes(app,current_site,perform,action_body,runtimes)
+
     @app.get('/api/task-history')
     async def task_history(runtime=Depends(current_site)):
         return await perform(runtime.task_history.snapshot)
@@ -166,11 +173,11 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
 
     @app.get('/api/cci/terminal-targets')
     async def terminal_targets(task_id: str=Query(max_length=100),runtime=Depends(current_site)):
-        return await perform(lambda:runtime.terminal.targets(task_id))
+        return await perform(lambda:runtime.terminal_bridge.targets(task_id))
 
     @app.get('/api/acp/terminal-targets')
     async def acp_terminal_targets(task_id: str=Query(max_length=100),runtime=Depends(current_site)):
-        return await perform(lambda:runtime.acp_terminal.targets(task_id))
+        return await perform(lambda:runtime.terminal_bridge.targets(task_id))
 
     @app.get('/api/logs')
     async def task_logs(task_id: str=Query(max_length=100),worker: str=Query(min_length=1,max_length=253),

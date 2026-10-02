@@ -12,7 +12,8 @@ READ_PATHS=frozenset(('/', '/terminal', '/api/state','/api/history','/api/task-h
     '/api/logs','/api/logs/targets','/api/cci/terminal-targets','/api/acp/terminal-targets',
     '/api/acp/options','/api/acp/restart-options','/api/acp/release-restart-options'))
 WRITE_PATHS=frozenset(('/api/connect','/api/refresh','/api/acp/preview','/api/acp/create','/api/acp/stop',
-    '/api/acp/restart-preview','/api/acp/release-restart-preview'))
+    '/api/acp/restart-preview','/api/acp/release-restart-preview',
+    '/api/terminal/open','/api/terminal/targets','/api/terminal/status','/api/terminal/read','/api/terminal/write','/api/terminal/close'))
 MAX_BODY=131072
 MAX_RESPONSE=32*1024*1024
 
@@ -43,10 +44,13 @@ async def bounded_body(request):
 
 def create_gateway(store=None,*,transport=None):
     store=store or default_store()
+    async def strip_cookies(request):
+        request.headers.pop('cookie',None)
+
     @asynccontextmanager
     async def lifespan(app):
         # Fixed destination and no environment proxy. Never accept an upstream URL from a client.
-        async with httpx.AsyncClient(base_url='http://127.0.0.1:8766',timeout=95,follow_redirects=False,trust_env=False,transport=transport) as client:
+        async with httpx.AsyncClient(base_url='http://127.0.0.1:8766',timeout=95,follow_redirects=False,trust_env=False,transport=transport,event_hooks={'request':[strip_cookies]}) as client:
             app.state.upstream=client
             yield
     app=FastAPI(lifespan=lifespan,docs_url=None,redoc_url=None,openapi_url=None)
@@ -85,7 +89,7 @@ def create_gateway(store=None,*,transport=None):
         except AccessError as exc:return JSONResponse({'error':str(exc),'code':'mobile_auth_required'},status_code=401)
         path='/'+path
         if not allowed_path(path,request.method):return JSONResponse({'error':'未开放此接口。'},status_code=404)
-        try:store.authorize(token,write=request.method=='POST')
+        try:device=store.authorize(token,write=request.method=='POST')
         except AccessError as exc:return JSONResponse({'error':str(exc),'code':'mobile_access_denied'},status_code=403)
         site=request.headers.get('x-monitor-site','maoshanwang')
         if site not in ('maoshanwang','sensecore'):return JSONResponse({'error':'未知站点。'},status_code=400)
@@ -93,7 +97,7 @@ def create_gateway(store=None,*,transport=None):
         if body is None:return JSONResponse({'error':'请求过长。'},status_code=413)
         query=request.scope.get('query_string',b'')
         if len(query)>8192:return JSONResponse({'error':'查询过长。'},status_code=413)
-        headers={'X-Monitor-Site':site,'X-Monitor-Request':'1','Content-Type':'application/json','Host':'127.0.0.1:8766'}
+        headers={'X-Monitor-Site':site,'X-Monitor-Request':'1','Content-Type':'application/json','Host':'127.0.0.1:8766','X-Monitor-Device':device['id']}
         try:
             # Do not forward cookies, caller Authorization, Host, Origin, or forwarding headers.
             async with app.state.upstream.stream(request.method,path+('?' + query.decode('ascii') if query else ''),headers=headers,content=body) as response:

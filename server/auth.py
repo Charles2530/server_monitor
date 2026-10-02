@@ -8,6 +8,7 @@ from .config import DATA, CONSOLE, SERVICES
 from .browser import browser_launch_options
 
 SESSION = DATA / 'session.json'
+LOGIN_LOCKS = {}
 SIGNIN_ORIGIN = 'https://signin.ms-sc-01.maoshanwangtech.com'
 
 class AuthRequired(Exception):
@@ -97,6 +98,12 @@ async def authenticate(context, credentials=None, timeout=75, site=None):
 
 
 async def connect_browser(headless=True, timeout=75, site=None):
+    key=str(site.data if site else DATA)
+    async with LOGIN_LOCKS.setdefault(key,asyncio.Lock()):
+        await _connect_browser(headless,timeout,site)
+
+
+async def _connect_browser(headless=True, timeout=75, site=None):
     try:
         previous = load_session(site).get('storage_state')
     except AuthRequired:

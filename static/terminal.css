@@ -36,7 +36,7 @@ select.terminal-select { display: flex; min-height: 43px; font: 500 12px/1.5 -ap
 .primary { display: flex; width: 100%; margin-top: 24px; min-height: 43px; color: white; background: #148464; border-color: #148464; box-shadow: 0 2px 3px #124a2710; }
 .primary:hover { color: white; background: #0d7154; border-color: #0d7154; }
 .primary span { margin-left: auto; }
-.primary:not([href]) { opacity: .5; pointer-events: none; }
+.primary:disabled { opacity: .5; pointer-events: none; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 28px; padding-top: 20px; border-top: 1px solid #e7eee9; }
 .terminal-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 22px; font-size: 10px; color: #778a7e; }
 :focus-visible { outline: 2px solid #158c70; outline-offset: 3px; }
@@ -52,3 +52,39 @@ select.terminal-select { display: flex; min-height: 43px; font: 500 12px/1.5 -ap
   .connection-heading { margin-bottom: 20px; }
 }
 @media(prefers-reduced-motion:reduce) { .button { transition: none; } }
+
+/* The embedded terminal shares the dashboard palette; xterm owns ANSI rendering. */
+body.terminal-active .terminal-panel { grid-template-columns: 1fr 1fr; }
+body.terminal-active .terminal-intro, body.terminal-active .terminal-connection { padding: 18px 24px; }
+body.terminal-active .terminal-symbol, body.terminal-active .eyebrow, body.terminal-active .connection-heading, body.terminal-active .terminal-description { display: none; }
+body.terminal-active .terminal-header { margin-bottom: 16px; }
+body.terminal-active .task-context { margin-top: 10px; }
+.terminal-workspace { width: 100%; max-width: 1400px; margin: 20px auto 0; border: 1px solid #31423e; border-radius: 14px; background: #101b19; color: #d7e9e0; box-shadow: 0 12px 32px #122b291f; overflow: hidden; }
+body.terminal-active .terminal-header, body.terminal-active .terminal-panel, body.terminal-active .terminal-footer { max-width: 1400px; }
+.terminal-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid #2a3c37; background: #182722; }
+.terminal-session { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; font-size: 12px; }
+#terminal-target-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#terminal-transport { color: #9eb5aa; white-space: nowrap; font-size: 11px; }
+.terminal-led { width: 7px; height: 7px; background: #81998c; border-radius: 50%; flex-shrink: 0; }
+.terminal-led.connected { background: #70d6a5; box-shadow: 0 0 8px #70d6a54d; }
+.terminal-tools, .terminal-keyboard { display: flex; gap: 6px; flex-wrap: wrap; }
+.terminal-tools button, .terminal-keyboard button { padding: 7px 10px; border: 1px solid #3c5048; border-radius: 6px; background: #24382f; color: #d7e9e0; font: inherit; font-size: 11px; cursor: pointer; }
+.terminal-tools button:hover, .terminal-keyboard button:hover { background: #375446; }
+.terminal-tools button:focus-visible, .terminal-keyboard button:focus-visible { outline: 2px solid #9ae5be; outline-offset: 2px; }
+#terminal-screen { height: min(65vh, 720px); min-height: 260px; padding: 12px; overflow: hidden; }
+#terminal-screen .xterm { height: 100%; }
+.terminal-keyboard { padding: 9px 12px 0; border-top: 1px solid #2a3c37; }
+.terminal-hint { margin: 0; padding: 10px 14px; color: #aac1b5; font-size: 11px; line-height: 1.6; }
+.terminal-workspace:fullscreen { max-width: none; margin: 0; border-radius: 0; display: flex; flex-direction: column; }
+.terminal-workspace:fullscreen #terminal-screen { flex: 1; min-height: 0; }
+#terminal-official { color: #526e60; }
+@media(max-width:620px) {
+  body.terminal-active .terminal-panel { grid-template-columns: 1fr; }
+  body.terminal-active .terminal-intro, body.terminal-active .terminal-connection { padding: 14px 16px; }
+  .terminal-toolbar { padding: 10px; gap: 10px; }
+  .terminal-session { flex-basis: 100%; }
+  .terminal-tools { gap: 5px; }
+  .terminal-tools button, .terminal-keyboard button { min-height: 36px; padding-inline: 10px; }
+  #terminal-screen { padding: 8px; height: 55dvh; min-height: 240px; }
+  .terminal-workspace { border-radius: 10px; }
+}

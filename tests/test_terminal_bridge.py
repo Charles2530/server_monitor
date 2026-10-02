@@ -1,0 +1,184 @@
+import asyncio
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+from urllib.parse import urlsplit,parse_qs
+import pytest
+from server.sites import MAOSHANWANG,SENSECORE
+from server.auth import AuthRequired
+from server.acp_actions import ActionError
+
+
+def resolver(kind):
+    return SimpleNamespace(targets=AsyncMock(return_value={'targets':[{'instance':'worker-0',**({'container':'main'} if kind=='CCI' else {})}]}))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('site',[MAOSHANWANG,SENSECORE])
+@pytest.mark.parametrize('kind',['CCI','ACP'])
+async def test_bridge_uses_verified_target_and_private_cloud_token(site,kind):
+    from server.terminal_bridge import TerminalBridge
+    socket=FakeSocket();dial=AsyncMock(return_value=socket)
+    bridge=TerminalBridge(site,resolver('CCI'),resolver('ACP'),session_loader=lambda:{'headers':{'authorization':'Bearer PRIVATE'}},dial=dial)
+    try:
+        result=await bridge.open({'task_id':kind+':job','instance':'worker-0','container':'main' if kind=='CCI' else '', 'cols':80,'rows':24},'local')
+        assert 'PRIVATE' not in str(result)
+        url=dial.call_args.args[0];query=parse_qs(urlsplit(url).query)
+        assert urlsplit(url).hostname==urlsplit(site.services['AEC2']).hostname
+        assert query=={'token':['PRIVATE'],'lines':['24'],'columns':['80']}
+        assert site.workspace in urlsplit(url).path
+        assert dial.call_args.kwargs['subprotocols']==['channel.k8s.io']
+        await socket.messages.put(b'\x01hello\x1b[32m')
+        output=await bridge.read(result['session_id'],0,'local')
+        assert output['chunks']==['aGVsbG8bWzMybQ=='] and output['cursor']==1
+        await bridge.write(result['session_id'],1,'echo hi\r',None,'local')
+        await bridge.write(result['session_id'],1,'echo hi\r',None,'local')
+        assert socket.sent==[b'\0echo hi\r']
+        await bridge.write(result['session_id'],2,'',{'cols':120,'rows':40},'local')
+        assert socket.sent[-1]==b'\x04{"Width":120,"Height":40}'
+        with pytest.raises(ActionError):await bridge.read(result['session_id'],0,'other-device')
+    finally:await bridge.close()
+
+
+class FakeSocket:
+    def __init__(self):self.messages=asyncio.Queue();self.sent=[];self.closed=False
+    def __aiter__(self):return self
+    async def __anext__(self):return await self.messages.get()
+    async def send(self,data):self.sent.append(data)
+    async def close(self):self.closed=True
+
+
+@pytest.mark.asyncio
+async def test_expired_auth_renews_once_and_revalidates_before_opening():
+    from server.terminal_bridge import TerminalBridge
+    cci=resolver('CCI');cci.targets.side_effect=[AuthRequired('expired'),{'targets':[{'instance':'worker-0','container':'main'}]}]
+    renew=AsyncMock();socket=FakeSocket();dial=AsyncMock(return_value=socket)
+    bridge=TerminalBridge(MAOSHANWANG,cci,resolver('ACP'),renew=renew,session_loader=lambda:{'headers':{'authorization':'Bearer PRIVATE'}},dial=dial)
+    try:
+        await bridge.open({'task_id':'CCI:job','instance':'worker-0','container':'main','cols':80,'rows':24},'local')
+        assert cci.targets.await_count==2 and renew.await_count==1 and dial.await_count==1
+    finally:await bridge.close()
+
+
+@pytest.mark.asyncio
+async def test_invalid_foreign_target_and_input_do_not_reach_cloud():
+    from server.terminal_bridge import TerminalBridge
+    dial=AsyncMock();bridge=TerminalBridge(MAOSHANWANG,resolver('CCI'),resolver('ACP'),dial=dial)
+    form={'task_id':'CCI:job','instance':'../foreign','container':'main','cols':80,'rows':24}
+    for changes in ({},{'instance':'worker-0','container':'other'},{'instance':'worker-0','cols':0}):
+        with pytest.raises(ActionError):await bridge.open({**form,**changes},'local')
+    dial.assert_not_awaited()
+    await bridge.close()
+
+
+@pytest.mark.asyncio
+async def test_upstream_failure_sanitized_and_no_input_retry():
+    from server.terminal_bridge import TerminalBridge
+    socket=FakeSocket();socket.send=AsyncMock(side_effect=RuntimeError('PRIVATE cloud URL token'))
+    bridge=TerminalBridge(MAOSHANWANG,resolver('CCI'),resolver('ACP'),session_loader=lambda:{'headers':{'authorization':'Bearer PRIVATE'}},dial=AsyncMock(return_value=socket))
+    try:
+        result=await bridge.open({'task_id':'ACP:job','instance':'worker-0','container':'','cols':80,'rows':24},'local')
+        with pytest.raises(ActionError) as e:await bridge.write(result['session_id'],1,'command',None,'local')
+        assert 'PRIVATE' not in str(e.value)
+        with pytest.raises(ActionError):await bridge.write(result['session_id'],1,'command',None,'local')
+        assert socket.send.await_count==1
+    finally:await bridge.close()
+
+@pytest.mark.asyncio
+async def test_expired_websocket_handshake_retries_auth_only_once():
+    from server.terminal_bridge import TerminalBridge
+    from websockets.exceptions import InvalidStatus
+    from websockets.http11 import Response
+    from websockets.datastructures import Headers
+    failure=InvalidStatus(Response(401,'Unauthorized',Headers()))
+    dial=AsyncMock(side_effect=[failure,FakeSocket()]);renew=AsyncMock()
+    acp=resolver('ACP');bridge=TerminalBridge(MAOSHANWANG,resolver('CCI'),acp,renew=renew,session_loader=lambda:{'headers':{'authorization':'Bearer PRIVATE'}},dial=dial)
+    try:
+        await bridge.open({'task_id':'ACP:job','instance':'worker-0','container':'','cols':80,'rows':24},'local')
+        assert dial.await_count==acp.targets.await_count==2
+        renew.assert_awaited_once()
+    finally:await bridge.close()
+
+
+@pytest.mark.asyncio
+async def test_input_order_replay_changed_payload_and_isolation():
+    from server.terminal_bridge import TerminalBridge
+    socket=FakeSocket();bridge=TerminalBridge(MAOSHANWANG,resolver('CCI'),resolver('ACP'),session_loader=lambda:{'headers':{'authorization':'Bearer PRIVATE'}},dial=AsyncMock(return_value=socket))
+    other=TerminalBridge(SENSECORE,resolver('CCI'),resolver('ACP'))
+    try:
+        key=(await bridge.open({'task_id':'ACP:job','instance':'worker-0','container':'','cols':80,'rows':24},'phone-a'))['session_id']
+        await bridge.write(key,1,'one',None,'phone-a')
+        for seq,text,who in [(1,'different','phone-a'),(3,'skip','phone-a'),(2,'foreign','phone-b')]:
+            with pytest.raises(ActionError):await bridge.write(key,seq,text,None,who)
+        with pytest.raises(ActionError):other.get(key,'phone-a')
+        assert socket.sent==[b'\0one']
+        with pytest.raises(ActionError):await bridge.read(key,100,'phone-a')
+        await bridge.disconnect(key,'phone-a')
+        assert socket.closed and not bridge.sessions
+    finally:await bridge.close();await other.close()
+
+
+@pytest.mark.asyncio
+async def test_output_is_bounded_and_shell_error_never_leaks_internal_message(monkeypatch):
+    from server.terminal_bridge import TerminalBridge
+    socket=FakeSocket();bridge=TerminalBridge(MAOSHANWANG,resolver('CCI'),resolver('ACP'),session_loader=lambda:{'headers':{'authorization':'Bearer PRIVATE'}},dial=AsyncMock(return_value=socket))
+    try:
+        key=(await bridge.open({'task_id':'ACP:job','instance':'worker-0','container':'','cols':80,'rows':24},'local'))['session_id']
+        await socket.messages.put(b'\3PRIVATE_TOKEN internal error')
+        data=await bridge.read(key,0,'local')
+        assert data['closed'] and 'PRIVATE' not in str(data)
+        monkeypatch.setattr('server.terminal_bridge.MAX_BUFFER',4)
+        socket=FakeSocket();bridge.dial=AsyncMock(return_value=socket)
+        key=(await bridge.open({'task_id':'ACP:job','instance':'worker-0','container':'','cols':80,'rows':24},'local'))['session_id']
+        await socket.messages.put(b'\x0112345')
+        data=await bridge.read(key,0,'local')
+        assert data['closed'] and not data['chunks'] and '积压' in data['error']
+    finally:await bridge.close()
+
+
+@pytest.mark.asyncio
+async def test_session_limit_and_expiry_close_sockets(monkeypatch):
+    import time
+    from server.terminal_bridge import TerminalBridge,IDLE_SECONDS
+    monkeypatch.setattr('server.terminal_bridge.MAX_SESSIONS',1)
+    socket=FakeSocket();bridge=TerminalBridge(MAOSHANWANG,resolver('CCI'),resolver('ACP'),session_loader=lambda:{'headers':{'authorization':'Bearer PRIVATE'}},dial=AsyncMock(return_value=socket))
+    form={'task_id':'ACP:job','instance':'worker-0','container':'','cols':80,'rows':24}
+    try:
+        key=(await bridge.open(form,'local'))['session_id']
+        with pytest.raises(ActionError) as caught:await bridge.open(form,'local')
+        assert caught.value.status==429
+        bridge.sessions[key].touched=time.monotonic()-IDLE_SECONDS-1
+        with pytest.raises(ActionError):await bridge.read(key,0,'local')
+        fresh=FakeSocket();bridge.dial=AsyncMock(return_value=fresh)
+        new=(await bridge.open(form,'local'))['session_id']
+        assert new!=key and socket.closed
+        s=bridge.sessions[new]
+        await bridge.close()
+        assert fresh.closed and s.pump.done() and s.heartbeat.done()
+    finally:await bridge.close()
+
+@pytest.mark.asyncio
+async def test_long_login_prepares_in_background_and_status_is_owner_scoped(monkeypatch):
+    from server.terminal_bridge import TerminalBridge
+    monkeypatch.setattr('server.terminal_bridge.PREPARATION_POLL_SECONDS',.01)
+    bridge=TerminalBridge(MAOSHANWANG,resolver('CCI'),resolver('ACP'))
+    gate=asyncio.Event()
+    async def slow(*args):await gate.wait();return {'targets':[]}
+    bridge.targets=slow
+    try:
+        response=await asyncio.wait_for(bridge.begin('targets',{'task_id':'CCI:job'},'phone-a'),.1)
+        key=response['request_id']
+        assert await bridge.request_status(key,'phone-a')=={'pending':True}
+        with pytest.raises(ActionError):await bridge.request_status(key,'phone-b')
+        gate.set()
+        assert await bridge.request_status(key,'phone-a')=={'pending':False,'result':{'targets':[]}}
+        assert await bridge.request_status(key,'phone-a')=={'pending':False,'result':{'targets':[]}}
+    finally:await bridge.close()
+
+
+def test_cloud_websocket_never_follows_redirect():
+    from server.terminal_bridge import CloudConnection
+    from websockets.exceptions import InvalidStatus
+    from websockets.http11 import Response
+    from websockets.datastructures import Headers
+    error=InvalidStatus(Response(302,'Found',Headers({'Location':'wss://evil.test/'})))
+    assert CloudConnection.process_redirect(None,error) is error
