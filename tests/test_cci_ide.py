@@ -183,3 +183,27 @@ async def test_terminal_bootstrap_parses_only_control_delimited_json_and_closes(
     bridge=Bridge()
     assert await run_python(bridge,{'task_id':'CCI:test','instance':'pod','container':'main'},'RESULT={"port":1234}')=={'port':1234}
     assert bridge.closed and max(map(len,bridge.commands))<=1800
+
+
+@pytest.mark.asyncio
+async def test_missing_codex_plugin_retries_without_replacing_healthy_editor(monkeypatch):
+    from types import SimpleNamespace
+    import server.cci_ide as module
+    from server.sites import MAOSHANWANG
+    editor=module.CCIEditor(MAOSHANWANG,None,None)
+    data={'task_id':'CCI:app-test','instance':'pod-test','container':'main'}
+    origin='http://localhost:8766'
+    calls=[]
+    class Proxy:
+        port=23456
+        async def healthy(self):return True
+        def ticket(self):return 'ticket'
+    async def resolve(data):return {'name':'charles'},'10.0.0.1'
+    async def bootstrap(*args):calls.append(1);return {'codex':{'configured':True,'installed':True}}
+    editor.resolve=resolve;monkeypatch.setattr(module,'run_python',bootstrap)
+    key=(data['task_id'],data['instance'],data['container'],origin)
+    session={'address':'10.0.0.1','proxy':Proxy(),'forward':SimpleNamespace(process=SimpleNamespace(returncode=None)),'codex':{'configured':True,'installed':False}}
+    editor.sessions[key]=session
+    assert (await editor.open(data,origin))['codex']['installed']
+    assert (await editor.open(data,origin))['codex']['installed']
+    assert calls==[1] and editor.sessions[key] is session

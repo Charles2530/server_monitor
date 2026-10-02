@@ -73,7 +73,9 @@
     active(gen);
     $("ide-frame").src = destination.href;
     $("ide-frame").hidden = false;
-    busy = false; controls(); status(`${target.instance} / ${target.container} · 编辑器已就绪`, "ready");
+    busy = false; controls();
+    const codexNotice = result.codex?.configured && result.codex.installed === false ? " · Codex 插件准备失败，可稍后重新连接重试" : "";
+    status(`${target.instance} / ${target.container} · 编辑器已就绪${codexNotice}`, "ready");
   }
   async function load() {
     cancel(); resetFrame(); $("ide-picker").hidden = true;

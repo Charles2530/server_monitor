@@ -461,6 +461,8 @@ ssh -o BatchMode=yes -o StrictHostKeyChecking=yes \
 
 若准备失败，请检查 GitHub 下载、Python 3、本机 SSH 别名/密钥/已核验的 `known_hosts`，以及容器专用目录下的 `editor.log`。此功能会占用容器 CPU/内存与磁盘，具体取决于扩展及工作区大小；关闭页面不停止训练，也不自动结束编辑器内手动启动的进程。需要卸载时先确认并停止这个专用编辑器进程，再移除其专用目录；其他文件和训练任务无需改动。
 
+打开 CCI 编辑器时会检测容器当前用户的 `CODEX_HOME`（未设置时为 `~/.codex`）。发现现有 `config.toml` 或 `auth.json` 后，会自动安装缺失的 Codex 插件并直接使用原目录；不复制、覆盖或返回认证内容，也不替换已安装的有效插件。首次插件安装使用固定 Open VSX Linux x64 版本并校验 SHA-256。插件下载失败时编辑器仍可使用，状态栏会提示，点击「重新连接」可重试。此自动接入针对 Codex 配置，不会把 `~/.codex` 当作通用 VS Code 设置目录。
+
 回归检查：`.venv/bin/python -m pytest tests/test_cci_ide.py tests/test_cci_terminal.py -q` 与 `.venv/bin/python scripts/cci_ide_smoke.py`。后者完全模拟 API，不连接云端或安装编辑器。
 
 2026-10-02 已在 Maoshanwang 本人运行 CCI 上验证浏览器编辑保存（独立读回核对）、内置终端命令执行及免登录重连，并清理临时文件。本机部署后已复验工作区加载。SenseCore 当时无本人运行 CCI，已完成模拟测试但未作云端实测。code-server 自带的可选 VSDA 资源探测与 GitHub 认证提供器仍可能在控制台报错，未阻断上述功能；第三方扩展账号不属于云平台/编辑器自动认证范围。

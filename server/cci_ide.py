@@ -152,6 +152,9 @@ class CCIEditor:
             session = self.sessions.get(identity)
             if session and (session['address'] != address or session['forward'].process.returncode is not None or not await session['proxy'].healthy()):
                 await self.dispose(identity); session = None
+            if session and session.get('codex', {}).get('installed') is False:
+                prepared = await run_python(self.bridge, data, bootstrap_script(data['instance'], address))
+                if 'error' not in prepared: session['codex'] = prepared.get('codex', {})
             if not session:
                 if len(self.sessions) >= 4: raise ActionError('最多同时打开 4 个编辑器，请关闭闲置页面并稍后重试。', 'ide_limit', 429)
                 prepared = await run_python(self.bridge, data, bootstrap_script(data['instance'], address))
@@ -171,14 +174,14 @@ class CCIEditor:
                         cookie = '; '.join(k + '=' + v for k, v in client.cookies.items())
                     proxy = EditorProxy(forward.port, cookie, origin)
                     await proxy.start()
-                    session = {'forward': forward, 'proxy': proxy, 'address': address}
+                    session = {'forward': forward, 'proxy': proxy, 'address': address, 'codex': prepared.get('codex', {})}
                     self.sessions[identity] = session
                 except BaseException:
                     if proxy: await proxy.close()
                     await forward.close()
                     raise
             proxy = session['proxy']; proxy.touched = time.monotonic()
-            return {'site': self.site.id, 'task_id': data['task_id'], 'name': result['name'], 'instance': data['instance'], 'container': data['container'], 'port': proxy.port, 'ticket': proxy.ticket()}
+            return {'site': self.site.id, 'task_id': data['task_id'], 'name': result['name'], 'instance': data['instance'], 'container': data['container'], 'port': proxy.port, 'ticket': proxy.ticket(), 'codex': session.get('codex', {})}
 
     async def dispose(self, key):
         session = self.sessions.pop(key)

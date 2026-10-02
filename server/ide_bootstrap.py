@@ -1,5 +1,7 @@
 """Pinned, user-local editor installation executed only in a verified CCI shell."""
 import json
+from pathlib import Path
+from . import ide_codex
 
 VERSION = '4.139.1'
 SHA256 = '53029be6c5781b7bca49b815fcc9a2a3fc111813ad8c9965b2c0f0d2985a0674'
@@ -7,7 +9,7 @@ SHA256 = '53029be6c5781b7bca49b815fcc9a2a3fc111813ad8c9965b2c0f0d2985a0674'
 
 def bootstrap_script(instance, address):
     settings = json.dumps({'instance': instance, 'address': address, 'version': VERSION, 'sha256': SHA256})
-    return 'SETTINGS = ' + repr(settings) + '\n' + _SCRIPT
+    return Path(ide_codex.__file__).read_text() + '\nSETTINGS = ' + repr(settings) + '\n' + _SCRIPT
 
 
 _SCRIPT = r'''
@@ -29,6 +31,11 @@ version = s['version']
 folder = base / ('code-server-' + version + '-linux-amd64')
 binary = folder / 'bin/code-server'
 state_file = base / 'state.json'
+env = dict(os.environ)
+for key in ('PASSWORD', 'HASHED_PASSWORD', 'CODE_SERVER_CONFIG', 'NODE_OPTIONS'):
+    env.pop(key, None)
+env['SHELL'] = '/bin/bash'
+codex = prepare_codex(base, env, binary) if binary.is_file() else None
 
 def owned_process(state):
     try:
@@ -88,6 +95,7 @@ else:
             (temporary / folder.name).rename(folder)
         finally:
             shutil.rmtree(str(temporary), ignore_errors=True)
+    if codex is None: codex = prepare_codex(base, env, binary)
     with socket.socket() as probe:
         probe.bind((s['address'], 0))
         port = probe.getsockname()[1]
@@ -101,10 +109,6 @@ else:
     settings = user / 'User/settings.json'
     if not settings.exists():
         settings.write_text(json.dumps({'workbench.colorTheme': 'Default Dark Modern', 'workbench.startupEditor': 'none', 'telemetry.telemetryLevel': 'off', 'update.mode': 'none'}))
-    env = dict(os.environ)
-    for key in ('PASSWORD', 'HASHED_PASSWORD', 'CODE_SERVER_CONFIG', 'NODE_OPTIONS'):
-        env.pop(key, None)
-    env['SHELL'] = '/bin/bash'
     with (base / 'editor.log').open('ab') as log:
         proc = subprocess.Popen([str(binary), '--config', str(config), '--user-data-dir', str(user), '--extensions-dir', str(base / 'extensions'), '--disable-telemetry', '--disable-update-check', '--disable-workspace-trust', workspace], stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env, start_new_session=True)
     state = {'pid': proc.pid, 'address': s['address'], 'port': port, 'password': password, 'workspace': workspace}
@@ -118,4 +122,5 @@ else:
         time.sleep(1)
     else: raise RuntimeError('容器内编辑器启动超时。')
     RESULT = {k: state[k] for k in ('port', 'password', 'workspace')}
+RESULT['codex'] = codex
 '''
