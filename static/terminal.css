@@ -1,4 +1,4 @@
-:root { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #29453b; background: #f1f5f3; font-synthesis: none; }
+:root { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #29453b; background: #f1f5f3; font-synthesis: none; -webkit-font-smoothing: antialiased; }
 * { box-sizing: border-box; }
 [hidden] { display: none!important; }
 body { margin: 0; padding: 12px 16px; height: var(--terminal-viewport-height, 100dvh); display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
@@ -6,7 +6,7 @@ button, select, summary, a { -webkit-tap-highlight-color: transparent; }
 button, select { font: inherit; }
 button, a, summary { touch-action: manipulation; }
 :focus-visible { outline: 2px solid #158c70; outline-offset: 3px; }
-.terminal-header { display: flex; align-items: center; gap: 12px; min-width: 0; flex-shrink: 0; }
+.terminal-header { display: flex; align-items: center; gap: 12px; min-width: 0; flex-shrink: 0; padding: 8px 10px; background: #fff; border: 1px solid #dce6df; border-radius: 11px; box-shadow: 0 1px 3px #163e3605; }
 .terminal-logo { flex-shrink: 0; }
 .terminal-context { flex: 1; min-width: 0; }
 h1 { margin: 0; font-size: 15px; line-height: 1.4; font-weight: 650; }
@@ -33,14 +33,18 @@ button:disabled { opacity: .45; cursor: default; }
 label { display: block; margin: 0 0 6px; font-size: 11px; color: #688173; }
 select.terminal-select { min-height: 36px; font-size: 12px; width: 100%; }
 .terminal-workspace { flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%; border: 1px solid #2a4036; border-radius: 12px; background: #101b19; color: #d7e9e0; box-shadow: 0 8px 24px #122b2910; overflow: hidden; }
-.terminal-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 9px 12px; border-bottom: 1px solid #2a3c37; background: #182722; flex-shrink: 0; }
+.terminal-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 9px 12px; border-bottom: 1px solid #2a3c37; background: linear-gradient(100deg, #1c3028, #182722); flex-shrink: 0; }
 .terminal-session { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; font-size: 11px; }
-#terminal-target-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
-#terminal-transport, #terminal-size { color: #95b0a0; white-space: nowrap; font-size: 10px; }
+#terminal-target-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+#terminal-transport, #terminal-size { color: #aac3b4; white-space: nowrap; font-size: 10px; }
+#terminal-transport { padding: 3px 7px; border: 1px solid #354c40; border-radius: 5px; background: #21372d; }
+#terminal-size { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .terminal-led { width: 6px; height: 6px; background: #81998c; border-radius: 50%; flex-shrink: 0; }
 .terminal-led.connected { background: #70d6a5; box-shadow: 0 0 8px #70d6a54d; }
+.terminal-session > .session-icon { width: 15px; height: 15px; flex-shrink: 0; color: #8dc5a6; }
 .terminal-tools, .terminal-keyboard { display: flex; gap: 5px; flex-wrap: wrap; }
 .terminal-tools button, .terminal-keyboard button { min-height: 30px; padding: 5px 9px; border: 1px solid #354b41; border-radius: 6px; background: #21372c; color: #d7e9e0; font-size: 11px; cursor: pointer; }
+#terminal-disconnect { color: #ebbbac; border-color: #635045; background: #372d27; }
 .terminal-tools button:hover, .terminal-keyboard button:hover { background: #375446; }
 .terminal-tools button:focus-visible, .terminal-keyboard button:focus-visible { outline-color: #9ae5be; }
 #terminal-screen { flex: 1; min-height: 0; min-width: 0; padding: 12px; overflow: hidden; }
@@ -49,9 +53,33 @@ select.terminal-select { min-height: 36px; font-size: 12px; width: 100%; }
 .terminal-keyboard { padding: 7px 12px 0; border-top: 1px solid #2a3c37; flex-shrink: 0; }
 .terminal-hint { margin: 0; padding: 6px 12px 8px; color: #8fae9d; font-size: 10px; line-height: 1.5; flex-shrink: 0; }
 .terminal-workspace:fullscreen { width: 100vw; height: 100dvh; border-radius: 0; border: 0; }
+/* Setup is spacious before connecting; the live shell keeps the compact toolbar. */
+.terminal-setup { flex-shrink: 0; min-width: 0; }
+body:not(:has(#terminal-workspace:not([hidden]))) { overflow-y: auto; }
+body:not(:has(#terminal-workspace:not([hidden]))) .terminal-setup { width: min(100%, 740px); margin: clamp(16px, 7vh, 72px) auto 24px; padding: 32px; background: #fff; border: 1px solid #dce6df; border-radius: 16px; box-shadow: 0 10px 32px #163e3606; }
+.session-welcome { margin-bottom: 26px; }
+.welcome-icon { display: grid; place-items: center; width: 50px; height: 50px; margin-bottom: 24px; border-radius: 13px; background: #193f32; color: #bceacf; box-shadow: 0 5px 12px #173d3212; }
+.welcome-icon .session-icon { width: 27px; height: 27px; }
+.welcome-eyebrow { color: #6a8474; font-size: 10px; font-weight: 600; letter-spacing: .12em; }
+.session-welcome h2 { margin: 10px 0 9px; font-size: 24px; font-weight: 650; letter-spacing: -.5px; color: #234637; }
+.session-welcome p { margin: 0; color: #687e71; font-size: 12px; line-height: 1.9; }
+.welcome-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
+.welcome-tags span { padding: 4px 8px; border: 1px solid #e1eae4; border-radius: 5px; background: #f6f9f7; color: #64806e; font-size: 10px; }
+body:has(#terminal-workspace:not([hidden])) .session-welcome { display: none; }
+body:not(:has(#terminal-workspace:not([hidden]))) .connection-bar { display: block; padding-top: 20px; border-top: 1px solid #e7eee9; }
+body:not(:has(#terminal-workspace:not([hidden]))) #terminal-status { padding: 10px 12px; border: 1px solid #dce9e1; border-radius: 8px; background: #f3f8f5; }
+body:not(:has(#terminal-workspace:not([hidden]))) #terminal-status[data-state=error] { background: #fff8ef; border-color: #eedfc9; }
+body:not(:has(#terminal-workspace:not([hidden]))) #terminal-connection { margin-top: 18px; }
+body:not(:has(#terminal-workspace:not([hidden]))) #terminal-picker { position: static; width: 100%; padding: 14px 0 0; border: 0; border-radius: 0; box-shadow: none; }
+#terminal-connection:has(#terminal-picker[hidden]) { display: none; }
+body:has(#terminal-workspace:not([hidden])) #terminal-connection summary { padding: 0 9px; border: 1px solid #d7e2da; border-radius: 6px; background: #fff; }
+@media(prefers-reduced-motion: no-preference) { .button, .terminal-tools button, .terminal-keyboard button { transition: background .15s, border-color .15s; } }
 @media(max-width:620px) {
   body { padding: 8px; gap: 6px; }
-  .terminal-header { gap: 8px; flex-wrap: wrap; }
+  .terminal-header { gap: 8px; flex-wrap: wrap; padding: 7px; border-radius: 8px; }
+  body:not(:has(#terminal-workspace:not([hidden]))) .terminal-setup { margin-top: 18px; padding: 22px; }
+  .session-welcome h2 { font-size: 22px; }
+  #terminal-picker .primary { min-height: 38px; }
   .terminal-logo, .official-link { display: none; }
   .terminal-context { min-width: 90px; }
   h1 { font-size: 13px; }

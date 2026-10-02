@@ -196,6 +196,10 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
                         container: str=Query(min_length=1,max_length=253),tail: int=Query(default=1000,ge=1,le=1000),runtime=Depends(current_site)):
         return await perform(lambda:runtime.logs.read(task_id,worker,container,tail))
 
+    @app.get('/api/acp/task-config')
+    async def acp_task_config(task_id: str=Query(max_length=100),runtime=Depends(current_site)):
+        return await perform(lambda:runtime.actions.task_config(task_id))
+
     @app.get('/api/acp/options')
     async def acp_options(partition_id: str=Query(default=None,max_length=253),runtime=Depends(current_site)):
         return await perform((lambda:runtime.actions.options(partition_id=partition_id)) if partition_id is not None else runtime.actions.options)

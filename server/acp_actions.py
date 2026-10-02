@@ -133,6 +133,20 @@ class ACPManager:
             raise ActionError('任务不属于当前工作空间中名称包含 charles 的 ACP 任务。','target_mismatch',403)
         return raw
 
+    async def task_config(self,task_id):
+        name=job_name(task_id)
+        async with self.client() as client:
+            raw=await self.detail(client,name)
+        pool=raw.get('resource_pool') or {}
+        return {'site':self.site.id if self.site else 'maoshanwang','task_id':task_id,
+                'name':raw.get('display_name'),'state':raw.get('state'),'created_at':raw.get('create_time'),
+                'framework':raw.get('framework'),'cluster':pool.get('name'),'zone':pool.get('zone'),
+                'roles':[{'name':r.get('name'),'replicas':r.get('total_replicas'),
+                          'image':r.get('image_path'),'command':r.get('startup_script'),
+                          'resources':[{k:s.get(k) for k in ('name','replicas')} for s in r.get('resource_spec',[])]}
+                         for r in raw.get('roles',[])],
+                'afs_mounts':template_config(raw)['afs_mounts']}
+
     @property
     def partitioned(self):
         return bool(self.site and self.site.id=='sensecore')

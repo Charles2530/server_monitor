@@ -187,6 +187,8 @@ MONITOR_BROWSER_CHANNEL=auto
 
 ## ACP 任务管理
 
+运行任务的 ACP 详情顶栏提供“查看配置”：只读获取当前选中任务的启动命令、镜像、副本与资源规格、集群分区及 AFS 挂载。命令支持换行显示和原文复制，不采用创建表单的最新模板；两个站点均支持。
+
 ### 创建流程
 
 1. 选择站点；SenseCore 先选择 AFS 分区。
@@ -338,6 +340,7 @@ API 的站点由 `X-Monitor-Site` 选择，支持 `maoshanwang` / `sensecore`，
 | GET | `/api/history?task_id=ACP:...&hours=1` | 已采集的历史指标，1–168 小时 |
 | POST | `/api/refresh` | 请求后台刷新，异步返回 |
 | POST | `/api/connect` | 请求该站点自动登录，异步返回 |
+| GET | `/api/acp/task-config` | 读取指定 `task_id` 的实际启动配置，仅限当前站点名称含 charles 的 ACP 任务 |
 | GET | `/api/acp/options` | 模板、集群、卡数与分区选项，可传 `partition_id` |
 | POST | `/api/acp/preview` | 预览配置；必填名称、节点数、每节点卡数、命令，可选集群和分区 |
 | POST | `/api/acp/create` | 提交已生成的 `preview_id` |
@@ -385,6 +388,7 @@ done
 ```bash
 .venv/bin/python scripts/v2_browser_smoke.py
 .venv/bin/python scripts/command_logs_smoke.py
+.venv/bin/python scripts/task_config_smoke.py
 .venv/bin/python scripts/partitions_smoke.py
 .venv/bin/python scripts/storage_smoke.py
 .venv/bin/python scripts/history_smoke.py

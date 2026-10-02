@@ -10,7 +10,7 @@ from .mobile_access import AccessError,DeviceStore
 
 READ_PATHS=frozenset(('/', '/terminal', '/api/state','/api/history','/api/task-history','/api/storage',
     '/api/logs','/api/logs/targets','/api/cci/terminal-targets','/api/acp/terminal-targets',
-    '/api/acp/options','/api/acp/restart-options','/api/acp/release-restart-options'))
+    '/api/acp/options','/api/acp/task-config','/api/acp/restart-options','/api/acp/release-restart-options'))
 WRITE_PATHS=frozenset(('/api/connect','/api/refresh','/api/acp/preview','/api/acp/create','/api/acp/stop',
     '/api/acp/restart-preview','/api/acp/release-restart-preview',
     '/api/terminal/open','/api/terminal/targets','/api/terminal/status','/api/terminal/read','/api/terminal/write','/api/terminal/close'))

@@ -106,8 +106,14 @@
 .detail-tabs button[aria-selected=true] { background: #fff; color: #168362; box-shadow: 0 1px 3px #244b3312; }
 .detail-task-buttons { gap: 7px; }
 .detail-task-buttons .button { min-height: 33px; padding: 6px 10px; font-size: 11px; white-space: nowrap; }
-#cci-terminal-selected { color: #197858; background: #edf7f1; border-color: #cfe5d7; }
-#cci-terminal-selected:hover { background: #e1f2e7; }
+#cci-terminal-selected { color: #fff; background: #17795e; border-color: #17795e; box-shadow: 0 2px 3px #124a2710; }
+#cci-terminal-selected:hover { color: #fff; background: #10664e; border-color: #10664e; }
+#cci-ide-selected { color: #32618f; background: #eef5fc; border-color: #cbdff0; }
+#cci-ide-selected:hover { color: #244f78; background: #e1eef9; border-color: #a9c8e4; }
+.detail-task-buttons .session-entry { gap: 7px; font-weight: 550; }
+.session-entry > span { font-size: inherit; }
+.session-entry .session-icon { width: 16px; height: 16px; flex-shrink: 0; }
+.session-entry .entry-arrow { width: 12px; height: 12px; margin-left: 1px; opacity: .7; flex-shrink: 0; }
 #acp-release-restart-selected { color: #94703b; background: #fcf7eb; border-color: #eddfc0; }
 #acp-release-restart-selected:hover:not(:disabled) { background: #f8efd9; }
 .detail-task-buttons .button:disabled { opacity: .55; }

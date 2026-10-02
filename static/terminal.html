@@ -24,6 +24,8 @@
       <a id="terminal-official" class="official-link" target="_blank" rel="noopener noreferrer" hidden>云控制台 ↗</a>
       <button id="terminal-retry" class="button" type="button" hidden>重新连接</button>
     </header>
+    <div class="terminal-setup">
+      <div class="session-welcome"><div class="welcome-icon"><svg class="session-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 6 6 6-6 6M13 18h6"/></svg></div><span class="welcome-eyebrow">ILAB WORKSPACE / TERMINAL</span><h2>连接任务终端</h2><p>选择运行实例，在当前页面使用交互式 Shell。</p><div class="welcome-tags"><span>CCI / ACP</span><span>实时输入输出</span><span>支持移动端</span></div></div>
     <div class="connection-bar">
       <p id="terminal-status" data-state="loading" role="status" aria-live="polite">正在读取最新实例与容器…</p>
       <details id="terminal-connection">
@@ -35,9 +37,10 @@
         </div>
       </details>
     </div>
+    </div>
     <section id="terminal-workspace" class="terminal-workspace" hidden aria-label="交互式终端">
       <div class="terminal-toolbar">
-        <div class="terminal-session"><span id="terminal-led" class="terminal-led"></span><strong id="terminal-target-name">Terminal</strong><span id="terminal-transport">连接中</span><span id="terminal-size" aria-label="终端列数与行数"></span></div>
+        <div class="terminal-session"><svg class="session-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 6 6 6-6 6M13 18h6"/></svg><span id="terminal-led" class="terminal-led"></span><strong id="terminal-target-name">Terminal</strong><span id="terminal-transport">连接中</span><span id="terminal-size" aria-label="终端列数与行数"></span></div>
         <div class="terminal-tools">
           <button id="terminal-font-down" type="button" title="缩小字号" aria-label="缩小字号">A−</button>
           <button id="terminal-font-up" type="button" title="放大字号" aria-label="放大字号">A＋</button>

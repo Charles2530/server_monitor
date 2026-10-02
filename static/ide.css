@@ -1,31 +1,61 @@
-:root { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #d7e9e0; background: #101b19; font-synthesis: none; }
+:root { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #29453b; background: #f1f5f3; font-synthesis: none; -webkit-font-smoothing: antialiased; }
 * { box-sizing: border-box; }
 [hidden] { display: none!important; }
-body { margin: 0; padding: 10px 12px; height: 100dvh; display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+body { margin: 0; padding: 12px 16px; height: 100dvh; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
 button, select { font: inherit; }
-:focus-visible { outline: 2px solid #9ae5be; outline-offset: 3px; }
-.ide-header { display: flex; align-items: center; gap: 12px; flex-shrink: 0; min-width: 0; }
+:focus-visible { outline: 2px solid #4b88b8; outline-offset: 3px; }
+.ide-header { display: flex; align-items: center; gap: 12px; padding: 8px 10px; background: #fff; border: 1px solid #dce6df; border-radius: 11px; box-shadow: 0 1px 3px #163e3605; flex-shrink: 0; min-width: 0; }
+.ide-brand-icon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #d5e5f1; border-radius: 8px; background: #eef5fb; color: #397aa9; flex-shrink: 0; }
+.ide-brand-icon .session-icon { width: 21px; height: 21px; }
 .ide-context { flex: 1; min-width: 0; }
-h1 { margin: 0; font-size: 14px; font-weight: 650; }
-#ide-task { margin: 2px 0 0; color: #95b0a0; font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.site-badge { padding: 4px 8px; color: #a0c9b2; border: 1px solid #354b41; border-radius: 6px; font-size: 11px; }
-.button { display: inline-flex; align-items: center; justify-content: center; min-height: 32px; padding: 5px 10px; border: 1px solid #354b41; border-radius: 6px; background: #21372c; color: #d7e9e0; font-size: 12px; white-space: nowrap; text-decoration: none; cursor: pointer; }
-.button:hover { background: #375446; }
-.primary { background: #148464; border-color: #299275; color: #fff; }
+h1 { margin: 0; font-size: 15px; font-weight: 650; line-height: 1.4; }
+#ide-task { margin: 2px 0 0; color: #74867d; font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.site-badge { padding: 4px 9px; color: #41745a; background: #e9f2ed; border: 1px solid #d6e5dc; border-radius: 6px; font-size: 11px; font-weight: 600; }
+.button { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 6px 11px; border: 1px solid #d3dfd8; border-radius: 7px; background: #fff; color: #456451; font-size: 12px; white-space: nowrap; text-decoration: none; cursor: pointer; }
+.button:hover { background: #eef4f1; border-color: #9ebfab; }
+.primary { background: #346e9c; border-color: #346e9c; color: #fff; }
+.primary:hover { background: #2a5c84; border-color: #2a5c84; }
 button:disabled, select:disabled { opacity: .5; cursor: default; }
+.ide-setup { flex-shrink: 0; min-width: 0; }
 .ide-connection { display: flex; gap: 10px; justify-content: space-between; align-items: center; flex-shrink: 0; }
-#ide-status { margin: 0; font-size: 11px; line-height: 24px; color: #95b0a0; }
-#ide-status::before { content: ""; display: inline-block; margin: 0 7px 1px 0; width: 6px; height: 6px; border-radius: 50%; background: #81998c; }
-#ide-status[data-state="ready"]::before { background: #70d6a5; }
-#ide-status[data-state="error"] { color: #edb789; }
-#ide-status[data-state="error"]::before { background: #edb789; }
-#ide-picker { display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
-#ide-picker label { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #95b0a0; }
-select { min-width: 90px; max-width: 190px; min-height: 30px; border: 1px solid #354b41; border-radius: 5px; padding: 4px 7px; background: #182722; color: #d7e9e0; font-size: 11px; }
-#ide-frame { flex: 1; width: 100%; min-height: 0; border: 1px solid #354b41; border-radius: 8px; background: #182722; }
-@media (max-width:1050px) { .ide-connection { flex-wrap: wrap; } }
-@media (max-width:760px), (pointer:coarse) {
-  .ide-header { flex-wrap: wrap; gap: 8px; }
+#ide-status { margin: 0; font-size: 11px; line-height: 24px; color: #5b788b; overflow-wrap: anywhere; }
+#ide-status::before { content: ""; display: inline-block; margin: 0 7px 1px 0; width: 6px; height: 6px; border-radius: 50%; background: #6b94b4; }
+#ide-status[data-state="ready"] { color: #47735b; }
+#ide-status[data-state="ready"]::before { background: #26a175; }
+#ide-status[data-state="error"] { color: #9a6425; }
+#ide-status[data-state="error"]::before { background: #c08a3f; }
+#ide-picker { display: flex; align-items: center; gap: 9px; flex-shrink: 0; min-width: 0; }
+#ide-picker label { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #627b6e; min-width: 0; }
+select { appearance: none; min-width: 90px; max-width: 190px; min-height: 34px; border: 1px solid #ccdcd3; border-radius: 7px; padding: 6px 29px 6px 10px; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23608070' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E") no-repeat right 9px center; color: #345a46; font-size: 11px; text-overflow: ellipsis; cursor: pointer; }
+select:hover:not(:disabled) { border-color: #8eafa0; }
+#ide-frame { flex: 1; width: 100%; min-height: 0; border: 1px solid #cfded5; border-radius: 10px; background: #182722; box-shadow: 0 5px 18px #163e3606; }
+/* Give connection and error states a complete page without reducing editor space. */
+body:not(:has(#ide-frame:not([hidden]))) { overflow-y: auto; }
+body:not(:has(#ide-frame:not([hidden]))) .ide-setup { width: min(100%, 740px); margin: clamp(16px, 7vh, 72px) auto 24px; padding: 32px; background: #fff; border: 1px solid #dce6df; border-radius: 16px; box-shadow: 0 10px 32px #163e3606; }
+.session-welcome { margin-bottom: 26px; }
+.welcome-icon { display: grid; place-items: center; width: 50px; height: 50px; margin-bottom: 24px; border-radius: 13px; background: #eaf3fb; border: 1px solid #d4e6f5; color: #347aab; }
+.welcome-icon .session-icon { width: 29px; height: 29px; }
+.welcome-eyebrow { color: #6b8294; font-size: 10px; font-weight: 600; letter-spacing: .12em; }
+.session-welcome h2 { margin: 10px 0 9px; font-size: 24px; font-weight: 650; letter-spacing: -.5px; color: #2c4657; }
+.session-welcome p { margin: 0; color: #687e71; font-size: 12px; line-height: 1.9; }
+.welcome-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
+.welcome-tags span { padding: 4px 8px; border: 1px solid #e0e8ef; border-radius: 5px; background: #f6f9fc; color: #637e91; font-size: 10px; }
+body:has(#ide-frame:not([hidden])) .session-welcome { display: none; }
+body:not(:has(#ide-frame:not([hidden]))) .ide-connection { display: block; padding-top: 20px; border-top: 1px solid #e7eee9; }
+body:not(:has(#ide-frame:not([hidden]))) #ide-status { padding: 10px 12px; border: 1px solid #dce7ef; border-radius: 8px; background: #f2f7fb; }
+body:not(:has(#ide-frame:not([hidden]))) #ide-status[data-state=error] { background: #fff8ef; border-color: #eedfc9; }
+body:not(:has(#ide-frame:not([hidden]))) #ide-picker { align-items: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+body:not(:has(#ide-frame:not([hidden]))) #ide-picker label { flex: 1 1 180px; flex-direction: column; align-items: stretch; gap: 7px; }
+body:not(:has(#ide-frame:not([hidden]))) select { width: 100%; max-width: none; min-height: 38px; }
+body:not(:has(#ide-frame:not([hidden]))) #ide-open { min-height: 38px; }
+@media(prefers-reduced-motion: no-preference) { .button, select { transition: background-color .15s, border-color .15s; } }
+@media(max-width:1050px) { .ide-connection { flex-wrap: wrap; } }
+@media(max-width:760px), (pointer:coarse) {
+  body { padding: 8px; }
+  .ide-header { flex-wrap: wrap; gap: 8px; padding: 8px; }
   .ide-context { flex-basis: 45%; }
+  .ide-brand-icon { display: none; }
+  body:not(:has(#ide-frame:not([hidden]))) .ide-setup { margin-top: 18px; padding: 22px; }
+  .session-welcome h2 { font-size: 22px; }
   #ide-frame, #ide-picker, #ide-retry { display: none!important; }
 }
