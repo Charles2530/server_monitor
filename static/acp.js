@@ -266,7 +266,9 @@
     button.hidden = !(task?.kind === "ACP" && task.can_stop);
     button.disabled = !fresh() || state.creating || state.stopping || state.stopUnknown || state.storageError;
     byId("acp-stop-confirm").disabled = state.stopping || state.storageError || !stopFresh(state.stop?.task_id);
-    byId("detail-action-note").textContent = task?.kind === "CCI" ? "CCI 支持站内 Web Terminal；桌面端可进入 VS Code" : task?.kind === "ACP" ? fresh() ? "ACP 支持 Web Terminal、释放重启和停止；操作前需确认任务身份" : "当前为旧数据或连接不可用；成功采集后可操作任务" : "";
+    const note = byId("detail-action-note");
+    note.textContent = task?.kind === "ACP" && !fresh() ? "当前为旧数据或连接不可用；成功采集后可操作任务" : "";
+    note.hidden = !note.textContent;
   }
 
   function openStop(task) {

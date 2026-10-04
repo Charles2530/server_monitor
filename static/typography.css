@@ -1,0 +1,205 @@
+/* Shared reading scale: larger text, quieter metadata, compact data rows. */
+@font-face {
+  font-family: "iLab Mono";
+  src: url("/static/editor-appearance/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-style: normal; font-weight: 400; font-display: swap;
+}
+:root {
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", sans-serif;
+  --font-code: "iLab Mono", "SFMono-Regular", Consolas, monospace;
+  --type-body: clamp(14px, .28vw + 10.4px, 15px);
+  --type-table: clamp(13px, .22vw + 10.2px, 14.5px);
+  --type-small: clamp(12px, .14vw + 10.2px, 13px);
+  --ink: #253d34; --muted: #607568;
+  font-family: var(--font-ui);
+}
+body { font-family: var(--font-ui); font-size: var(--type-body); line-height: 1.5; }
+button, input, select, textarea { font-family: var(--font-ui); }
+h1, h2, h3 { text-wrap: balance; }
+.page-header h1 { font-size: clamp(23px, 1.4vw + 5px, 29px); line-height: 1.25; letter-spacing: -.035em; }
+.page-description, .section-heading p, .panel-heading p, .detail-heading p { font-size: var(--type-small); line-height: 1.55; color: var(--muted); }
+.overview-heading h2 { font-size: 19px; }
+.cluster-panel > .section-heading h2, .acp-panel > .section-heading h2,
+.panel-heading h2, #task-history-section h2 { font-size: 17px; letter-spacing: -.02em; }
+.button, .text-link { font-size: 13px; }
+.button { line-height: 1.4; }
+.status-banner strong, .status-banner div > span { font-size: 13px; }
+.status-banner time, .heading-tag, .refresh-cadence, .sidebar-label,
+.summary-foot, .summary-number small, .overview-heading p, .panel-link,
+.overview-task-info small, .overview-task-metric small, .collection-note,
+.allocation-legend > div, .allocation-legend span small, .allocation-legend p,
+.quick-links small, .page-footer { font-size: var(--type-small); }
+.summary-label, .quick-links strong { font-size: 13px; }
+.summary-number { font-size: clamp(30px, 2vw, 38px); line-height: 1.15; letter-spacing: -.04em; }
+.overview-task-info strong { font-size: 14px; line-height: 1.45; }
+.overview-task-metric strong { font-size: 18px; }
+.allocation-ring span { font-size: 10px; }
+.summary-number, .history-stat strong, .storage-summary strong,
+.resource-table, .metric-value { font-variant-numeric: tabular-nums lining-nums; }
+
+/* A single readable hierarchy across resource, queue, storage and archive tables. */
+.resource-table th, #task-history-section th, #storage-section th {
+  background: #edf3ef; color: #425e4f; font-size: var(--type-small);
+  font-weight: 600; line-height: 1.45; letter-spacing: .015em;
+  border-bottom-color: #d4e0d8;
+}
+.resource-table th span { font-size: 11px; color: #627a6c; }
+.resource-table td, .resource-table td:first-child, .resource-table td:last-child {
+  color: var(--ink); font-size: var(--type-table); line-height: 1.5;
+  border-bottom-color: #e0e9e3;
+}
+.resource-table tbody tr { background: #fff; }
+.resource-table tbody tr:nth-child(even) { background: #f7faf8; }
+.resource-table tbody tr:hover, .resource-table tbody tr:focus-within { background: #edf6f0; }
+.resource-table small, .inventory-caption, .inventory-warning,
+.resource-table .history-task-id, .resource-table .storage-mount,
+.resource-table .text-link { font-size: var(--type-small); line-height: 1.5; }
+.resource-table small, .inventory-caption { color: #5f7668; }
+.resource-table .resource-value { font-size: 18px; font-weight: 650; color: #294e3b; }
+.resource-table .resource-value.gpu-value { color: #087c59; }
+.resource-table .node-health { font-size: var(--type-small) !important; }
+.resource-table .node-normal, .resource-table .node-alert { font-size: 12px; }
+.resource-table .history-task-id, .storage-table code { font-family: var(--font-code); font-size: 11.5px; letter-spacing: -.02em; }
+.table-note { font-size: 12px; line-height: 1.65; color: #607568; padding-block: 11px; }
+.resource-table td.table-empty { padding: 32px 20px; font-size: 13px; color: #607568; }
+
+/* Task archive: give long names room while keeping dates and actions together. */
+.task-history-table strong { font-size: var(--type-table); line-height: 1.45; color: #254a36; margin-bottom: 3px; }
+.task-history-table small { margin-top: 3px; }
+.history-identity { gap: 9px; }
+.history-service { width: 30px; height: 30px; flex-basis: 30px; font-size: 10px; }
+.history-state { font-size: 12px; padding: 3px 7px; font-weight: 500; }
+.history-state.failed { color: #954737; }
+.history-state.stopped { color: #536570; }
+.history-state.succeeded { color: #176949; }
+.history-stat > span, .history-stat small, #task-history-section .section-heading p,
+#task-history-status, #task-history-filter-note, .history-excluded,
+.task-history-pagination, .task-history-pagination .button { font-size: 12px; }
+.history-stat { padding: 12px 15px; }
+.history-stat strong { font-size: 28px; }
+.task-history-filters > label, .task-history-pagination label,
+.history-search-control input, #task-history-reset { font-size: 13px; }
+.task-history-table td:last-child .button, .task-history-table td:last-child .text-link { font-size: 12px; }
+.task-history-table td:last-child .button { margin-top: 7px; min-height: 32px; }
+
+/* Consistent labels and controls in filters, forms and detail views. */
+.task-name { font-size: 13px; line-height: 1.45; }
+.task-cluster, .task-meta, .task-bottom, .metric-label, .running-badge,
+.detail-heading p, .logs-options, .logs-status, .chart-footer p,
+.detail-task-actions, .acp-form label small, .acp-form .command-help,
+#acp-options-status, .form-block-heading p, .storage-filters > label,
+.storage-filters .storage-related, #storage-status, .storage-summary > div > span,
+.storage-summary small { font-size: 12px; color: #5f7668; }
+.metric-value { font-size: 19px; line-height: 1.2; }
+.tasks-view .detail-heading h2 { font-size: 17px; line-height: 1.45; }
+.detail-tabs button, .detail-task-buttons .button, #task-console-link,
+.search-field input, .filter-button, .range-button, .acp-form label,
+.acp-form input, .acp-form select, select.history-select,
+.storage-filters select, .storage-filters input[type=search], .logs-toolbar select { font-size: 13px; }
+.search-field { min-height: 38px; }
+.filter-button, .range-button { line-height: 1.4; }
+.form-block-heading h3, .command-heading .form-block-heading label { font-size: 15px; }
+#acp-template-config, #acp-template-config dt { font-size: 12px; }
+#acp-template-config dd { line-height: 1.6; }
+.acp-panel > .acp-helper { margin-bottom: 18px; }
+.acp-resource-fields { gap: 14px; }
+.form-block-heading { margin-bottom: 16px; }
+.acp-form-footer p, .acp-form-footer small, .command-heading > span,
+.command-editor-footer, .command-help { font-size: 12px; }
+.storage-table strong { font-size: var(--type-table); margin-bottom: 4px; }
+.storage-table small, .storage-table code, .storage-mount span { margin-bottom: 4px; }
+.storage-table .storage-mount { line-height: 1.6; }
+.storage-mount + .storage-mount { padding-top: 9px; margin-top: 9px; }
+.storage-summary > div { padding: 14px 16px; gap: 5px; }
+.storage-summary strong { font-size: 29px; }
+.task-config-fields dt, .task-config-header small { font-size: 12px; }
+.task-config-fields dd { font-family: var(--font-code); font-size: 13px; line-height: 1.6; }
+.task-config-header h2 { font-size: 23px; }
+.task-config-fields { gap: 12px 20px; }
+.acp-dialog .acp-preview-details { font-size: 13px; }
+.logs-output { font-family: var(--font-code); font-size: 13px; line-height: 1.65; }
+
+/* Session chrome shares the reading scale; embedded editors keep their settings. */
+.ide-header h1, .terminal-header h1 { font-size: 19px; letter-spacing: -.025em; }
+.ide-context p, .terminal-context p, .site-badge, .session-status p,
+#ide-picker label, .connection-bar label, .welcome-tags,
+.terminal-toolbar, .terminal-footer { font-size: 13px; }
+.session-welcome h2 { font-size: clamp(22px, 1.3vw + 8px, 28px); }
+.session-welcome > p { font-size: 14px; line-height: 1.6; }
+
+@media (min-width: 761px) {
+  .resource-table th { padding: 10px 14px; }
+  .resource-table td, .resource-table td:first-child, .resource-table td:last-child { padding: 11px 14px; }
+  #task-history-section th { padding: 10px 14px; }
+  .resource-table th + th { border-left: 1px solid #e0e8e3; }
+  #clusters-section .resource-table th:first-child { background: #edf3ef; }
+  #clusters-section .resource-table tr:nth-child(even) td:first-child { background: #f7faf8; }
+  #clusters-section .resource-table tr:hover td:first-child { background: #edf6f0; }
+  #clusters-section .resource-table :is(th, td):nth-child(n+2):nth-child(-n+5) { text-align: right; }
+  #clusters-section .resource-table th:first-child { width: 22%; }
+  #clusters-section .resource-table th:nth-child(6) { width: 18%; }
+  .task-history-table { min-width: 940px; }
+  .task-history-table th:nth-child(1) { width: 34%; }
+  .task-history-table th:nth-child(2) { width: 9%; }
+  .task-history-table th:nth-child(3) { width: 14%; }
+  .task-history-table th:nth-child(4) { width: 16%; }
+  .task-history-table th:nth-child(5) { width: 17%; }
+  .task-history-table th:nth-child(6) { width: 10%; text-align: right; }
+  .task-history-table td { vertical-align: top; }
+  .task-history-table td:nth-child(2) { padding-top: 13px; }
+  .waiting-table td:first-child:not(.table-empty) { min-width: 240px; max-width: 420px; background: inherit; }
+  .waiting-identity, .waiting-identity strong { max-width: 390px; font-size: var(--type-table); line-height: 1.5; }
+  .waiting-identity small { font-size: 11.5px; }
+  .waiting-table td { vertical-align: top; }
+  .storage-table td { vertical-align: top; }
+  .storage-table td:first-child { width: 25%; }
+  .storage-table td:nth-child(2) { width: 21%; }
+  .storage-table td:nth-child(3) { width: 20%; }
+  .storage-table td:last-child { width: 34%; }
+  .history-summary { margin-bottom: 14px; }
+  .task-history-filters { gap: 10px; margin-bottom: 12px; }
+  #task-history-status { margin-bottom: 10px; }
+  .task-history-pagination { padding-block: 12px; }
+  .overview-task { padding-block: 12px; }
+}
+@media (min-width: 1101px) {
+  .main-content { padding: 0 clamp(24px, 2vw, 40px) 24px; }
+  .page-header { margin-inline: calc(-1 * clamp(24px, 2vw, 40px)); padding: 17px clamp(24px, 2vw, 40px); }
+  .sidebar .nav-item { font-size: 14px; }
+  .summary-card { padding: 15px 18px; }
+  .tasks-view { grid-template-columns: minmax(320px, .76fr) minmax(0, 1.4fr); gap: 18px; }
+}
+@media (min-width: 1650px) {
+  .nav-item { min-height: 46px; }
+  .task-name, .overview-task-info strong { font-size: 14px; }
+  .task-cluster, .metric-label, .detail-task-buttons .button { font-size: 13px; }
+  .task-card { padding: 14px 16px; }
+}
+@media (max-width: 760px) {
+  .page-header h1 { font-size: 22px; }
+  .header-actions .button { font-size: 12px; }
+  .sidebar .nav-item { font-size: 11px; }
+  .summary-label, .summary-foot { font-size: 12px; }
+  .summary-number { font-size: 31px; }
+  .resource-table td, .resource-table td:first-child, .resource-table td:last-child { font-size: 13px; padding: 0; }
+  .resource-table tbody tr { gap: 10px 12px; padding: 13px; background: #fff; }
+  .resource-table td[data-label]:not(:first-child)::before { font-size: 12px; color: #5c7466; }
+  .resource-table .resource-value { font-size: 22px; }
+  .resource-table small, .resource-table .storage-mount { font-size: 12px; }
+  .resource-table td.table-empty { padding: 20px 0; }
+  .task-history-table td:last-child .button { margin-top: 0; min-height: 40px; }
+  .history-stat { padding: 11px 8px; }
+  .history-stat > span { font-size: 11px; }
+  .history-stat strong { font-size: 24px; }
+  .overview-task-info strong, .task-name { font-size: 13px; }
+  .task-card { padding: 14px; }
+  .task-meta { flex-wrap: wrap; }
+  .detail-task-buttons .button { font-size: 12px; }
+  .acp-form input, .acp-form select, .history-search-control input,
+  .storage-filters input[type=search] { font-size: 16px; }
+  .storage-summary > div { padding: 12px 9px; }
+  .storage-summary strong { font-size: 21px; }
+  .task-config-header h2 { font-size: 20px; }
+  .ide-header h1, .terminal-header h1 { font-size: 17px; }
+  .ide-context p, .terminal-context p, .session-status p { font-size: 12px; }
+}

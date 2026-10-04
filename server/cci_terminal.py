@@ -1,5 +1,7 @@
 """Resolve official CCI terminal deep links; never execute container commands locally."""
 import re
+import copy
+import time
 from urllib.parse import urlencode
 import httpx
 from .auth import load_session
@@ -7,6 +9,20 @@ from .collector import Collector
 from .acp_actions import ActionError
 from .acp_states import is_charles
 from .task_logs import task_identity
+
+
+class VerifiedCCITargets:
+    """Internal, short-lived proof shared by one editor preparation's stages."""
+    def __init__(self, site, result):
+        self.site = (site.id, site.workspace)
+        self.result = copy.deepcopy(result)
+        self.created = time.monotonic()
+
+    def get(self, site, task_id):
+        if (self.site == (site.id, site.workspace) and self.result.get('site') == site.id
+                and self.result.get('task_id') == task_id and 0 <= time.monotonic() - self.created < 10):
+            return copy.deepcopy(self.result)
+        return None
 
 
 class CCITerminal:

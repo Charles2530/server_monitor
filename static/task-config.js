@@ -18,10 +18,10 @@
     if (className) el.className = className;
     return el;
   }
-  function fields(items) {
-    const list = node("dl", undefined, "task-config-fields");
-    for (const [label, value] of items) {
-      const field = node("div");
+  function fields(items, className = "") {
+    const list = node("dl", undefined, `task-config-fields ${className}`.trim());
+    for (const [label, value, fieldClass] of items) {
+      const field = node("div", undefined, fieldClass);
       field.append(node("dt", label), node("dd", value === null || value === undefined || value === "" ? "—" : String(value)));
       list.append(field);
     }
@@ -68,14 +68,12 @@
     return section;
   }
   function render(data) {
-    body.replaceChildren(fields([["站点", site], ["任务 ID", data.task_id], ["集群", data.cluster], ["分区", data.zone], ["框架", data.framework], ["状态", data.state]]));
+    body.replaceChildren(fields([["站点", site], ["任务 ID", data.task_id], ["集群", data.cluster], ["分区", data.zone], ["框架", data.framework], ["状态", data.state, "task-config-state"]], "task-config-overview"));
     for (const role of data.roles) {
       const section = node("section", undefined, "task-config-section");
       section.append(node("h3", `${role.name || "未命名角色"} · 启动配置`));
-      section.append(fields([["镜像", role.image], ["副本数", role.replicas]]));
-      if (role.resources?.length) {
-        section.append(fields(role.resources.map((r, i) => [`资源规格 ${i + 1}`, r.name])));
-      }
+      section.append(fields([["镜像", role.image, "task-config-field-wide"], ["副本数", role.replicas],
+        ...(role.resources || []).map((r, i) => [`资源规格 ${i + 1}`, r.name])]));
       section.append(commandPane(role.command));
       body.append(section);
     }
@@ -83,7 +81,7 @@
     const mounts = node("section", undefined, "task-config-section");
     mounts.append(node("h3", "AFS 挂载"));
     for (const mount of data.afs_mounts || []) {
-      mounts.append(fields([["存储卷", mount.id], ["分区", mount.zone], ["源子目录", mount.subdir], ["容器挂载路径", mount.mount_path]]));
+      mounts.append(fields([["存储卷", mount.id], ["分区", mount.zone], ["源子目录", mount.subdir], ["容器挂载路径", mount.mount_path]], "task-config-mount"));
     }
     if (!data.afs_mounts?.length) mounts.append(node("p", "此任务没有 AFS 挂载记录。"));
     body.append(mounts);

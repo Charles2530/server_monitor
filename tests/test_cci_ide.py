@@ -163,7 +163,7 @@ async def test_proxy_websocket_auth_and_binary_transport(monkeypatch):
             url=proxy.origin.replace('http:','ws:')+'/socket'
             with pytest.raises(InvalidStatus):
                 async with connect(url,origin=proxy.origin,proxy=None):pass
-            async with httpx.AsyncClient(base_url=proxy.origin) as client:
+            async with httpx.AsyncClient(base_url=proxy.origin, trust_env=False) as client:
                 assert (await client.get('/_ilab_open/'+proxy.ticket())).status_code==303
                 cookie='; '.join(k+'='+v for k,v in client.cookies.items())
             with pytest.raises(InvalidStatus):
@@ -215,7 +215,9 @@ async def test_missing_codex_plugin_retries_without_replacing_healthy_editor(mon
     key=(data['task_id'],data['instance'],data['container'],origin)
     session={'address':'10.0.0.1','proxy':Proxy(),'forward':SimpleNamespace(process=SimpleNamespace(returncode=None)),'codex':{'configured':True,'installed':False}}
     editor.sessions[key]=session
-    assert (await editor.open(data,origin))['codex']['installed']
+    first = await editor.open(data,origin)
+    assert first['optional_pending'] and not first['codex']['installed']
+    await asyncio.gather(*editor.optional_jobs.values())
     assert (await editor.open(data,origin))['codex']['installed']
     assert calls==[1] and editor.sessions[key] is session
 

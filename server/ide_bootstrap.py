@@ -1,15 +1,20 @@
 """Pinned, user-local editor installation executed only in a verified CCI shell."""
 import json
 from pathlib import Path
-from . import ide_codex
+from . import ide_codex, ide_appearance
 
 VERSION = '4.139.1'
 SHA256 = '53029be6c5781b7bca49b815fcc9a2a3fc111813ad8c9965b2c0f0d2985a0674'
 
 
-def bootstrap_script(instance, address):
-    settings = json.dumps({'instance': instance, 'address': address, 'version': VERSION, 'sha256': SHA256})
-    return Path(ide_codex.__file__).read_text() + '\nSETTINGS = ' + repr(settings) + '\n' + _SCRIPT
+def bootstrap_script(instance, address, *, install_optional=True):
+    settings = json.dumps({'instance': instance, 'address': address, 'version': VERSION, 'sha256': SHA256, 'install_optional': install_optional})
+    bundle = ide_appearance.appearance_bundle()
+    if not install_optional:
+        bundle = {key: value for key, value in bundle.items() if key != 'payload'}
+    return (Path(ide_codex.__file__).read_text() + '\n' + Path(ide_appearance.__file__).read_text()
+            + '\nAPPEARANCE_BUNDLE = ' + repr(bundle)
+            + '\nSETTINGS = ' + repr(settings) + '\n' + _SCRIPT)
 
 
 _SCRIPT = r'''
@@ -38,7 +43,12 @@ env = dict(os.environ)
 for key in ('PASSWORD', 'HASHED_PASSWORD', 'CODE_SERVER_CONFIG', 'NODE_OPTIONS'):
     env.pop(key, None)
 env['SHELL'] = '/bin/bash'
-codex = prepare_codex(base, env, binary, progress=progress) if binary.is_file() else None
+def optional_setup():
+    codex = prepare_codex(base, env, binary, progress=progress, install=s['install_optional'])
+    appearance = (prepare_appearance(base, env, binary, APPEARANCE_BUNDLE, progress=progress)
+                  if s['install_optional'] else {'version': APPEARANCE_BUNDLE['version'], 'installed': appearance_installed(base, APPEARANCE_BUNDLE)})
+    return codex, appearance
+codex, appearance = optional_setup() if binary.is_file() else (None, None)
 
 def owned_process(state):
     try:
@@ -104,7 +114,7 @@ else:
             (temporary / folder.name).rename(folder)
         finally:
             shutil.rmtree(str(temporary), ignore_errors=True)
-    if codex is None: codex = prepare_codex(base, env, binary, progress=progress)
+    if codex is None: codex, appearance = optional_setup()
     progress('start_editor')
     with socket.socket() as probe:
         probe.bind((s['address'], 0))
@@ -133,4 +143,5 @@ else:
     else: raise RuntimeError('容器内编辑器启动超时。')
     RESULT = {k: state[k] for k in ('port', 'password', 'workspace')}
 RESULT['codex'] = codex
+RESULT['appearance'] = appearance
 '''

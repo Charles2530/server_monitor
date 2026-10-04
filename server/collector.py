@@ -23,29 +23,32 @@ class Collector:
         self.workspace = site.workspace if site else WORKSPACE
         self.services = site.services if site else SERVICES
         self.semaphore = asyncio.Semaphore(6)
+        # Leave two of the six request slots for node inventory/allocation;
+        # otherwise queued metric panels can exhaust its short timeout before
+        # an observation request even reaches the cloud.
+        self.metric_semaphore = asyncio.Semaphore(4)
         self.workspace_uid = None
         self.station = None
 
     async def request(self, client, service, path, *, body=None, params=None):
-        async with self.semaphore:
-            for attempt in range(3):
-                try:
+        for attempt in range(3):
+            try:
+                async with self.semaphore:
                     response = await client.request('POST' if body is not None else 'GET', self.services[service]+path, json=body, params=params)
-                    if response.status_code in (401,403):
-                        raise AuthRequired('云会话已失效或权限不足，请重新连接。')
-                    if response.status_code == 429 or response.status_code >= 500:
-                        if attempt < 2:
-                            await asyncio.sleep(1 + attempt)
-                            continue
-                    response.raise_for_status()
-                    result = response.json()
-                    if not isinstance(result, dict):
-                        raise SourceError('数据源返回格式异常。')
-                    return result
-                except (httpx.HTTPError, ValueError) as exc:
-                    if attempt == 2:
-                        raise SourceError('云接口请求失败，请稍后重试。') from None
-                    await asyncio.sleep(1 + attempt)
+                if response.status_code in (401,403):
+                    raise AuthRequired('云会话已失效或权限不足，请重新连接。')
+                if 400 <= response.status_code < 500 and response.status_code not in (408,429):
+                    raise SourceError('云接口请求失败，请稍后重试。')
+                response.raise_for_status()
+                result = response.json()
+                if not isinstance(result, dict):
+                    raise SourceError('数据源返回格式异常。')
+                return result
+            except (httpx.HTTPError, ValueError):
+                if attempt == 2:
+                    raise SourceError('云接口请求失败，请稍后重试。') from None
+            # A failing endpoint must not occupy a request slot while backing off.
+            await asyncio.sleep(1 + attempt)
 
     async def paginate(self, client, service, path, key, extra_params=None):
         result, token, seen = [], '1', set()
@@ -84,8 +87,13 @@ class Collector:
         kind = task['kind']
         errors = []
         failed_metrics = set()
+        # CPU-only tasks have no GPU series. Missing device data is not a
+        # collection failure; unknown GPU counts still require all panels.
+        panels = {key:value for key,value in PANELS.items()
+                  if task.get('gpu_count') != 0 or key not in ('gpu','gpu_memory')}
         if kind == 'ACP':
-            workers = await self.paginate(client,'AEC2','/compute/acp/data/v2'+self.workspace+'/trainingJobs/'+quote(task['source_id'],safe='')+'/workers','workers')
+            async with self.metric_semaphore:
+                workers = await self.paginate(client,'AEC2','/compute/acp/data/v2'+self.workspace+'/trainingJobs/'+quote(task['source_id'],safe='')+'/workers','workers')
             task['workers'] = [w['name'] for w in workers if w.get('name')]
             if not task['workers']:
                 raise SourceError('任务尚未返回 worker。')
@@ -96,7 +104,8 @@ class Collector:
             dashboard = 'cdi' if kind=='CCI' else 'acpnew'
             panel = ('Deployment' if kind=='CCI' else 'Worker') + suffix
             body={'query_filter':{'resource_id':[self.workspace_uid],'filters':filters},'start':int(now)-3600,'end':int(now),'step':60,'range_align':True}
-            payload = await self.request(client,'MONITOR','/monitor/ts/data/v1'+self.station+'/dashboards/'+dashboard+'/panels/'+panel+'/metrics',body=body)
+            async with self.metric_semaphore:
+                payload = await self.request(client,'MONITOR','/monitor/ts/data/v1'+self.station+'/dashboards/'+dashboard+'/panels/'+panel+'/metrics',body=body)
             if 'metrics_result' not in payload:
                 raise SourceError('监控接口返回格式异常。')
             series = metric_series(payload,key,kind)
@@ -107,8 +116,8 @@ class Collector:
                         errors.append('worker 指标缺失或过期：'+worker)
                         failed_metrics.add(key)
             return series
-        results = await asyncio.gather(*(metric(k,v) for k,v in PANELS.items()),return_exceptions=True)
-        for key,result in zip(PANELS,results):
+        results = await asyncio.gather(*(metric(k,v) for k,v in panels.items()),return_exceptions=True)
+        for key,result in zip(panels,results):
             if isinstance(result,AuthRequired):
                 raise result
             if isinstance(result,Exception):
@@ -119,9 +128,9 @@ class Collector:
         task['metrics']=summarize_metrics(task['series'],now)
         times = [p[0] for s in task['series'] for p in s['points'] if p[1] is not None]
         task['updated_at']=iso(max(times)) if times else None
-        if any(v is None for v in task['metrics'].values()):
+        if any(task['metrics'].get(key) is None for key in panels):
             errors.append('部分指标缺失或超过 5 分钟未更新')
-        failed_metrics.update(k for k,v in task['metrics'].items() if v is None)
+        failed_metrics.update(k for k in panels if task['metrics'].get(k) is None)
         task['failed_metrics']=sorted(failed_metrics)
         task['metric_updated_at']={}
         for key in PANELS:
@@ -147,9 +156,11 @@ class Collector:
             own_acp_names=set()
             async def source(kind):
                 if kind=='CCI':
-                    rows=await self.paginate(client,'CCI','/compute/cci/data/v2'+self.workspace+'/appsOwn','apps')
+                    rows=await self.paginate(client,'CCI','/compute/cci/data/v2'+self.workspace+'/appsOwn','apps',{'filter':"state='RUNNING'"})
                 else:
-                    rows=await self.paginate(client,'AEC2','/compute/acp/data/v2'+self.workspace+'/trainingJobsOwn','training_jobs')
+                    states=('RUNNING',*QUEUE_LABELS['ACP'])
+                    rows=await self.paginate(client,'AEC2','/compute/acp/data/v2'+self.workspace+'/trainingJobsOwn','training_jobs',
+                        {'filter':' OR '.join("state='"+value+"'" for value in states)})
                     own_acp_names.update(r['name'] for r in rows if is_charles(r.get('display_name')))
                 return [task_from_raw(r,kind,now) for r in rows if is_target(r.get('display_name',''),r.get('state'))]
             for kind in ('CCI','ACP'):

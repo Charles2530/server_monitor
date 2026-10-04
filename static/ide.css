@@ -25,7 +25,7 @@ button:disabled, select:disabled { opacity: .5; cursor: default; }
 #ide-status[data-state="error"] { color: #9a6425; }
 #ide-status[data-state="error"]::before { background: #c08a3f; }
 #ide-picker { display: flex; align-items: center; gap: 9px; flex-shrink: 0; min-width: 0; }
-#ide-picker label { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #627b6e; min-width: 0; }
+#ide-picker label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #627b6e; min-width: 0; }
 select { appearance: none; min-width: 90px; max-width: 190px; min-height: 34px; border: 1px solid #ccdcd3; border-radius: 7px; padding: 6px 29px 6px 10px; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23608070' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E") no-repeat right 9px center; color: #345a46; font-size: 11px; text-overflow: ellipsis; cursor: pointer; }
 select:hover:not(:disabled) { border-color: #8eafa0; }
 #ide-frame { flex: 1; width: 100%; min-height: 0; border: 1px solid #cfded5; border-radius: 10px; background: #182722; box-shadow: 0 5px 18px #163e3606; }
@@ -42,12 +42,28 @@ body:not(:has(#ide-frame:not([hidden]))) .ide-setup { width: min(100%, 740px); m
 .welcome-tags span { padding: 4px 8px; border: 1px solid #e0e8ef; border-radius: 5px; background: #f6f9fc; color: #637e91; font-size: 10px; }
 body:has(#ide-frame:not([hidden])) .session-welcome { display: none; }
 body:not(:has(#ide-frame:not([hidden]))) .ide-connection { display: block; padding-top: 20px; border-top: 1px solid #e7eee9; }
-body:not(:has(#ide-frame:not([hidden]))) #ide-status { padding: 10px 12px; border: 1px solid #dce7ef; border-radius: 8px; background: #f2f7fb; }
-body:not(:has(#ide-frame:not([hidden]))) #ide-status[data-state=error] { background: #fff8ef; border-color: #eedfc9; }
+body:not(:has(#ide-frame:not([hidden]))) .session-status { padding: 12px 14px; border: 1px solid #dce7ef; border-radius: 8px; background: #f2f7fb; }
+body:not(:has(#ide-frame:not([hidden]))) .session-status:has(#ide-status[data-state=error]) { background: #fff8ef; border-color: #eedfc9; }
 body:not(:has(#ide-frame:not([hidden]))) #ide-picker { align-items: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 body:not(:has(#ide-frame:not([hidden]))) #ide-picker label { flex: 1 1 180px; flex-direction: column; align-items: stretch; gap: 7px; }
 body:not(:has(#ide-frame:not([hidden]))) select { width: 100%; max-width: none; min-height: 38px; }
 body:not(:has(#ide-frame:not([hidden]))) #ide-open { min-height: 38px; }
+/* Keep state feedback and its recovery action together. */
+.session-status { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+#ide-status { flex: 1; min-width: 0; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+#ide-retry { flex-shrink: 0; font-size: 11px; min-height: 30px; padding: 5px 9px; }
+body:not(:has(#ide-frame:not([hidden]))) .session-status:has(#ide-status[data-state=loading]) { background: #f2f7fb; border-color: #d9e5ef; }
+.session-status:has(#ide-status[data-state=error]) #ide-retry { color: #965429; border-color: #dec6ad; background: #fff; }
+#ide-status[data-state=idle] { color: #657b72; }
+#ide-status[data-state=idle]::before { background: #8a9d93; }
+body:not(:has(#ide-frame:not([hidden]))) .session-status:has(#ide-status[data-state=idle]) { background: #f5f7f6; border-color: #e0e6e2; }
+.session-welcome p { font-size: 13px; color: #586f62; }
+.welcome-tags span { font-size: 11px; }
+body:has(#ide-picker[hidden]) #ide-status[data-state=loading]::before { width: 10px; height: 10px; border: 2px solid #cbdce8; border-top-color: #4d819f; background: transparent; vertical-align: middle; }
+@media(prefers-reduced-motion: no-preference) {
+  body:has(#ide-picker[hidden]) #ide-status[data-state=loading]::before { animation: session-loading 1s linear infinite; }
+}
+@keyframes session-loading { to { transform: rotate(360deg); } }
 @media(prefers-reduced-motion: no-preference) { .button, select { transition: background-color .15s, border-color .15s; } }
 @media(max-width:1050px) { .ide-connection { flex-wrap: wrap; } }
 @media(max-width:760px), (pointer:coarse) {
@@ -57,6 +73,7 @@ body:not(:has(#ide-frame:not([hidden]))) #ide-open { min-height: 38px; }
   .ide-brand-icon { display: none; }
   body:not(:has(#ide-frame:not([hidden]))) .ide-setup { margin-top: 18px; padding: 22px; }
   .session-welcome h2 { font-size: 22px; }
+  .session-status { flex-wrap: wrap; gap: 8px; }
   body:not(:has(#ide-frame:not([hidden]))) :is(#ide-frame, #ide-picker, #ide-retry) { display: none!important; }
 }
 
@@ -71,3 +88,20 @@ body:not(:has(#ide-frame:not([hidden]))) #ide-open { min-height: 38px; }
 #ide-progress-detail { margin: 9px 0 0; color: #698398; font-size: 11px; font-variant-numeric: tabular-nums; }
 @media(prefers-reduced-motion: no-preference) { #ide-progress-bar:indeterminate { animation: ide-progress-pulse 1.8s linear infinite; } }
 @keyframes ide-progress-pulse { to { background-position: -200% 0; } }
+
+/* Use the full viewport once the editor is open, keeping session details visible. */
+@media (min-width: 761px) {
+  body:has(#ide-frame:not([hidden])) { padding: 0; gap: 0; }
+  body:has(#ide-frame:not([hidden])) .ide-header { gap: 10px; padding: 5px 10px; border: 0; border-bottom: 1px solid #dce6df; border-radius: 0; box-shadow: none; }
+  body:has(#ide-frame:not([hidden])) .ide-brand-icon { width: 26px; height: 26px; border-radius: 6px; }
+  body:has(#ide-frame:not([hidden])) .ide-brand-icon .session-icon { width: 18px; height: 18px; }
+  body:has(#ide-frame:not([hidden])) .ide-context { display: flex; align-items: baseline; gap: 10px; }
+  body:has(#ide-frame:not([hidden])) .ide-context h1 { flex-shrink: 0; font-size: 14px; line-height: 1.5; }
+  body:has(#ide-frame:not([hidden])) #ide-task { margin: 0; font-size: 12px; line-height: 1.5; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+  body:has(#ide-frame:not([hidden])) .site-badge { padding: 2px 7px; font-size: 12px; flex-shrink: 0; }
+  body:has(#ide-frame:not([hidden])) .ide-header .button { min-height: 30px; padding: 4px 9px; font-size: 12px; }
+  body:has(#ide-frame:not([hidden])) .ide-setup { padding: 3px 10px; border-bottom: 1px solid #dce6df; }
+  body:has(#ide-frame:not([hidden])) #ide-status { font-size: 12px; line-height: 1.5; }
+  body:has(#ide-frame:not([hidden])) #ide-retry { min-height: 26px; padding: 3px 8px; font-size: 12px; }
+  body:has(#ide-frame:not([hidden])) #ide-frame { border: 0; border-radius: 0; box-shadow: none; }
+}

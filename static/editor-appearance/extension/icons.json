@@ -1,0 +1,295 @@
+{
+  "iconDefinitions": {
+    "folder-test": {
+      "iconPath": "./icons/folder-test.svg"
+    },
+    "cuda": {
+      "iconPath": "./icons/cuda.svg"
+    },
+    "folder-jupyter": {
+      "iconPath": "./icons/folder-jupyter.svg"
+    },
+    "folder-log": {
+      "iconPath": "./icons/folder-log.svg"
+    },
+    "javascript": {
+      "iconPath": "./icons/javascript.svg"
+    },
+    "jupyter": {
+      "iconPath": "./icons/jupyter.svg"
+    },
+    "folder-base": {
+      "iconPath": "./icons/folder-base.svg"
+    },
+    "database": {
+      "iconPath": "./icons/database.svg"
+    },
+    "folder-docs": {
+      "iconPath": "./icons/folder-docs.svg"
+    },
+    "cpp": {
+      "iconPath": "./icons/cpp.svg"
+    },
+    "zip": {
+      "iconPath": "./icons/zip.svg"
+    },
+    "json": {
+      "iconPath": "./icons/json.svg"
+    },
+    "settings": {
+      "iconPath": "./icons/settings.svg"
+    },
+    "python": {
+      "iconPath": "./icons/python.svg"
+    },
+    "docker": {
+      "iconPath": "./icons/docker.svg"
+    },
+    "git": {
+      "iconPath": "./icons/git.svg"
+    },
+    "folder-images": {
+      "iconPath": "./icons/folder-images.svg"
+    },
+    "markdown": {
+      "iconPath": "./icons/markdown.svg"
+    },
+    "folder-resource": {
+      "iconPath": "./icons/folder-resource.svg"
+    },
+    "document": {
+      "iconPath": "./icons/document.svg"
+    },
+    "image": {
+      "iconPath": "./icons/image.svg"
+    },
+    "folder-src": {
+      "iconPath": "./icons/folder-src.svg"
+    },
+    "table": {
+      "iconPath": "./icons/table.svg"
+    },
+    "folder-dist": {
+      "iconPath": "./icons/folder-dist.svg"
+    },
+    "css": {
+      "iconPath": "./icons/css.svg"
+    },
+    "typescript": {
+      "iconPath": "./icons/typescript.svg"
+    },
+    "c": {
+      "iconPath": "./icons/c.svg"
+    },
+    "folder-python": {
+      "iconPath": "./icons/folder-python.svg"
+    },
+    "pytorch": {
+      "iconPath": "./icons/pytorch.svg"
+    },
+    "pdf": {
+      "iconPath": "./icons/pdf.svg"
+    },
+    "log": {
+      "iconPath": "./icons/log.svg"
+    },
+    "toml": {
+      "iconPath": "./icons/toml.svg"
+    },
+    "yaml": {
+      "iconPath": "./icons/yaml.svg"
+    },
+    "react": {
+      "iconPath": "./icons/react.svg"
+    },
+    "folder-database": {
+      "iconPath": "./icons/folder-database.svg"
+    },
+    "html": {
+      "iconPath": "./icons/html.svg"
+    },
+    "console": {
+      "iconPath": "./icons/console.svg"
+    },
+    "folder-vscode": {
+      "iconPath": "./icons/folder-vscode.svg"
+    },
+    "folder-config": {
+      "iconPath": "./icons/folder-config.svg"
+    },
+    "folder-environment": {
+      "iconPath": "./icons/folder-environment.svg"
+    },
+    "folder-git": {
+      "iconPath": "./icons/folder-git.svg"
+    }
+  },
+  "file": "document",
+  "folder": "folder-base",
+  "folderExpanded": "folder-base",
+  "rootFolder": "folder-src",
+  "rootFolderExpanded": "folder-src",
+  "fileExtensions": {
+    "py": "python",
+    "pyi": "python",
+    "pyc": "python",
+    "ipynb": "jupyter",
+    "js": "javascript",
+    "mjs": "javascript",
+    "cjs": "javascript",
+    "ts": "typescript",
+    "tsx": "react",
+    "jsx": "react",
+    "json": "json",
+    "jsonc": "json",
+    "jsonl": "json",
+    "yaml": "yaml",
+    "yml": "yaml",
+    "toml": "toml",
+    "md": "markdown",
+    "mdx": "markdown",
+    "rst": "markdown",
+    "sh": "console",
+    "bash": "console",
+    "zsh": "console",
+    "fish": "console",
+    "ini": "settings",
+    "conf": "settings",
+    "cfg": "settings",
+    "env": "settings",
+    "sql": "database",
+    "db": "database",
+    "sqlite": "database",
+    "sqlite3": "database",
+    "c": "c",
+    "h": "c",
+    "cpp": "cpp",
+    "cc": "cpp",
+    "hpp": "cpp",
+    "cxx": "cpp",
+    "cu": "cuda",
+    "cuh": "cuda",
+    "png": "image",
+    "jpg": "image",
+    "jpeg": "image",
+    "svg": "image",
+    "webp": "image",
+    "gif": "image",
+    "pdf": "pdf",
+    "zip": "zip",
+    "gz": "zip",
+    "tar": "zip",
+    "7z": "zip",
+    "log": "log",
+    "csv": "table",
+    "tsv": "table",
+    "parquet": "table",
+    "pt": "pytorch",
+    "pth": "pytorch",
+    "ckpt": "pytorch",
+    "safetensors": "pytorch",
+    "onnx": "pytorch",
+    "html": "html",
+    "css": "css",
+    "scss": "css"
+  },
+  "fileNames": {
+    "Dockerfile": "docker",
+    "docker-compose.yml": "docker",
+    ".gitignore": "git",
+    ".gitattributes": "git",
+    "LICENSE": "document",
+    "Makefile": "settings"
+  },
+  "folderNames": {
+    "src": "folder-src",
+    "source": "folder-src",
+    "server": "folder-src",
+    "lib": "folder-src",
+    "config": "folder-config",
+    "configs": "folder-config",
+    "configuration": "folder-config",
+    "test": "folder-test",
+    "tests": "folder-test",
+    "__tests__": "folder-test",
+    "data": "folder-database",
+    "dataset": "folder-database",
+    "datasets": "folder-database",
+    "images": "folder-images",
+    "img": "folder-images",
+    "figures": "folder-images",
+    "docs": "folder-docs",
+    "doc": "folder-docs",
+    "__pycache__": "folder-python",
+    ".git": "folder-git",
+    ".github": "folder-git",
+    ".vscode": "folder-vscode",
+    "notebooks": "folder-jupyter",
+    "notebook": "folder-jupyter",
+    "dist": "folder-dist",
+    "build": "folder-dist",
+    "models": "folder-resource",
+    "model": "folder-resource",
+    "checkpoints": "folder-resource",
+    "weights": "folder-resource",
+    "logs": "folder-log",
+    "runs": "folder-log",
+    "outputs": "folder-log",
+    ".venv": "folder-environment",
+    "venv": "folder-environment",
+    "env": "folder-environment",
+    "scripts": "folder-base"
+  },
+  "folderNamesExpanded": {
+    "src": "folder-src",
+    "source": "folder-src",
+    "server": "folder-src",
+    "lib": "folder-src",
+    "config": "folder-config",
+    "configs": "folder-config",
+    "configuration": "folder-config",
+    "test": "folder-test",
+    "tests": "folder-test",
+    "__tests__": "folder-test",
+    "data": "folder-database",
+    "dataset": "folder-database",
+    "datasets": "folder-database",
+    "images": "folder-images",
+    "img": "folder-images",
+    "figures": "folder-images",
+    "docs": "folder-docs",
+    "doc": "folder-docs",
+    "__pycache__": "folder-python",
+    ".git": "folder-git",
+    ".github": "folder-git",
+    ".vscode": "folder-vscode",
+    "notebooks": "folder-jupyter",
+    "notebook": "folder-jupyter",
+    "dist": "folder-dist",
+    "build": "folder-dist",
+    "models": "folder-resource",
+    "model": "folder-resource",
+    "checkpoints": "folder-resource",
+    "weights": "folder-resource",
+    "logs": "folder-log",
+    "runs": "folder-log",
+    "outputs": "folder-log",
+    ".venv": "folder-environment",
+    "venv": "folder-environment",
+    "env": "folder-environment",
+    "scripts": "folder-base"
+  },
+  "languageIds": {
+    "python": "python",
+    "shellscript": "console",
+    "markdown": "markdown",
+    "json": "json",
+    "jsonc": "json",
+    "yaml": "yaml",
+    "typescript": "typescript",
+    "javascript": "javascript",
+    "cpp": "cpp",
+    "c": "c",
+    "dockerfile": "docker"
+  }
+}

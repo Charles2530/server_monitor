@@ -14,6 +14,7 @@ from websockets.exceptions import InvalidStatus
 from .auth import AuthRequired, connect_browser, load_session
 from .acp_actions import ActionError
 from .task_logs import task_identity
+from .cci_terminal import VerifiedCCITargets
 
 MAX_SESSIONS=8
 MAX_BUFFER=1024*1024
@@ -21,6 +22,8 @@ IDLE_SECONDS=15*60
 LIFETIME_SECONDS=8*3600
 READ_TIMEOUT=20
 PREPARATION_POLL_SECONDS=10
+HEARTBEAT_INTERVAL_SECONDS=15
+WRITE_TIMEOUT_SECONDS=10
 
 
 def dimensions(cols,rows):
@@ -69,12 +72,12 @@ class Session:
     async def keepalive(self):
         try:
             while not self.ended:
-                await asyncio.sleep(15)
+                await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
                 if (self.transport is None and time.monotonic()-self.touched>IDLE_SECONDS) or time.monotonic()-self.created>LIFETIME_SECONDS:
                     self.error='终端会话已过期，请重新连接。'
                     break
                 async with self.write_lock:
-                    if not self.ended:await self.socket.send(b'\0')
+                    if not self.ended:await asyncio.wait_for(self.socket.send(b'\0'),WRITE_TIMEOUT_SECONDS)
         except asyncio.CancelledError:raise
         except Exception:self.error='云端终端连接中断，请重新连接。'
         finally:
@@ -143,7 +146,7 @@ class TerminalBridge:
             await self.renew_once(started)
             return await self.resolvers[kind].targets(task_id)
 
-    async def open(self,data,owner):
+    async def open(self,data,owner,*,verified_targets=None):
         kind,name=task_identity(data['task_id'])
         size=dimensions(data['cols'],data['rows'])
         instance=data['instance'];container=data['container']
@@ -160,8 +163,12 @@ class TerminalBridge:
             started=time.monotonic()
             for attempt in range(2):
                 try:
-                    # Always revalidate ownership, running state and exact instance before opening a shell.
-                    targets=(await self.resolvers[kind].targets(data['task_id']))['targets']
+                    # IDE stages may share a verification completed in the last ten
+                    # seconds. Normal terminals and post-login retries always refresh.
+                    verified = (verified_targets.get(self.site, data['task_id'])
+                                if kind == 'CCI' and owner == 'cci-editor-bootstrap' and attempt == 0
+                                and isinstance(verified_targets, VerifiedCCITargets) else None)
+                    targets=(verified or await self.resolvers[kind].targets(data['task_id']))['targets']
                     if not any(t['instance']==instance and (kind=='ACP' or t.get('container')==container) for t in targets):
                         raise ActionError('所选 Worker / 容器已不可用，请重新读取。','terminal_unavailable',409)
                     token=self.session_loader()['headers']['authorization']
@@ -241,17 +248,22 @@ class TerminalBridge:
             payload=b'\4'+json.dumps(dimensions(size['cols'],size['rows']),separators=(',',':')).encode()
         else:payload=b'\0'+data.encode()
         digest=hashlib.sha256(payload).digest()
-        async with s.write_lock:
-            if s.ended:raise ActionError('终端已断开；不会重发输入，请重新连接。','terminal_expired',409)
-            if sequence==s.sequence and digest==s.last_digest:return {'type':'ack','sequence':sequence}
-            if sequence!=s.sequence+1:raise ActionError('输入顺序不一致，已拒绝重复执行。','terminal_sequence',409)
-            s.sequence=sequence;s.last_digest=digest
-            try:await asyncio.wait_for(s.socket.send(payload),10)
-            except Exception:
-                s.error='输入结果无法确认，已断开终端；不会自动重发命令。'
-                await s.close()
-                raise ActionError(s.error,'terminal_disconnected',502) from None
-        return {'type':'ack','sequence':sequence}
+        async def send():
+            async with s.write_lock:
+                if s.ended:raise ActionError('终端已断开；不会重发输入，请重新连接。','terminal_expired',409)
+                if sequence==s.sequence and digest==s.last_digest:return {'type':'ack','sequence':sequence}
+                if sequence!=s.sequence+1:raise ActionError('输入顺序不一致，已拒绝重复执行。','terminal_sequence',409)
+                s.sequence=sequence;s.last_digest=digest
+                await s.socket.send(payload)
+                return {'type':'ack','sequence':sequence}
+        try:
+            # Include time queued behind heartbeats/other writers in the deadline.
+            return await asyncio.wait_for(send(),WRITE_TIMEOUT_SECONDS)
+        except ActionError:raise
+        except Exception:
+            s.error='输入结果无法确认，已断开终端；不会自动重发命令。'
+            await s.close()
+            raise ActionError(s.error,'terminal_disconnected',502) from None
 
     async def disconnect(self,key,owner):
         s=self.get(key,owner);await s.close();self.sessions.pop(key,None)

@@ -78,7 +78,7 @@ def install_codex(base, binary, env, progress=None):
         shutil.rmtree(str(temporary), ignore_errors=True)
 
 
-def prepare_codex(base, env, binary, progress=None):
+def prepare_codex(base, env, binary, progress=None, *, install=True):
     home = Path(env.get('HOME') or str(Path.home()))
     configured = env.get('CODEX_HOME')
     codex_home = Path(configured).expanduser() if configured else home / '.codex'
@@ -90,6 +90,7 @@ def prepare_codex(base, env, binary, progress=None):
     # chmod or return auth/config content, including symlinked AFS configurations.
     env['CODEX_HOME'] = str(codex_home)
     if not codex_installed(base / 'extensions'):
+        if not install: return {'configured': True, 'installed': False}
         try:
             install_codex(base, binary, env, progress=progress)
         except (OSError, RuntimeError, subprocess.TimeoutExpired):

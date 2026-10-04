@@ -1,7 +1,9 @@
 """An isolated localhost origin: editor credentials never reach the browser."""
 import asyncio
-from contextlib import nullcontext
+from html import escape
+from contextlib import AsyncExitStack, nullcontext
 import logging
+from pathlib import Path
 import re
 import secrets
 import socket
@@ -10,14 +12,49 @@ from urllib.parse import urlsplit
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, Request, WebSocket
-from fastapi.responses import PlainTextResponse, RedirectResponse, StreamingResponse
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 from websockets.asyncio.client import connect
+from .ide_assets import EditorAssetCache
 
 logger = logging.getLogger(__name__)
 
+TRANSPORT_PING_INTERVAL = 10
+TRANSPORT_PING_TIMEOUT = 8
+
 HOP = {'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade'}
+APPEARANCE_ROOT = Path(__file__).resolve().parent.parent / 'static/editor-appearance'
+FONT_ASSETS = {'fonts.css': 'text/css', **{
+    'fonts/JetBrainsMono-' + name + '.woff2': 'font/woff2'
+    for name in ('Regular', 'Italic', 'Bold', 'BoldItalic')
+}}
+
+
+async def workbench_response(upstream, headers, parent_origin):
+    # Decode only the workbench document; never rewrite webviews, JS or extension resources.
+    if upstream.headers.get('content-encoding', '').lower() not in ('', 'identity', 'gzip', 'deflate'):
+        # Some installations do not have HTTPX's optional Brotli decoder. Preserve
+        # unsupported encodings byte-for-byte instead of emitting compressed HTML as text.
+        return StreamingResponse(upstream.aiter_raw(), headers=headers, background=BackgroundTask(upstream.aclose))
+    headers = {k: v for k, v in headers.items() if k.lower() not in ('content-length', 'content-encoding', 'etag', 'content-md5')}
+    chunks, total = [], 0
+    stream = upstream.aiter_bytes()
+    async for chunk in stream:
+        chunks.append(chunk)
+        total += len(chunk)
+        if total > 2 * 1024 * 1024:
+            async def remainder():
+                for part in chunks: yield part
+                async for part in stream: yield part
+            return StreamingResponse(remainder(), headers=headers, background=BackgroundTask(upstream.aclose))
+    await upstream.aclose()
+    content = b''.join(chunks)
+    if b'id="vscode-workbench-web-configuration"' in content and b'</head>' in content:
+        extras = ('<link rel="stylesheet" href="/_ilab_appearance/fonts.css">'
+                  '<script src="/_ilab_frame_status.js" data-parent-origin="' + escape(parent_origin, quote=True) + '"></script>')
+        content = content.replace(b'</head>', extras.encode() + b'</head>', 1)
+    return Response(content, headers=headers)
 
 
 class LocalProxyServer(uvicorn.Server):
@@ -27,7 +64,7 @@ class LocalProxyServer(uvicorn.Server):
 
 
 class EditorProxy:
-    def __init__(self, upstream_port, cookie, parent_origin, *, transport=None):
+    def __init__(self, upstream_port, cookie, parent_origin, *, transport=None, cache_dir=None, repair=None):
         self.upstream = 'http://127.0.0.1:' + str(upstream_port)
         self.cookie = cookie
         self.parent_origin = parent_origin
@@ -38,6 +75,10 @@ class EditorProxy:
         self.tickets = {}
         self.touched = time.monotonic()
         self.active_sockets = 0
+        self.assets = EditorAssetCache(cache_dir) if cache_dir is not None else None
+        self.repair = repair
+        self.repair_task = None
+        self.repair_started = float('-inf')
         self.client = httpx.AsyncClient(timeout=httpx.Timeout(60, connect=10), follow_redirects=False, transport=transport, trust_env=False)
         self.server = None
         self.server_task = None
@@ -86,8 +127,27 @@ class EditorProxy:
             response.headers['Referrer-Policy'] = 'no-referrer'
             return response
         if not self.allowed(request): return PlainTextResponse('Forbidden', 403)
+        if path == '/_ilab_frame_status.js':
+            if request.method not in ('GET', 'HEAD'): return PlainTextResponse('Method not allowed', 405)
+            return FileResponse(APPEARANCE_ROOT.parent / 'ide-frame-status.js', media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+        if path.startswith('/_ilab_appearance/'):
+            if request.method not in ('GET', 'HEAD'): return PlainTextResponse('Method not allowed', 405)
+            asset = path.removeprefix('/_ilab_appearance/')
+            if asset not in FONT_ASSETS or not (APPEARANCE_ROOT / asset).is_file(): return PlainTextResponse('Not found', 404)
+            self.touched = time.monotonic()
+            return FileResponse(APPEARANCE_ROOT / asset, media_type=FONT_ASSETS[asset], headers={'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff'})
         if path.rstrip('/') in ('/login', '/logout'): return PlainTextResponse('请返回监控网站重新连接编辑器。', 502)
         self.touched = time.monotonic()
+        cache_key = self.assets.key(request) if self.assets else None
+        cached = await self.assets.get(cache_key) if self.assets else None
+        if cached is not None:
+            body, headers = cached
+            headers['content-security-policy'] = "frame-ancestors 'self' " + self.parent_origin
+            headers['referrer-policy'] = 'no-referrer'
+            if headers.get('etag') and request.headers.get('if-none-match') == headers['etag']:
+                return Response(status_code=304, headers={k: v for k, v in headers.items() if k != 'content-length'})
+            return Response(b'' if request.method == 'HEAD' else body, headers=headers)
+        failed_upstream = self.upstream
         try:
             url = self.upstream + request.scope['raw_path'].decode('ascii')
             if request.url.query: url += '?' + request.url.query
@@ -98,19 +158,31 @@ class EditorProxy:
                         and request.headers.get('content-length', '0') == '0'
                         and 'transfer-encoding' not in request.headers)
             content = None if bodyless else request.stream()
-            outgoing = self.client.build_request(request.method, url, headers=self.headers(request), content=content)
-            resource = (outgoing.url.path.startswith('/_static/') or
-                        re.match(r'^/stable-[a-f0-9]{40}/(?:static/|vscode-remote-resource$)', outgoing.url.path))
-            try:
-                upstream = await self.client.send(outgoing, stream=True)
-            except httpx.RemoteProtocolError:
-                # An upstream keep-alive can close before the response headers.
-                # Retry only bodyless editor resource reads, never writes or
-                # arbitrary forwarded application endpoints. HTTPX discards the
-                # failed connection; no partial response has reached the browser.
-                if not bodyless or not resource: raise
-                logger.info('Retrying editor resource after upstream connection reset')
-                upstream = await self.client.send(self.client.build_request(request.method, url, headers=self.headers(request)), stream=True)
+            outgoing_headers = self.headers(request)
+            if path == '/' and request.method == 'GET': outgoing_headers['accept-encoding'] = 'gzip'
+            resource = (path.startswith('/_static/') or
+                        re.match(r'^/stable-[a-f0-9]{40}/(?:static/|vscode-remote-resource$)', path))
+            retryable = bodyless and (resource or path == '/')
+            for attempt in range(2):
+                failed_upstream = self.upstream
+                url = failed_upstream + request.scope['raw_path'].decode('ascii')
+                if request.url.query: url += '?' + request.url.query
+                outgoing_headers['cookie'] = self.cookie
+                outgoing = self.client.build_request(request.method, url, headers=outgoing_headers, content=content)
+                try:
+                    upstream = await self.client.send(outgoing, stream=True)
+                except (httpx.HTTPError, OSError) as exc:
+                    if attempt or not retryable: raise
+                    # A stale keep-alive can be retried directly. Other transport
+                    # failures need a repaired tunnel before retrying a safe read.
+                    if not (isinstance(exc, httpx.RemoteProtocolError) and resource):
+                        if not await self.repair_connection(failed_upstream): raise
+                    continue
+                expired = upstream.status_code in (401, 403) or urlsplit(upstream.headers.get('location', '')).path.rstrip('/') == '/login'
+                if not attempt and retryable and expired and self.repair is not None:
+                    await upstream.aclose()
+                    if await self.repair_connection(failed_upstream): continue
+                break
             location = upstream.headers.get('location', '')
             target = urlsplit(location)
             if upstream.status_code in (401, 403) or target.path.rstrip('/') == '/login':
@@ -129,10 +201,58 @@ class EditorProxy:
             directives.append("frame-ancestors 'self' " + self.parent_origin)
             headers['content-security-policy'] = '; '.join(directives)
             headers['referrer-policy'] = 'no-referrer'
-            return StreamingResponse(upstream.aiter_raw(), status_code=upstream.status_code, headers=headers, background=BackgroundTask(upstream.aclose))
+            if path == '/' and request.method == 'GET' and upstream.status_code == 200 and upstream.headers.get('content-type', '').split(';')[0] == 'text/html':
+                return await workbench_response(upstream, headers, self.parent_origin)
+            stream = self.assets.stream(cache_key, upstream) if self.assets and request.method == 'GET' else upstream.aiter_raw()
+            return StreamingResponse(stream, status_code=upstream.status_code, headers=headers, background=BackgroundTask(upstream.aclose))
         except (httpx.HTTPError, OSError) as exc:
             logger.warning('Editor HTTP transport failed (%s)', type(exc).__name__)
+            self.start_repair(failed_upstream)
             return PlainTextResponse('编辑器连接中断，请返回重新连接。', 502)
+
+    def start_repair(self, failed_upstream=None):
+        if self.repair is None: return None
+        if self.repair_task is not None and (not self.repair_task.done() or time.monotonic() - self.repair_started < 3):
+            return self.repair_task
+        self.repair_started = time.monotonic()
+        async def run():
+            try:
+                await asyncio.wait_for(self.repair(failed_upstream), 60)
+                return True
+            except Exception as exc:
+                logger.warning('Editor automatic repair failed (%s)', type(exc).__name__)
+                return False
+        self.repair_task = asyncio.create_task(run())
+        return self.repair_task
+
+    async def repair_connection(self, failed_upstream=None):
+        job = self.start_repair(failed_upstream)
+        return await asyncio.shield(job) if job is not None else False
+
+    async def watch_transport(self, remote, upstream):
+        # Suspect a silent tunnel before VS Code's own reconnect timer fires.
+        # A missed pong alone never closes a stream: repair first confirms HTTP
+        # health and revalidates ownership before replacing the SSH transport.
+        probe = None
+        async def ping():
+            pong = await remote.ping()
+            await pong
+        try:
+            while upstream == self.upstream:
+                await asyncio.sleep(TRANSPORT_PING_INTERVAL)
+                if upstream != self.upstream: return
+                if probe is None: probe = asyncio.create_task(ping())
+                try:
+                    await asyncio.wait_for(asyncio.shield(probe), TRANSPORT_PING_TIMEOUT)
+                    probe = None
+                except asyncio.TimeoutError:
+                    # Retain at most one pending ping; a slow healthy connection
+                    # can acknowledge it later without reconnecting the browser.
+                    await self.repair_connection(upstream)
+        finally:
+            if probe is not None:
+                probe.cancel()
+                await asyncio.gather(probe, return_exceptions=True)
 
     async def websocket(self, ws: WebSocket):
         if not self.allowed(ws) or ws.headers.get('origin') != self.origin:
@@ -141,12 +261,22 @@ class EditorProxy:
         jobs = []
         close_code = 1000
         phase = 'connect'
+        failed_upstream = self.upstream
         self.active_sockets += 1
         try:
-            url = self.upstream.replace('http:', 'ws:') + ws.scope['raw_path'].decode('ascii')
-            if ws.url.query: url += '?' + ws.url.query
             protocols = [x.strip() for x in ws.headers.get('sec-websocket-protocol', '').split(',') if x.strip()]
-            async with connect(url, additional_headers={'Cookie': self.cookie}, origin=self.upstream, subprotocols=protocols or None, proxy=None, max_size=16 * 1024 * 1024, open_timeout=15, ping_interval=20, ping_timeout=120) as remote:
+            async with AsyncExitStack() as stack:
+                # Repair before accepting or relaying any browser bytes. Once the
+                # stream starts, VS Code owns its reconnection/resume protocol.
+                for attempt in range(2):
+                    failed_upstream = self.upstream
+                    url = failed_upstream.replace('http:', 'ws:') + ws.scope['raw_path'].decode('ascii')
+                    if ws.url.query: url += '?' + ws.url.query
+                    try:
+                        remote = await stack.enter_async_context(connect(url, additional_headers={'Cookie': self.cookie}, origin=self.upstream, subprotocols=protocols or None, proxy=None, max_size=16 * 1024 * 1024, open_timeout=15, ping_interval=20, ping_timeout=120))
+                        break
+                    except Exception:
+                        if attempt or not await self.repair_connection(failed_upstream): raise
                 await ws.accept(subprotocol=remote.subprotocol)
                 phase = 'relay'
                 async def incoming():
@@ -161,10 +291,13 @@ class EditorProxy:
                         if isinstance(msg, bytes): await ws.send_bytes(msg)
                         else: await ws.send_text(msg)
                 jobs = [asyncio.create_task(incoming()), asyncio.create_task(outgoing())]
+                if self.repair is not None:
+                    jobs.append(asyncio.create_task(self.watch_transport(remote, failed_upstream)))
                 done, _ = await asyncio.wait(jobs, return_when=asyncio.FIRST_COMPLETED)
                 for job in done: job.result()
         except Exception as exc:
             close_code = 1011
+            if phase == 'relay' and not isinstance(exc, WebSocketDisconnect): self.start_repair(failed_upstream)
             # Paths, queries, cookies and exception messages may contain secrets.
             logger.warning('Editor WebSocket %s failed (%s)', phase, type(exc).__name__)
         finally:
@@ -196,6 +329,9 @@ class EditorProxy:
         raise RuntimeError('editor proxy failed to start')
 
     async def close(self):
+        if self.repair_task:
+            self.repair_task.cancel()
+            await asyncio.gather(self.repair_task, return_exceptions=True)
         if self.server:
             self.server.should_exit = True
         if self.server_task:

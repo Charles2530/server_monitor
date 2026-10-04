@@ -9,6 +9,7 @@ import uuid
 from datetime import datetime
 import httpx
 from .auth import load_session
+from .store import store_call
 from .collector import Collector
 from .config import SERVICES, WORKSPACE
 from .normalize import iso, cluster_from_raw
@@ -118,14 +119,26 @@ class ACPManager:
         self.services=site.services if site else SERVICES
         self.api="/compute/acp/data/v2"+self.workspace+"/trainingJobs"
         self.store=store;self.transport=transport;self.session_loader=session_loader or ((lambda:load_session(site)) if site else load_session)
-        self.reader=Collector(site);self.previews={};self.lock=asyncio.Lock()
-        self.release_lock=asyncio.Lock()
+        self.reader=Collector(site);self.previews={};self._lock=None
+        self._release_lock=None
+
+    @property
+    def lock(self):
+        # The app may be constructed before uvicorn starts its event loop.
+        # Python 3.9 locks must be created on the loop that will acquire them.
+        if self._lock is None: self._lock=asyncio.Lock()
+        return self._lock
+
+    @property
+    def release_lock(self):
+        if self._release_lock is None: self._release_lock=asyncio.Lock()
+        return self._release_lock
 
     def client(self):
         return httpx.AsyncClient(headers=self.session_loader()['headers'],timeout=25,follow_redirects=False,transport=self.transport)
 
-    async def own_jobs(self,client):
-        return await self.reader.paginate(client,'AEC2',self.api+'Own','training_jobs')
+    async def own_jobs(self,client,filter=None):
+        return await self.reader.paginate(client,'AEC2',self.api+'Own','training_jobs',{'filter':filter} if filter else None)
 
     async def detail(self,client,name):
         raw=await self.reader.request(client,'AEC2',self.api+'/'+name)
@@ -152,7 +165,14 @@ class ACPManager:
         return bool(self.site and self.site.id=='sensecore')
 
     async def template_context(self,client,partition_id=None):
-        rows=[j for j in await self.own_jobs(client) if is_charles(j.get('display_name'))]
+        # Maoshanwang prefers a running template; avoid paging through all
+        # completed jobs when one exists. SenseCore keeps per-partition latest.
+        rows=[]
+        if not self.partitioned:
+            rows=[j for j in await self.own_jobs(client,"state='RUNNING'")
+                  if j.get('state')=='RUNNING' and is_charles(j.get('display_name'))]
+        if not rows:
+            rows=[j for j in await self.own_jobs(client) if is_charles(j.get('display_name'))]
         if not rows:raise ActionError('没有找到名称包含 charles 的 ACP 模板任务。','template_unavailable',409)
         partitions=[]
         if self.partitioned:
@@ -305,7 +325,7 @@ class ACPManager:
 
     async def restart_source(self,client,task_id,revision=None,release=False):
         name=job_name(task_id)
-        if not any(j.get('name')==name and is_charles(j.get('display_name')) for j in await self.own_jobs(client)):
+        if not any(j.get('name')==name and is_charles(j.get('display_name')) for j in await self.own_jobs(client,"name='"+name+"'")):
             raise ActionError('没有找到可操作的本人 ACP 任务。','target_mismatch',403)
         raw=await self.detail(client,name)
         if raw.get('state') not in (('RUNNING',) if release else ('FAILED','SUCCEEDED','SUSPENDED')):
@@ -381,7 +401,7 @@ class ACPManager:
     async def release_restart(self,preview_id):
         # Serialize this two-step workflow separately; each child write uses the existing durable idempotency guards.
         async with self.release_lock:
-            record=self.store.operation(preview_id)
+            record=await store_call(self.store.operation,preview_id)
             prepared=self.previews.get(preview_id)
             if record:
                 if record['kind']!='release_restart':raise ActionError('请求标识已用于其他操作。','request_conflict',409)
@@ -391,34 +411,34 @@ class ACPManager:
             else:
                 if not prepared or prepared['expires']<time.time():raise ActionError('预览已过期，请重新预览。','preview_expired',409)
                 source_id,revision,_=prepared['restart_source'];source_name=job_name(source_id)
-                if self.store.release_operation(source_name):
+                if await store_call(self.store.release_operation,source_name):
                     raise ActionError('原任务已有释放重启请求，请先核对该请求或云端任务，不能重复提交。','release_already_requested',409)
                 context={'source_id':source_id,'revision':revision,'display_name':prepared['payload']['display_name'],
                          'create_key':uuid.uuid5(uuid.UUID(preview_id),'replacement').hex,
                          'stop_key':str(uuid.uuid5(uuid.UUID(preview_id),'release-original')),
                          'new_id':'ACP:'+prepared['payload']['name'],'stage':'creating'}
-                self.store.begin_operation(preview_id,'release_restart',source_name,context['display_name'],result=context)
+                await store_call(self.store.begin_operation,preview_id,'release_restart',source_name,context['display_name'],result=context)
             create_key=context['create_key']
-            if not self.store.operation(create_key):
+            if not await store_call(self.store.operation,create_key):
                 if not prepared or prepared['expires']<time.time():
                     text='新任务尚未提交，原任务未释放。预览已失效，请重新预览。'
-                    self.store.finish_operation(preview_id,'failed',result=context,error=text)
+                    await store_call(self.store.finish_operation,preview_id,'failed',result=context,error=text)
                     raise ActionError(text,'release_failed',409)
                 self.previews[create_key]={**prepared,'release_restart':False}
             try:
                 replacement=await self.create(create_key)
             except Exception as exc:
-                child=self.store.operation(create_key)
+                child=await store_call(self.store.operation,create_key)
                 if not child or child['status']=='failed':
                     reason=str(exc) if isinstance(exc,ActionError) else '请核对配置后重新预览。'
                     text='新任务未能提交，未停止原任务。'+reason
-                    self.store.finish_operation(preview_id,'failed',result=context,error=text)
+                    await store_call(self.store.finish_operation,preview_id,'failed',result=context,error=text)
                     raise ActionError(text,'release_failed',409) from None
                 text='新任务 '+context['new_id']+' 的提交结果尚未确认，未发送原任务停止请求。请核对此次请求，不要重新创建。'
-                self.store.finish_operation(preview_id,'pending',result=context,error=text)
+                await store_call(self.store.finish_operation,preview_id,'pending',result=context,error=text)
                 raise ActionError(text,'outcome_unknown',409) from None
             context['stage']='replacement_created'
-            self.store.finish_operation(preview_id,'pending',result=context)
+            await store_call(self.store.finish_operation,preview_id,'pending',result=context)
             try:
                 async with self.client() as client:
                     new=await self.detail(client,job_name(context['new_id']))
@@ -426,12 +446,12 @@ class ACPManager:
                 if new['display_name']!=context['display_name'] or original['display_name']!=context['display_name']:
                     raise ActionError('任务名称已变化，请在控制台核对两个任务。')
                 released=original.get('state') in ('SUSPENDING','SUSPENDED','FAILED','SUCCEEDED')
-                stop_record=self.store.operation(context['stop_key'])
+                stop_record=await store_call(self.store.operation,context['stop_key'])
                 if not released:
                     if not stop_record:
                         if new.get('state') in ('FAILED','SUCCEEDED','SUSPENDING','SUSPENDED'):
                             text='新任务 '+context['new_id']+' 已结束，未停止原任务。请核对新任务日志后重新预览。'
-                            self.store.finish_operation(preview_id,'failed',result=context,error=text)
+                            await store_call(self.store.finish_operation,preview_id,'failed',result=context,error=text)
                             raise ActionError(text,'release_replacement_ended',409)
                         if new.get('state') not in STOPPABLE_STATES:
                             raise ActionError('新任务状态暂不可确认，未停止原任务。')
@@ -444,11 +464,11 @@ class ACPManager:
                 if isinstance(exc,ActionError) and exc.code=='release_replacement_ended':raise
                 detail=str(exc) if isinstance(exc,ActionError) else '云端状态暂不可核实。'
                 text='新任务 '+context['new_id']+' 已提交；原任务 '+context['source_id']+' 的释放尚未确认。'+detail+' 核对此次请求不会重复创建或重复发送停止。'
-                self.store.finish_operation(preview_id,'pending',result=context,error=text)
+                await store_call(self.store.finish_operation,preview_id,'pending',result=context,error=text)
                 raise ActionError(text,'release_incomplete',409) from None
             result={**replacement,'state':new.get('state'),'release_restart':True,'original_id':context['source_id'],
                     'original_state':original_state,'message':'新任务已提交，原任务已结束或停止请求已被接收；请等待采集更新。'}
-            self.store.finish_operation(preview_id,'succeeded',result=result)
+            await store_call(self.store.finish_operation,preview_id,'succeeded',result=result)
             self.previews.pop(preview_id,None)
             return result
 
@@ -474,18 +494,18 @@ class ACPManager:
             async with self.client() as client:raw=await self.detail(client,record['target'])
             if raw['display_name']==record['display_name'] and (kind=='create' or raw.get('state') in ('SUSPENDING','SUSPENDED')):
                 result={'id':'ACP:'+raw['name'],'name':raw['display_name'],'state':raw.get('state'),'message':'已从云端核实操作结果。'}
-                self.store.finish_operation(record['key'],'succeeded',result=result)
+                await store_call(self.store.finish_operation,record['key'],'succeeded',result=result)
                 return result
         except Exception:pass
         raise ActionError('上次操作结果尚不明确，请在控制台按任务 ID '+record['target']+' 核对；不会重复发送。','outcome_unknown',409)
 
     async def create(self,preview_id):
         if not isinstance(preview_id,str) or not re.fullmatch('[a-f0-9]{32}',preview_id):raise ActionError('无效的创建预览。')
-        old=self.store.operation(preview_id)
+        old=await store_call(self.store.operation,preview_id)
         if (old and old['kind']=='release_restart') or (not old and self.previews.get(preview_id,{}).get('release_restart')):
             return await self.release_restart(preview_id)
         async with self.lock:
-            old=self.store.operation(preview_id)
+            old=await store_call(self.store.operation,preview_id)
             if old:return await self.previous_result(old,'create')
             prepared=self.previews.get(preview_id)
             if not prepared or prepared['expires']<time.time():raise ActionError('预览已过期，请重新预览配置。','preview_expired',409)
@@ -493,18 +513,18 @@ class ACPManager:
             async with self.client() as client:
                 if prepared.get('restart_source'):
                     await self.restart_source(client,*prepared['restart_source'])
-                if not self.store.begin_operation(preview_id,'create',name,display):
-                    return await self.previous_result(self.store.operation(preview_id),'create')
+                if not await store_call(self.store.begin_operation,preview_id,'create',name,display):
+                    return await self.previous_result(await store_call(self.store.operation,preview_id),'create')
                 try:
                     raw=await self.write_once(client,self.api,body=payload,params={'enable_queuing':'true'})
                     if not isinstance(raw,dict) or (raw.get('name') and raw['name']!=name):
                         raise ActionError('创建返回标识不一致，请按生成的任务 ID 核对。','outcome_unknown',502)
                     result={'id':'ACP:'+name,'name':display,'state':raw.get('state') or 'CREATING','message':'ACP 任务已提交；运行或排队状态会自动更新。'}
-                    self.store.finish_operation(preview_id,'succeeded',result=result)
+                    await store_call(self.store.finish_operation,preview_id,'succeeded',result=result)
                     self.previews.pop(preview_id,None)
                     return result
                 except ActionError as exc:
-                    self.store.finish_operation(preview_id,'unknown' if exc.code=='outcome_unknown' else 'failed',error=str(exc))
+                    await store_call(self.store.finish_operation,preview_id,'unknown' if exc.code=='outcome_unknown' else 'failed',error=str(exc))
                     raise
 
     async def stop(self,task_id,display_name,request_id):
@@ -513,21 +533,21 @@ class ACPManager:
         try:key=str(uuid.UUID(request_id))
         except (ValueError,TypeError,AttributeError):raise ActionError('无效的停止请求标识。') from None
         async with self.lock:
-            old=self.store.operation(key)
+            old=await store_call(self.store.operation,key)
             if old:return await self.previous_result(old,'stop',name,display_name)
             async with self.client() as client:
-                if not any(j.get('name')==name and is_charles(j.get('display_name')) for j in await self.own_jobs(client)):
+                if not any(j.get('name')==name and is_charles(j.get('display_name')) for j in await self.own_jobs(client,"name='"+name+"'")):
                     raise ActionError('没有找到可操作的本人 ACP 任务。','target_mismatch',403)
                 raw=await self.detail(client,name)
                 if raw['display_name']!=display_name:raise ActionError('任务名称已经变化，请刷新后重新核对。','target_mismatch',409)
                 if raw.get('state') not in STOPPABLE_STATES:raise ActionError('任务当前不可停止，请刷新查看最新状态。','state_changed',409)
-                if not self.store.begin_operation(key,'stop',name,display_name):
-                    return await self.previous_result(self.store.operation(key),'stop',name,display_name)
+                if not await store_call(self.store.begin_operation,key,'stop',name,display_name):
+                    return await self.previous_result(await store_call(self.store.operation,key),'stop',name,display_name)
                 try:
                     await self.write_once(client,self.api+'/'+name+':stop')
                     result={'id':task_id,'name':display_name,'state':'SUSPENDING','message':'停止请求已提交，等待平台完成资源释放。'}
-                    self.store.finish_operation(key,'succeeded',result=result)
+                    await store_call(self.store.finish_operation,key,'succeeded',result=result)
                     return result
                 except ActionError as exc:
-                    self.store.finish_operation(key,'unknown' if exc.code=='outcome_unknown' else 'failed',error=str(exc))
+                    await store_call(self.store.finish_operation,key,'unknown' if exc.code=='outcome_unknown' else 'failed',error=str(exc))
                     raise

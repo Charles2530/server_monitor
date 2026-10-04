@@ -7,6 +7,7 @@ import httpx
 from fastapi import FastAPI,Request
 from fastapi.responses import JSONResponse,Response
 from .mobile_access import AccessError,DeviceStore
+from .store import store_call
 
 READ_PATHS=frozenset(('/', '/terminal', '/api/state','/api/history','/api/task-history','/api/storage',
     '/api/logs','/api/logs/targets','/api/cci/terminal-targets','/api/acp/terminal-targets',
@@ -73,23 +74,23 @@ def create_gateway(store=None,*,transport=None):
         try:
             data=json.loads(body)
             if not isinstance(data,dict) or set(data)!={'ticket','name'}:raise ValueError()
-            return store.redeem(data['ticket'],data['name'])
+            return await store_call(store.redeem,data['ticket'],data['name'])
         except (ValueError,UnicodeDecodeError):return JSONResponse({'error':'配对格式无效。'},status_code=400)
         except AccessError as exc:return JSONResponse({'error':str(exc),'code':'mobile_access_denied'},status_code=403)
 
     @app.get('/mobile/status')
     async def status(request:Request):
-        try:return store.status(bearer(request))
+        try:return await store_call(store.status,bearer(request))
         except AccessError as exc:return JSONResponse({'error':str(exc),'code':'mobile_auth_required'},status_code=401)
 
     @app.api_route('/{path:path}',methods=['GET','POST','PUT','DELETE','PATCH','HEAD','OPTIONS'])
     async def forward(request:Request,path:str):
         token=bearer(request)
-        try:store.status(token)
+        try:await store_call(store.status,token)
         except AccessError as exc:return JSONResponse({'error':str(exc),'code':'mobile_auth_required'},status_code=401)
         path='/'+path
         if not allowed_path(path,request.method):return JSONResponse({'error':'未开放此接口。'},status_code=404)
-        try:device=store.authorize(token,write=request.method=='POST')
+        try:device=await store_call(store.authorize,token,write=request.method=='POST')
         except AccessError as exc:return JSONResponse({'error':str(exc),'code':'mobile_access_denied'},status_code=403)
         site=request.headers.get('x-monitor-site','maoshanwang')
         if site not in ('maoshanwang','sensecore'):return JSONResponse({'error':'未知站点。'},status_code=400)

@@ -268,15 +268,11 @@
         if (cluster.inventory_error) health.append(element("small", "inventory-warning", "旧状态"));
       } else health.textContent = "—";
       row.append(health);
-      const collected = element("td", "inventory-time");
-      collected.append(element("div", "", `余量 ${time(cluster.updated_at)}`));
-      if (inventory) collected.append(element("div", "", `总量 ${time(inventory.updated_at)}`));
-      row.append(collected);
       fragment.append(row);
     }
     if (!fragment.childNodes.length) {
       const row = element("tr"), cell = element("td", "table-empty", clusters().length ? "暂无有 GPU 的标准资源" : model.snapshot?.connected ? "尚未获取到标准集群余量" : "连接云会话后，集群可用资源将显示在这里");
-      cell.colSpan = 7;
+      cell.colSpan = 6;
       row.append(cell);
       fragment.append(row);
     }
@@ -347,14 +343,14 @@
     model.chart.setOption({
       animation: false,
       aria: { enabled: true },
-      textStyle: { fontFamily: '-apple-system, "PingFang SC", sans-serif' },
+      textStyle: { fontFamily: getComputedStyle(document.body).fontFamily },
       title: METRICS.map((metric, index) => ({
         text: metric.label, left: grids[index].left, top: grids[index].top - 28,
-        textStyle: { fontSize: 12, fontWeight: 600, color: metric.color },
+        textStyle: { fontSize: 13, fontWeight: 600, color: metric.color },
       })),
       color: selectedSeries.map((item) => METRICS.find((metric) => metric.key === item.metric).color),
       tooltip: { trigger: "axis", renderMode: "richText", confine: true, valueFormatter: (value) => value === null || value === undefined ? "—" : `${numberFormat.format(value)}%` },
-      legend: { type: "scroll", bottom: 0, left: 16, right: 16, icon: "roundRect", itemWidth: 12, itemHeight: 3, itemGap: 15, formatter: (name) => legendNames.get(name) || name, textStyle: { color: "#536b62", fontSize: 10 } },
+      legend: { type: "scroll", bottom: 0, left: 16, right: 16, icon: "roundRect", itemWidth: 12, itemHeight: 3, itemGap: 15, formatter: (name) => legendNames.get(name) || name, textStyle: { color: "#536b62", fontSize: 11 } },
       axisPointer: { link: [{ xAxisIndex: "all" }], lineStyle: { color: "#97b4aa", type: "dashed" } },
       grid: grids,
       xAxis: METRICS.map((metric, index) => ({
@@ -362,11 +358,11 @@
         min: Number.isFinite(firstSample) ? firstSample - (singleSample ? 30000 : 0) : undefined,
         max: Number.isFinite(lastSample) ? lastSample + (singleSample ? 30000 : 0) : undefined,
         axisLine: { lineStyle: { color: "#e5edeb" } }, axisTick: { show: false },
-        axisLabel: { color: "#62776e", fontSize: 10, hideOverlap: true, formatter: (value) => model.hours > 1 ? `${chartDay.format(value)}\n${chartClock.format(value)}` : chartClock.format(value) }, splitLine: { show: false },
+        axisLabel: { color: "#62776e", fontSize: 11, hideOverlap: true, formatter: (value) => model.hours > 1 ? `${chartDay.format(value)}\n${chartClock.format(value)}` : chartClock.format(value) }, splitLine: { show: false },
       })),
       yAxis: METRICS.map((metric, index) => ({
         gridIndex: index, type: "value", min: 0, max: 100, interval: 50,
-        axisLabel: { formatter: "{value}%", color: "#62776e", fontSize: 10 },
+        axisLabel: { formatter: "{value}%", color: "#62776e", fontSize: 11 },
         splitLine: { lineStyle: { color: "#eaf0ef", type: "dashed" } },
       })),
       series: selectedSeries.map((item, index) => {

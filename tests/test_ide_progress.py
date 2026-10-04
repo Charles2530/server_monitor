@@ -93,6 +93,7 @@ def test_bootstrap_real_download_bytes_and_reuse(tmp_path,monkeypatch):
     monkeypatch.setattr('socket.create_connection',lambda *a:Socket())
     monkeypatch.setattr('urllib.request.urlopen',download)
     monkeypatch.setattr('subprocess.Popen',lambda *a,**kw:SimpleNamespace(pid=123456,poll=lambda:None))
+    monkeypatch.setattr('subprocess.run',lambda *a,**kw:SimpleNamespace(returncode=1))
     monkeypatch.setattr('server.ide_bootstrap.SHA256',hashlib.sha256(archive).hexdigest())
     script=bootstrap_script('pod','10.0.0.1')
     scope={'_ilab_report_progress':lambda *a:events.append(a)}

@@ -1,0 +1,288 @@
+{
+  "material_commit": "735a0166cb72f3514a717f7c17905a77374d5df4",
+  "font_commit": "cd5227bd1f61dff3bbd6c814ceaf7ffd95e947d9",
+  "assets": [
+    {
+      "path": "extension/icons/python.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/python.svg",
+      "sha256": "798fcd59653af34e5b8124d3fe45412eef79f9c1925e286dadd94f923486fd1f",
+      "bytes": 773
+    },
+    {
+      "path": "extension/icons/jupyter.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/jupyter.svg",
+      "sha256": "2656609475ff60fd21adb14103506687c2649cccbe29417f6f5649a9fc605f82",
+      "bytes": 383
+    },
+    {
+      "path": "extension/icons/javascript.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/javascript.svg",
+      "sha256": "00eb9422f451901565f2eb8cbaf07718b2da03f9a866fae7f68cdc3807290d6b",
+      "bytes": 291
+    },
+    {
+      "path": "extension/icons/typescript.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/typescript.svg",
+      "sha256": "1822f88268b452ced242ed06a770302c15dff46bb8a2e077e95e19597f737397",
+      "bytes": 267
+    },
+    {
+      "path": "extension/icons/react.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/react.svg",
+      "sha256": "6a7fb2e8b5e168c0d0f605147138f0bb437eea6618008b82b708ce42e56bafae",
+      "bytes": 1104
+    },
+    {
+      "path": "extension/icons/json.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/json.svg",
+      "sha256": "649ad4f4d01cec788959017710bb0c63281a645db8cef389c50008fbd059da03",
+      "bytes": 540
+    },
+    {
+      "path": "extension/icons/yaml.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/yaml.svg",
+      "sha256": "666b724d61cfa091cd085a465faa3727989ba5286c8ac99a6fbf5229cb6c8f9e",
+      "bytes": 199
+    },
+    {
+      "path": "extension/icons/toml.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/toml.svg",
+      "sha256": "eaeb55ba45f14a504d8f162282ec8f87c930426220ca88035bf340dc8b1e7008",
+      "bytes": 180
+    },
+    {
+      "path": "extension/icons/markdown.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/markdown.svg",
+      "sha256": "42f95867350ed1f349ab29b3f254405f84ae65e6d42972d74b01442027eddfcd",
+      "bytes": 161
+    },
+    {
+      "path": "extension/icons/console.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/console.svg",
+      "sha256": "c5f33efa92ce94d240e3dca2041f44c30dcad53e9b1cc937be0e757719a619ce",
+      "bytes": 223
+    },
+    {
+      "path": "extension/icons/docker.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/docker.svg",
+      "sha256": "3d032b712bbedea1dd8a1103c40cf5f27ce5b1af83ae0c9312fd15eb3c341c66",
+      "bytes": 1501
+    },
+    {
+      "path": "extension/icons/git.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/git.svg",
+      "sha256": "b0caee7c9cb4e602536e2f5a384740e7c8bc5ab94d98bfdde529f1eb97938213",
+      "bytes": 729
+    },
+    {
+      "path": "extension/icons/settings.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/settings.svg",
+      "sha256": "8fbcaf6c132a8eef0b23ca597ae35ec362a35510f3e3961950a0f5b2527b75e9",
+      "bytes": 1334
+    },
+    {
+      "path": "extension/icons/database.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/database.svg",
+      "sha256": "e0679294defea90793f4107d6783fe7b25978d43c57035ae6c21e5c1ae8d7367",
+      "bytes": 332
+    },
+    {
+      "path": "extension/icons/document.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/document.svg",
+      "sha256": "64f5da56de591d5f429d2c7f5f5733388b3ce704762631ba0b487a08475f9452",
+      "bytes": 234
+    },
+    {
+      "path": "extension/icons/folder-base.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/folder-base.svg",
+      "sha256": "2d1637960109ca9f9d4666b6b22704b411744cdcf4b77b663fc2a4053739e53d",
+      "bytes": 367
+    },
+    {
+      "path": "extension/icons/folder-src.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/folder-src.svg",
+      "sha256": "0615e08b96c279fe2e62bac2d34209efb3e72e43a34ba000fc4dfab8b2e31f8f",
+      "bytes": 909
+    },
+    {
+      "path": "extension/icons/folder-config.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/folder-config.svg",
+      "sha256": "f08a417086b05fa01c6635850a53a545467097ad8d8e46c55d4e9252bfb98f71",
+      "bytes": 959
+    },
+    {
+      "path": "extension/icons/folder-test.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/folder-test.svg",
+      "sha256": "d44bd5888cbd17ad890eaf19451e0e82ea305c3d9121fcc51eb6ac0b83b20e88",
+      "bytes": 392
+    },
+    {
+      "path": "extension/icons/folder-database.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/folder-database.svg",
+      "sha256": "ef41eb68ff3fc882f74790e9b994e12b05f7249b6d9cb838f07632b101bd4f82",
+      "bytes": 478
+    },
+    {
+      "path": "extension/icons/folder-images.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/folder-images.svg",
+      "sha256": "89fc87665c8d0b9b336a3ff5f15690ab0ca1ac42b848102bf2308a757777ed74",
+      "bytes": 424
+    },
+    {
+      "path": "extension/icons/folder-docs.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/folder-docs.svg",
+      "sha256": "71bec357e64761462d18b66fa9c6095fe390ab29e1d5977c1f89e3dbd3e6fca3",
+      "bytes": 388
+    },
+    {
+      "path": "extension/icons/folder-python.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/folder-python.svg",
+      "sha256": "4160ed28310cd3f252016a250a42a64330c9d4c06619933009d698e311b7a104",
+      "bytes": 1046
+    },
+    {
+      "path": "extension/icons/folder-git.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/folder-git.svg",
+      "sha256": "519e310d47d2eaa4c58e2504674f221593218c4a1955e8de6411ebecce73a91d",
+      "bytes": 688
+    },
+    {
+      "path": "extension/icons/folder-vscode.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/folder-vscode.svg",
+      "sha256": "ea15a68466c83127183d91dfad3475fea8fa91080fb192c99b1ae401647757a8",
+      "bytes": 400
+    },
+    {
+      "path": "extension/icons/folder-jupyter.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/folder-jupyter.svg",
+      "sha256": "d2fd33544e036ab70a1d7d6d9d277ca82667fafbcd432c5f62db7d7bf1df3e3d",
+      "bytes": 600
+    },
+    {
+      "path": "extension/icons/folder-dist.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/folder-dist.svg",
+      "sha256": "0a1d768485b25d8e464ea7306c82057b34e354e00157940d73a62fdb8660af62",
+      "bytes": 374
+    },
+    {
+      "path": "extension/icons/folder-resource.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/folder-resource.svg",
+      "sha256": "d333856835c73ed9dad1e0fe7defa7896fa4f31bb67f653c521b5bd66a75434e",
+      "bytes": 426
+    },
+    {
+      "path": "extension/icons/folder-log.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/folder-log.svg",
+      "sha256": "28326b9b7d8fc648cd01aff3a6e598542ce898ef10166bcaef3545bbbc372809",
+      "bytes": 435
+    },
+    {
+      "path": "extension/icons/folder-environment.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/folder-environment.svg",
+      "sha256": "083696e40f013c5357fcd9c6319ad3359f5ecf9e7ec3b3c6d9c73f7bd8ca35a4",
+      "bytes": 326
+    },
+    {
+      "path": "extension/icons/c.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/c.svg",
+      "sha256": "4adba54251e85851f3bcc78f10bfb055f17b24aad8a53d0efbd00085dd202bae",
+      "bytes": 245
+    },
+    {
+      "path": "extension/icons/cpp.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/cpp.svg",
+      "sha256": "336346afba3afb620b3edb5f08e0a2bcf14cb85a495113deffb3bbcc87b8aeab",
+      "bytes": 325
+    },
+    {
+      "path": "extension/icons/cuda.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/cuda.svg",
+      "sha256": "6f72ecd5b570c22700384c13f9e0f0ff24a6a9f6d949200110a24bae599e365d",
+      "bytes": 865
+    },
+    {
+      "path": "extension/icons/image.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/image.svg",
+      "sha256": "838e1953a3a2ebf5c6a06b662892ba17e1c605c4379a77c61737639e51fb4f0a",
+      "bytes": 346
+    },
+    {
+      "path": "extension/icons/pdf.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/pdf.svg",
+      "sha256": "c14c66a3914b894da40778a6dcd00f0daa134426521aaddbd8ccea86ba4f5ffc",
+      "bytes": 976
+    },
+    {
+      "path": "extension/icons/zip.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/zip.svg",
+      "sha256": "dad79a45f756542d37abd422502ecfbea15720b92ea1c9d80ef0439ab6b9448a",
+      "bytes": 230
+    },
+    {
+      "path": "extension/icons/log.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/log.svg",
+      "sha256": "71501c5f23a5b85b8080f2c619b2b84807ee5203fa48e9ed740cf5acef060116",
+      "bytes": 236
+    },
+    {
+      "path": "extension/icons/table.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/table.svg",
+      "sha256": "1714898c0d538648edb0f8dd041d97435aa8cbac078c5897f9fa8103b36f029a",
+      "bytes": 268
+    },
+    {
+      "path": "extension/icons/pytorch.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/pytorch.svg",
+      "sha256": "de9c5b3296d181991210a66457a9c33c1f262cf77642828e8f6301bd3781999a",
+      "bytes": 537
+    },
+    {
+      "path": "extension/icons/html.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/html.svg",
+      "sha256": "23e04ad5f1ae9cd16dc79fe52c4290e5bd80f2f7bfe4c0769e7485832b3eb146",
+      "bytes": 232
+    },
+    {
+      "path": "extension/icons/css.svg",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/icons/css.svg",
+      "sha256": "afe20f8da21f1f2de59b11e0bd0b6bc63866a43e42238af5daca6c5669493cd5",
+      "bytes": 674
+    },
+    {
+      "path": "extension/LICENSE",
+      "source": "https://raw.githubusercontent.com/PKief/vscode-material-icon-theme/735a0166cb72f3514a717f7c17905a77374d5df4/LICENSE",
+      "sha256": "cdab3014d4f69b49dde2b85e81792208c72de613aa6aed7f7a9b5c6609b89670",
+      "bytes": 1085
+    },
+    {
+      "path": "fonts/JetBrainsMono-Regular.woff2",
+      "source": "https://raw.githubusercontent.com/JetBrains/JetBrainsMono/cd5227bd1f61dff3bbd6c814ceaf7ffd95e947d9/fonts/webfonts/JetBrainsMono-Regular.woff2",
+      "sha256": "a9cb1cd82332b23a47e3a1239d25d13c86d16c4220695e34b243effa999f45f2",
+      "bytes": 92164
+    },
+    {
+      "path": "fonts/JetBrainsMono-Italic.woff2",
+      "source": "https://raw.githubusercontent.com/JetBrains/JetBrainsMono/cd5227bd1f61dff3bbd6c814ceaf7ffd95e947d9/fonts/webfonts/JetBrainsMono-Italic.woff2",
+      "sha256": "cb6a1b246318ed3885d7dffa14a2609297fe80e9b8e500bea33b52fa312a36a4",
+      "bytes": 95864
+    },
+    {
+      "path": "fonts/JetBrainsMono-Bold.woff2",
+      "source": "https://raw.githubusercontent.com/JetBrains/JetBrainsMono/cd5227bd1f61dff3bbd6c814ceaf7ffd95e947d9/fonts/webfonts/JetBrainsMono-Bold.woff2",
+      "sha256": "c503cc5ec5f8b2c7666b7ecda1adf44bd45f2e6579b2eba0fc292150416588a2",
+      "bytes": 94588
+    },
+    {
+      "path": "fonts/JetBrainsMono-BoldItalic.woff2",
+      "source": "https://raw.githubusercontent.com/JetBrains/JetBrainsMono/cd5227bd1f61dff3bbd6c814ceaf7ffd95e947d9/fonts/webfonts/JetBrainsMono-BoldItalic.woff2",
+      "sha256": "3a013466c0eee979fb9d42c2d7a8887cd3645dc8b897cfc5b71781cf982efc5a",
+      "bytes": 98152
+    },
+    {
+      "path": "fonts/OFL.txt",
+      "source": "https://raw.githubusercontent.com/JetBrains/JetBrainsMono/cd5227bd1f61dff3bbd6c814ceaf7ffd95e947d9/OFL.txt",
+      "sha256": "30f0c136e3c88e422d0791acd97238870f9054a9729bc34cf2ff0d4ed8cac4ad",
+      "bytes": 4399
+    }
+  ]
+}

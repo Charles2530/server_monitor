@@ -30,7 +30,7 @@ button:disabled { opacity: .45; cursor: default; }
 #terminal-connection summary { color: #597363; font-size: 11px; line-height: 26px; cursor: pointer; }
 #terminal-picker { position: absolute; right: 0; top: 32px; width: min(640px, calc(100vw - 32px)); padding: 16px; display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; border: 1px solid #d6e2db; border-radius: 10px; background: #fff; box-shadow: 0 12px 36px #1b44351c; }
 .target-field { flex: 1 1 180px; min-width: 0; }
-label { display: block; margin: 0 0 6px; font-size: 11px; color: #688173; }
+label { display: block; margin: 0 0 6px; font-size: 12px; color: #688173; }
 select.terminal-select { min-height: 36px; font-size: 12px; width: 100%; }
 .terminal-workspace { flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%; border: 1px solid #2a4036; border-radius: 12px; background: #101b19; color: #d7e9e0; box-shadow: 0 8px 24px #122b2910; overflow: hidden; }
 .terminal-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 9px 12px; border-bottom: 1px solid #2a3c37; background: linear-gradient(100deg, #1c3028, #182722); flex-shrink: 0; }
@@ -67,12 +67,28 @@ body:not(:has(#terminal-workspace:not([hidden]))) .terminal-setup { width: min(1
 .welcome-tags span { padding: 4px 8px; border: 1px solid #e1eae4; border-radius: 5px; background: #f6f9f7; color: #64806e; font-size: 10px; }
 body:has(#terminal-workspace:not([hidden])) .session-welcome { display: none; }
 body:not(:has(#terminal-workspace:not([hidden]))) .connection-bar { display: block; padding-top: 20px; border-top: 1px solid #e7eee9; }
-body:not(:has(#terminal-workspace:not([hidden]))) #terminal-status { padding: 10px 12px; border: 1px solid #dce9e1; border-radius: 8px; background: #f3f8f5; }
-body:not(:has(#terminal-workspace:not([hidden]))) #terminal-status[data-state=error] { background: #fff8ef; border-color: #eedfc9; }
+body:not(:has(#terminal-workspace:not([hidden]))) .session-status { padding: 12px 14px; border: 1px solid #dce9e1; border-radius: 8px; background: #f3f8f5; }
+body:not(:has(#terminal-workspace:not([hidden]))) .session-status:has(#terminal-status[data-state=error]) { background: #fff8ef; border-color: #eedfc9; }
 body:not(:has(#terminal-workspace:not([hidden]))) #terminal-connection { margin-top: 18px; }
 body:not(:has(#terminal-workspace:not([hidden]))) #terminal-picker { position: static; width: 100%; padding: 14px 0 0; border: 0; border-radius: 0; box-shadow: none; }
 #terminal-connection:has(#terminal-picker[hidden]) { display: none; }
 body:has(#terminal-workspace:not([hidden])) #terminal-connection summary { padding: 0 9px; border: 1px solid #d7e2da; border-radius: 6px; background: #fff; }
+/* Keep state feedback and its recovery action together. */
+.session-status { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+#terminal-status { flex: 1; min-width: 0; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+#terminal-retry { flex-shrink: 0; font-size: 11px; min-height: 30px; padding: 5px 9px; }
+body:not(:has(#terminal-workspace:not([hidden]))) .session-status:has(#terminal-status[data-state=loading]) { background: #f2f7fb; border-color: #d9e5ef; }
+.session-status:has(#terminal-status[data-state=error]) #terminal-retry { color: #965429; border-color: #dec6ad; background: #fff; }
+#terminal-status[data-state=idle] { color: #657b72; }
+#terminal-status[data-state=idle]::before { background: #8a9d93; }
+body:not(:has(#terminal-workspace:not([hidden]))) .session-status:has(#terminal-status[data-state=idle]) { background: #f5f7f6; border-color: #e0e6e2; }
+.session-welcome p { font-size: 13px; color: #586f62; }
+.welcome-tags span { font-size: 11px; }
+body:has(#terminal-picker[hidden]) #terminal-status[data-state=loading]::before { width: 10px; height: 10px; border: 2px solid #cbdce8; border-top-color: #4d819f; background: transparent; vertical-align: middle; }
+@media(prefers-reduced-motion: no-preference) {
+  body:has(#terminal-picker[hidden]) #terminal-status[data-state=loading]::before { animation: session-loading 1s linear infinite; }
+}
+@keyframes session-loading { to { transform: rotate(360deg); } }
 @media(prefers-reduced-motion: no-preference) { .button, .terminal-tools button, .terminal-keyboard button { transition: background .15s, border-color .15s; } }
 @media(max-width:620px) {
   body { padding: 8px; gap: 6px; }
@@ -86,7 +102,10 @@ body:has(#terminal-workspace:not([hidden])) #terminal-connection summary { paddi
   .site-badge { font-size: 9px; padding: 4px 5px; }
   #terminal-retry { font-size: 10px; padding-inline: 6px; }
   .connection-bar { gap: 6px; }
-  #terminal-status { font-size: 10px; line-height: 18px; }
+  .session-status { gap: 8px; }
+  body:has(#terminal-workspace:not([hidden])) .connection-bar { flex-wrap: wrap; }
+  body:has(#terminal-workspace:not([hidden])) .session-status { flex-basis: 100%; }
+  #terminal-status { font-size: 11px; line-height: 18px; }
   #terminal-picker { width: calc(100vw - 16px); }
   .terminal-workspace { border-radius: 8px; }
   .terminal-toolbar { padding: 8px; gap: 8px; }
@@ -99,4 +118,27 @@ body:has(#terminal-workspace:not([hidden])) #terminal-connection summary { paddi
 @media(max-height:500px) {
   .terminal-hint { display: none; }
   .terminal-toolbar { padding-block: 5px; }
+}
+
+/* Keep the connected desktop shell spacious without removing session controls. */
+@media (min-width: 761px) {
+  body:has(#terminal-workspace:not([hidden])) { padding: 0; gap: 0; }
+  body:has(#terminal-workspace:not([hidden])) .terminal-header { gap: 10px; padding: 5px 10px; border: 0; border-bottom: 1px solid #dce6df; border-radius: 0; box-shadow: none; }
+  body:has(#terminal-workspace:not([hidden])) .terminal-logo { width: 26px; height: 26px; }
+  body:has(#terminal-workspace:not([hidden])) .terminal-context { display: flex; align-items: baseline; gap: 10px; }
+  body:has(#terminal-workspace:not([hidden])) .terminal-context h1 { flex-shrink: 0; font-size: 14px; line-height: 1.5; }
+  body:has(#terminal-workspace:not([hidden])) #terminal-task { margin: 0; font-size: 12px; line-height: 1.5; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+  body:has(#terminal-workspace:not([hidden])) .site-badge { padding: 2px 7px; font-size: 12px; flex-shrink: 0; }
+  body:has(#terminal-workspace:not([hidden])) .terminal-header .button { min-height: 30px; width: 30px; }
+  body:has(#terminal-workspace:not([hidden])) .terminal-setup { padding: 3px 10px; border-bottom: 1px solid #dce6df; }
+  body:has(#terminal-workspace:not([hidden])) .connection-bar { align-items: center; }
+  body:has(#terminal-workspace:not([hidden])) #terminal-status { padding: 0; font-size: 12px; line-height: 1.5; }
+  body:has(#terminal-workspace:not([hidden])) #terminal-retry { min-height: 26px; padding: 3px 8px; font-size: 12px; }
+  body:has(#terminal-workspace:not([hidden])) #terminal-workspace { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; border: 0; border-radius: 0; box-shadow: none; }
+  body:has(#terminal-workspace:not([hidden])) .terminal-toolbar { grid-column: 1 / -1; padding: 5px 10px; gap: 8px; }
+  body:has(#terminal-workspace:not([hidden])) .terminal-tools button { min-height: 28px; padding: 3px 8px; }
+  body:has(#terminal-workspace:not([hidden])) #terminal-screen { grid-column: 1 / -1; grid-row: 2; padding: 6px 10px; }
+  body:has(#terminal-workspace:not([hidden])) .terminal-keyboard { grid-column: 1; grid-row: 3; padding: 4px 10px; align-items: center; }
+  body:has(#terminal-workspace:not([hidden])) .terminal-keyboard button { min-height: 26px; padding: 3px 8px; }
+  body:has(#terminal-workspace:not([hidden])) .terminal-hint { grid-column: 2; grid-row: 3; display: flex; align-items: center; padding: 4px 10px; border-top: 1px solid #2a3c37; overflow-wrap: anywhere; }
 }

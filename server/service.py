@@ -4,6 +4,7 @@ import time
 from .auth import AuthRequired, connect_browser
 from .config import INTERVAL
 from .normalize import iso
+from .store import store_call
 
 class Monitor:
     def __init__(self, store, collector, renew=None):
@@ -44,7 +45,7 @@ class Monitor:
             self.state.update(status='collecting',last_attempt_at=iso(time.time()))
             try:
                 snapshot=await asyncio.wait_for(self.collect(),timeout=150)
-                self.store.save(snapshot,time.time())
+                await self.store_call(self.store.save,snapshot,time.time())
                 self.state.update(snapshot)
             except AuthRequired:
                 self.state.update(status='disconnected',connected=False,error='自动登录暂未成功，请检查本地登录配置与网络，或点击“重新连接”重试。')
@@ -52,11 +53,14 @@ class Monitor:
                 self.state.update(status='error',error='采集失败，保留上次快照。请检查网络或重新连接。')
             finally:
                 try:
-                    self.store.prune(time.time())
+                    await self.store_call(self.store.prune,time.time())
                 except Exception:
                     self.state.update(status='error', error='本地历史清理失败，请检查磁盘空间和文件权限。')
                 self.state['next_run_at']=iso(time.time()+INTERVAL)
             return True
+
+    async def store_call(self, callback, *args):
+        return await store_call(callback, *args)
 
     async def loop(self):
         while True:

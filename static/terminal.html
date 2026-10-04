@@ -14,6 +14,7 @@
     <script src="/static/vendor/xterm.js" defer></script>
     <script src="/static/vendor/xterm-addon-fit.js" defer></script>
     <script src="/static/terminal.js" defer></script>
+    <link rel="stylesheet" href="/static/typography.css">
   </head>
   <body>
     <header class="terminal-header">
@@ -22,12 +23,11 @@
       <div class="terminal-context"><h1 id="terminal-title">Web Terminal</h1><p id="terminal-task">正在读取任务信息…</p></div>
       <span class="site-badge" data-site-label></span>
       <a id="terminal-official" class="official-link" target="_blank" rel="noopener noreferrer" hidden>云控制台 ↗</a>
-      <button id="terminal-retry" class="button" type="button" hidden>重新连接</button>
     </header>
     <div class="terminal-setup">
       <div class="session-welcome"><div class="welcome-icon"><svg class="session-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 6 6 6-6 6M13 18h6"/></svg></div><span class="welcome-eyebrow">ILAB WORKSPACE / TERMINAL</span><h2>连接任务终端</h2><p>选择运行实例，在当前页面使用交互式 Shell。</p><div class="welcome-tags"><span>CCI / ACP</span><span>实时输入输出</span><span>支持移动端</span></div></div>
     <div class="connection-bar">
-      <p id="terminal-status" data-state="loading" role="status" aria-live="polite">正在读取最新实例与容器…</p>
+      <div class="session-status"><p id="terminal-status" data-state="loading" role="status" aria-live="polite">正在读取最新实例与容器…</p><button id="terminal-retry" class="button" type="button" hidden>重新连接</button></div>
       <details id="terminal-connection">
         <summary>连接设置</summary>
         <div id="terminal-picker" hidden>

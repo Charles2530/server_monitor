@@ -1,9 +1,25 @@
 """Private SQLite storage. Values are indexed by task, worker, metric and time."""
-import copy
+import asyncio
+from contextlib import contextmanager
 import json
 import os
 import sqlite3
 from pathlib import Path
+
+
+async def store_call(callback, *args, **kwargs):
+    """Run SQLite off-loop, draining started transactions before cancellation."""
+    task = asyncio.create_task(asyncio.to_thread(callback, *args, **kwargs))
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        # Cancelling to_thread cannot stop its transaction. Keep caller locks
+        # until it finishes, and preserve cancellation even if the disk fails.
+        drained = asyncio.gather(task, return_exceptions=True)
+        while not drained.done():
+            try: await asyncio.shield(drained)
+            except asyncio.CancelledError: pass
+        raise
 
 
 class Store:
@@ -32,8 +48,14 @@ class Store:
             db.execute("INSERT OR IGNORE INTO task_runs SELECT DISTINCT task FROM samples")
         os.chmod(self.path, 0o600)
 
+    @contextmanager
     def connect(self):
-        return sqlite3.connect(str(self.path), timeout=10)
+        db = sqlite3.connect(str(self.path), timeout=10)
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
 
     def operation(self, key):
         with self.connect() as db:
@@ -71,9 +93,11 @@ class Store:
         return json.loads(row[0]) if row else None
 
     def save(self, snapshot, now):
-        compact = copy.deepcopy(snapshot)
-        for task in compact.get("tasks", []):
-            task["series"] = []
+        # Do not copy the large curves that aren't stored in the snapshot JSON.
+        compact = {**snapshot, "tasks": [
+            {**{k: v for k, v in task.items() if k != "series"}, "series": []}
+            for task in snapshot.get("tasks", [])
+        ]}
         with self.connect() as db:
             db.execute("DELETE FROM snapshots")
             db.execute("INSERT INTO snapshots(captured,payload) VALUES (?,?)",
@@ -81,10 +105,12 @@ class Store:
             for task in snapshot.get("tasks", []):
                 if task.get("state")=="running":db.execute("INSERT OR IGNORE INTO task_runs VALUES (?)",(task["id"],))
                 for item in task.get("series", []):
-                    db.executemany("INSERT OR REPLACE INTO samples VALUES (?,?,?,?,?)", [
+                    db.executemany("""INSERT INTO samples VALUES (?,?,?,?,?)
+                        ON CONFLICT(task,metric,label,timestamp) DO UPDATE SET value=excluded.value
+                        WHERE samples.value IS NOT excluded.value""", (
                         (task["id"], item["metric"], item["label"], t, v)
                         for t, v in item["points"]
-                    ])
+                    ))
 
     def history(self, task_id, since):
         with self.connect() as db:

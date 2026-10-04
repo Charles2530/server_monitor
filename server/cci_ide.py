@@ -1,6 +1,7 @@
 """Prepare a CCI-local editor and keep its authenticated transport on this Mac."""
 import asyncio
 import base64
+from contextlib import asynccontextmanager
 import ipaddress
 import json
 import os
@@ -8,13 +9,16 @@ from pathlib import Path
 import re
 import secrets
 import socket
+import tempfile
 import time
 
 import httpx
 from .acp_actions import ActionError
 from .auth import AuthRequired
 from .ide_bootstrap import bootstrap_script
+from .ide_appearance import APPEARANCE_VERSION
 from .ide_proxy import EditorProxy
+from .cci_terminal import VerifiedCCITargets
 
 
 def private_ipv4(value):
@@ -35,6 +39,7 @@ PROGRESS_MESSAGES = {
     'download_codex': '正在下载 Codex 插件…',
     'verify_codex': '正在校验 Codex 插件…',
     'install_codex': '正在安装 Codex 插件…',
+    'install_appearance': '正在准备代码字体与文件图标…',
     'start_editor': '正在启动容器内编辑器…',
     'connect': '正在建立编辑器连接…',
     'authenticate': '正在完成编辑器认证…',
@@ -53,9 +58,10 @@ def safe_progress(value):
     return result
 
 
-async def run_python(bridge, data, script, *, timeout=600, on_progress=None):
+async def run_python(bridge, data, script, *, timeout=600, on_progress=None, verified_targets=None, cleanup_jobs=None):
     owner = 'cci-editor-bootstrap'
-    opened = await bridge.open({**data, 'cols': 240, 'rows': 40}, owner)
+    verified = {'verified_targets': verified_targets} if verified_targets is not None else {}
+    opened = await bridge.open({**data, 'cols': 240, 'rows': 40}, owner, **verified)
     key = opened['session_id']
     tag = secrets.token_hex(16)
     reporter = "def _ilab_report_progress(stage, downloaded_bytes=None, total_bytes=None):\n    print(chr(30)+" + repr(tag) + "+json.dumps({'__ilab_progress__': {'stage': stage, 'downloaded_bytes': downloaded_bytes, 'total_bytes': total_bytes}})+chr(31), flush=True)\n"
@@ -82,11 +88,25 @@ async def run_python(bridge, data, script, *, timeout=600, on_progress=None):
                 else: return value
             if result['closed']: raise ActionError('编辑器准备时容器连接中断。')
             if len(raw) > 1024 * 1024: raise ActionError('编辑器准备输出过长。')
-    try:
-        return await asyncio.wait_for(execute(), timeout)
-    finally:
+    completed = False
+    async def cleanup():
         try: await bridge.disconnect(key, owner)
         except ActionError: pass
+    try:
+        result = await asyncio.wait_for(execute(), timeout)
+        completed = True
+        return result
+    finally:
+        if completed and cleanup_jobs is not None:
+            # The result is complete; closing this temporary shell can overlap
+            # SSH setup. Its owner still joins cleanup during shutdown.
+            job = asyncio.create_task(cleanup()); cleanup_jobs.add(job)
+            def finished(task):
+                cleanup_jobs.discard(task)
+                if not task.cancelled(): task.exception()
+            job.add_done_callback(finished)
+        else:
+            await cleanup()
 
 
 class SSHForward:
@@ -94,15 +114,51 @@ class SSHForward:
         self.alias, self.address, self.remote_port = alias, address, port
         self.port = None
         self.process = None
+        self.control_directory = None
+        self.control_request = None
 
-    async def start(self):
+    def options(self):
         if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,100}', self.alias):
             raise ActionError('编辑器 SSH 别名配置无效。')
         known = Path.home() / '.ssh/known_hosts'
         if not known.is_file(): raise ActionError('请先在此电脑配置并验证编辑器 SSH 跳板连接。')
+        return ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=yes', '-o', 'UserKnownHostsFile=' + str(known), '-o', 'ForkAfterAuthentication=no', '-o', 'ExitOnForwardFailure=yes', '-o', 'ServerAliveInterval=20', '-o', 'ServerAliveCountMax=3']
+
+    async def warm(self):
+        options = self.options()
+        # Keep the Unix socket short enough for macOS, private to this process's
+        # user, and unique to this session. No credentials are written here.
+        self.control_directory = tempfile.TemporaryDirectory(prefix='ilab-ide-', dir='/tmp')
+        control = Path(self.control_directory.name) / 'ssh'
+        try:
+            self.process = await asyncio.create_subprocess_exec('/usr/bin/ssh', '-N', '-T', '-M', '-S', str(control), '-o', 'ControlPersist=no', '-o', 'ClearAllForwardings=yes', *options, self.alias, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+            for _ in range(150):
+                if self.process.returncode is not None: break
+                if control.is_socket(): return
+                await asyncio.sleep(.1)
+            raise ActionError('SSH 跳板预连接失败。')
+        except BaseException:
+            await self.close()
+            raise
+
+    async def start(self):
+        options = self.options()
         with socket.socket() as sock:
             sock.bind(('127.0.0.1', 0)); self.port = sock.getsockname()[1]
-        self.process = await asyncio.create_subprocess_exec('/usr/bin/ssh', '-N', '-T', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10', '-o', 'StrictHostKeyChecking=yes', '-o', 'UserKnownHostsFile=' + str(known), '-o', 'ExitOnForwardFailure=yes', '-o', 'ServerAliveInterval=20', '-o', 'ServerAliveCountMax=3', '-L', '127.0.0.1:%d:%s:%d' % (self.port, self.address, self.remote_port), self.alias, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+        forwarding = '127.0.0.1:%d:%s:%d' % (self.port, self.address, self.remote_port)
+        if self.control_directory:
+            if self.process.returncode is not None: raise ActionError('SSH 跳板预连接已退出。')
+            control = str(Path(self.control_directory.name) / 'ssh')
+            try:
+                # -O only talks to our owned master. Ignore configured forwards
+                # here, including ClearAllForwardings from the warmup command.
+                self.control_request = await asyncio.create_subprocess_exec('/usr/bin/ssh', '-F', '/dev/null', '-S', control, '-O', 'forward', '-o', 'ExitOnForwardFailure=yes', '-L', forwarding, self.alias, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+                if await asyncio.wait_for(self.control_request.wait(), 10): raise ActionError('SSH 编辑器转发失败。')
+            finally:
+                await self.stop_process(self.control_request)
+                self.control_request = None
+        else:
+            self.process = await asyncio.create_subprocess_exec('/usr/bin/ssh', '-N', '-T', *options, '-L', forwarding, self.alias, stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
         for _ in range(150):
             if self.process.returncode is not None: break
             try:
@@ -113,12 +169,23 @@ class SSHForward:
         await self.close()
         raise ActionError('SSH 跳板连接失败，请检查本机 SSH 别名、密钥及 known_hosts。')
 
-    async def close(self):
-        if self.process and self.process.returncode is None:
-            self.process.terminate()
-            try: await asyncio.wait_for(self.process.wait(), 3)
+    @staticmethod
+    async def stop_process(process):
+        if process and process.returncode is None:
+            try: process.terminate()
+            except ProcessLookupError: pass
+            try: await asyncio.wait_for(process.wait(), 3)
             except asyncio.TimeoutError:
-                self.process.kill(); await self.process.wait()
+                try: process.kill()
+                except ProcessLookupError: pass
+                await process.wait()
+
+    async def close(self):
+        await self.stop_process(self.control_request)
+        await self.stop_process(self.process)
+        if self.control_directory:
+            self.control_directory.cleanup()
+            self.control_directory = None
 
 
 class CCIEditor:
@@ -126,8 +193,37 @@ class CCIEditor:
         self.site, self.bridge, self.resolver = site, bridge, resolver
         self.requests = {}
         self.sessions = {}
-        self.lock = asyncio.Lock()
+        self.optional_jobs = {}
+        self.cleanup_jobs = set()
+        self.target_leases = {}
+        self.locks = {}
+        self.preparing = set()
         self.reaper = None
+
+    @asynccontextmanager
+    async def session_lock(self, identity):
+        # Retain an entry while holders or waiters exist; unrelated containers
+        # must not wait behind a first installation or SSH repair.
+        entry = self.locks.setdefault(identity, {'lock': asyncio.Lock(), 'users': 0})
+        entry['users'] += 1
+        try:
+            async with entry['lock']:
+                yield
+        finally:
+            entry['users'] -= 1
+            if not entry['users']: self.locks.pop(identity, None)
+
+    @asynccontextmanager
+    async def preparation_slot(self, identity):
+        reserved = identity not in self.sessions
+        if reserved:
+            if len(self.sessions) + len(self.preparing) >= 4:
+                raise ActionError('最多同时打开 4 个编辑器，请关闭闲置页面并稍后重试。', 'ide_limit', 429)
+            self.preparing.add(identity)
+        try:
+            yield
+        finally:
+            if reserved: self.preparing.discard(identity)
 
     async def begin(self, action, data, origin):
         if action not in ('targets', 'open', 'recover'): raise ActionError('编辑器请求无效。')
@@ -177,21 +273,33 @@ class CCIEditor:
 
     async def targets(self, task_id):
         if not task_id.startswith('CCI:'): raise ActionError('仅 CCI 支持站内 VS Code。')
-        return await self.bridge.targets(task_id)
+        result = await self.verified_targets(task_id)
+        return {**result, 'targets': [{k: v for k, v in target.items() if k != 'address'} for target in result['targets']]}
 
-    async def resolve(self, data):
+    async def verified_targets(self, task_id):
+        lease = self.target_leases.get(task_id)
+        result = lease.get(self.site, task_id) if lease else None
+        if result is not None: return result
         started = time.monotonic()
-        try: result = await self.resolver.targets(data['task_id'], include_address=True)
+        try: result = await self.resolver.targets(task_id, include_address=True)
         except AuthRequired:
             await self.bridge.renew_once(started)
-            result = await self.resolver.targets(data['task_id'], include_address=True)
+            result = await self.resolver.targets(task_id, include_address=True)
+        self.target_leases = {key: value for key, value in self.target_leases.items() if value.get(self.site, key) is not None}
+        if len(self.target_leases) >= 32: self.target_leases.pop(next(iter(self.target_leases)))
+        self.target_leases[task_id] = VerifiedCCITargets(self.site, result)
+        return result
+
+    async def resolve(self, data):
+        result = await self.verified_targets(data['task_id'])
         target = next((t for t in result['targets'] if t['instance'] == data['instance'] and t['container'] == data['container']), None)
         if not target: raise ActionError('所选 CCI 容器已不可用，请刷新任务。')
         return result, private_ipv4(target['address'])
 
-    async def healthy(self, session):
+    async def healthy(self, session, *, retry=True):
         if session['forward'].process.returncode is not None: return False
         if await session['proxy'].healthy(): return True
+        if not retry: return False
         # One slow response must not tear down a live editor or its browser origin.
         await asyncio.sleep(.3)
         return await session['proxy'].healthy()
@@ -203,14 +311,25 @@ class CCIEditor:
                 raise ActionError('编辑器自动认证失败，请重新打开编辑器页面。')
             return '; '.join(k + '=' + v for k, v in client.cookies.items())
 
-    async def connect(self, address, port, password, origin, notify, session=None):
+    def make_forward(self, address, port, session=None):
         env_key = 'SENSECORE_CCI_IDE_SSH_HOST' if self.site.id == 'sensecore' else 'MONITOR_CCI_IDE_SSH_HOST'
         alias = session['forward'].alias if session else os.environ.get(env_key, 'sensecore' if self.site.id == 'sensecore' else 'maoshanwangtech')
-        forward = SSHForward(alias, address, port)
+        return SSHForward(alias, address, port)
+
+    async def connect(self, address, port, password, origin, notify, session=None, *, prepared_forward=None):
+        forward = prepared_forward or self.make_forward(address, port, session)
+        forward.remote_port = port
         proxy = None
         try:
             notify({'stage': 'connect'})
-            await forward.start()
+            try: await forward.start()
+            except (ActionError, OSError, asyncio.TimeoutError):
+                if prepared_forward is None: raise
+                # A failed prewarm/control request gets one ordinary SSH attempt.
+                # Never rerun the container bootstrap or retry cancellation.
+                await forward.close()
+                forward = self.make_forward(address, port, session)
+                await forward.start()
             notify({'stage': 'authenticate'})
             cookie = await self.authenticate(forward.port, password)
             if session:
@@ -222,7 +341,7 @@ class CCIEditor:
                 session['proxy'].cookie = cookie
                 session.update(forward=forward, password=password, address=address)
                 return session
-            proxy = EditorProxy(forward.port, cookie, origin)
+            proxy = EditorProxy(forward.port, cookie, origin, cache_dir=self.site.data / 'ide-assets')
             await proxy.start()
             return {'forward': forward, 'proxy': proxy, 'address': address, 'password': password}
         except BaseException:
@@ -230,16 +349,20 @@ class CCIEditor:
             await forward.close()
             raise
 
-    async def recover(self, data, origin, progress=None):
+    async def recover(self, data, origin, progress=None, *, failed_upstream=None):
         notify = progress or (lambda value: None)
-        async with self.lock:
-            identity = (data['task_id'], data['instance'], data['container'], origin)
+        identity = (data['task_id'], data['instance'], data['container'], origin)
+        async with self.session_lock(identity):
             session = self.sessions.get(identity)
             if not session:
                 raise ActionError('编辑器连接已过期；请保留当前页面中的未保存内容，再重新打开编辑器页面。', 'ide_expired', 404)
             session['proxy'].touched = time.monotonic()
-            if not await self.healthy(session):
+            # A proxy failure already supplied the first failure signal. Confirm
+            # once before replacement; routine heartbeats still get two probes.
+            healthy = await self.healthy(session, retry=False) if failed_upstream == session['proxy'].upstream else await self.healthy(session)
+            if not healthy:
                 # Revalidate ownership before reconnecting: private IPs may be reused.
+                self.target_leases.pop(data['task_id'], None)
                 _, address = await self.resolve(data)
                 if address != session['address']:
                     raise ActionError('容器地址已变化；请保留未保存内容后重新打开编辑器页面。')
@@ -249,33 +372,95 @@ class CCIEditor:
             session['proxy'].touched = time.monotonic()
             return {'site': self.site.id, **data, 'port': session['proxy'].port}
 
+    def prepare_optional(self, identity, session, data):
+        codex, appearance = session.get('codex', {}), session.get('appearance', {})
+        needed = ((codex.get('configured') and codex.get('installed') is False)
+                  or (appearance and (appearance.get('version') != APPEARANCE_VERSION
+                                      or appearance.get('installed') is False)))
+        job = self.optional_jobs.get(identity)
+        if (not needed or (job and not job.done())
+                or time.monotonic() - session.get('optional_attempted', float('-inf')) < 300): return
+        session['optional_attempted'] = time.monotonic()
+        async def prepare():
+            try:
+                prepared = await run_python(self.bridge, data, bootstrap_script(data['instance'], session['address']), cleanup_jobs=self.cleanup_jobs)
+                if 'error' not in prepared and self.sessions.get(identity) is session:
+                    session.update(codex=prepared.get('codex', {}), appearance=prepared.get('appearance', {}))
+            except Exception:
+                # Optional marketplace/setup failures must not break a usable editor.
+                pass
+        self.optional_jobs[identity] = asyncio.create_task(prepare())
+
+    def opened(self, identity, session, data, origin, notify):
+        session['proxy'].repair = lambda failed_upstream: self.recover(data, origin, failed_upstream=failed_upstream)
+        self.prepare_optional(identity, session, data)
+        notify({'stage': 'reuse'})
+        proxy = session['proxy']; proxy.touched = time.monotonic()
+        job = self.optional_jobs.get(identity)
+        return {'site': self.site.id, **data, 'name': session.get('name', data['task_id']),
+                'port': proxy.port, 'ticket': proxy.ticket(), 'codex': session.get('codex', {}),
+                'appearance': session.get('appearance', {}), 'optional_pending': bool(job and not job.done())}
+
     async def open(self, data, origin, progress=None):
         notify = progress or (lambda value: None)
-        async with self.lock:
-            result, address = await self.resolve(data)
-            identity = (data['task_id'], data['instance'], data['container'], origin)
+        identity = (data['task_id'], data['instance'], data['container'], origin)
+        async with self.session_lock(identity):
             session = self.sessions.get(identity)
+            # The authenticated live session already establishes ownership, just as
+            # for recover(). Revalidate cloud identity before every new transport.
+            if session and await self.healthy(session):
+                return self.opened(identity, session, data, origin, notify)
+            if session: self.target_leases.pop(data['task_id'], None)
+            result, address = await self.resolve(data)
             if session and session['address'] != address:
                 await self.dispose(identity); session = None
-            if session and session.get('codex', {}).get('installed') is False:
-                prepared = await run_python(self.bridge, data, bootstrap_script(data['instance'], address), on_progress=notify)
-                if 'error' not in prepared: session['codex'] = prepared.get('codex', {})
-            if not session or not await self.healthy(session):
-                if not session and len(self.sessions) >= 4: raise ActionError('最多同时打开 4 个编辑器，请关闭闲置页面并稍后重试。', 'ide_limit', 429)
-                prepared = await run_python(self.bridge, data, bootstrap_script(data['instance'], address), on_progress=notify)
-                if 'error' in prepared:
-                    # Arbitrary remote output is never reflected to the browser.
-                    raise ActionError('容器内编辑器准备失败，请检查 Python 3、GitHub 下载和专用 editor.log。')
-                port = prepared.get('port'); password = prepared.get('password')
-                if type(port) is not int or not 1024 <= port <= 65535 or not isinstance(password, str) or not re.fullmatch(r'[A-Za-z0-9_-]{40,100}', password): raise ActionError('容器编辑器返回无效配置。')
-                session = await self.connect(address, port, password, origin, notify, session)
-                session.update(codex=prepared.get('codex', {}), name=result['name'])
+            async with self.preparation_slot(identity):
+                if session and session.get('password'):
+                    try:
+                        session = await self.connect(address, session['forward'].remote_port, session['password'], origin, notify, session)
+                    except (ActionError, httpx.HTTPError, OSError, asyncio.TimeoutError):
+                        # Explicit reopen may restart a stopped remote editor. Automatic
+                        # recover remains transport-only and preserves unsaved buffers.
+                        pass
+                    else:
+                        session['name'] = result['name']
+                        return self.opened(identity, session, data, origin, notify)
+                # New sessions can authenticate the jump host while the verified
+                # container checks its editor. Existing recovery stays unchanged.
+                warmed = self.make_forward(address, None) if session is None else None
+                warming = asyncio.create_task(warmed.warm()) if warmed else None
+                try:
+                    prepared = await run_python(self.bridge, data, bootstrap_script(data['instance'], address, install_optional=False), on_progress=notify,
+                                                verified_targets=self.target_leases.get(data['task_id']), cleanup_jobs=self.cleanup_jobs)
+                    if 'error' in prepared:
+                        # Arbitrary remote output is never reflected to the browser.
+                        raise ActionError('容器内编辑器准备失败，请检查 Python 3、GitHub 下载和专用 editor.log。')
+                    port = prepared.get('port'); password = prepared.get('password')
+                    if type(port) is not int or not 1024 <= port <= 65535 or not isinstance(password, str) or not re.fullmatch(r'[A-Za-z0-9_-]{40,100}', password): raise ActionError('容器编辑器返回无效配置。')
+                    if warming:
+                        try: await warming
+                        except (ActionError, OSError, asyncio.TimeoutError):
+                            await warmed.close(); warmed = None
+                        warming = None
+                    if warmed:
+                        session = await self.connect(address, port, password, origin, notify, session, prepared_forward=warmed)
+                        warmed = None  # The returned session owns its master.
+                    else:
+                        session = await self.connect(address, port, password, origin, notify, session)
+                finally:
+                    if warming:
+                        warming.cancel()
+                        await asyncio.gather(warming, return_exceptions=True)
+                    if warmed: await warmed.close()
+                session.update(codex=prepared.get('codex', {}), appearance=prepared.get('appearance', {}), name=result['name'])
                 self.sessions[identity] = session
-            notify({'stage': 'reuse'})
-            proxy = session['proxy']; proxy.touched = time.monotonic()
-            return {'site': self.site.id, 'task_id': data['task_id'], 'name': result['name'], 'instance': data['instance'], 'container': data['container'], 'port': proxy.port, 'ticket': proxy.ticket(), 'codex': session.get('codex', {})}
+                return self.opened(identity, session, data, origin, notify)
 
     async def dispose(self, key):
+        optional = self.optional_jobs.pop(key, None)
+        if optional:
+            optional.cancel()
+            await asyncio.gather(optional, return_exceptions=True)
         session = self.sessions.pop(key)
         await session['proxy'].close()
         await session['forward'].close()
@@ -283,14 +468,18 @@ class CCIEditor:
     async def reap(self):
         while True:
             await asyncio.sleep(30)
-            async with self.lock:
-                for key, item in list(self.sessions.items()):
-                    if not item['proxy'].active_sockets and time.monotonic() - item['proxy'].touched > 900:
+            for key in list(self.sessions):
+                # Do not let one busy editor stall cleanup of all the others.
+                if key in self.locks: continue
+                async with self.session_lock(key):
+                    item = self.sessions.get(key)
+                    if item and not item['proxy'].active_sockets and time.monotonic() - item['proxy'].touched > 900:
                         await self.dispose(key)
 
     async def close(self):
-        tasks = [item['task'] for item in self.requests.values()]
+        tasks = [item['task'] for item in self.requests.values()] + list(self.optional_jobs.values())
         if self.reaper: tasks.append(self.reaper)
         for task in tasks: task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*self.cleanup_jobs, return_exceptions=True)
         for key in list(self.sessions): await self.dispose(key)

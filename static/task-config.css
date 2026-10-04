@@ -5,4 +5,20 @@
 .task-config-header>div{min-width:0}.task-config-header small{font-size:10px;letter-spacing:.14em;color:#557d75}.task-config-header h2{margin:7px 0;font-size:23px}.task-config-header p{margin:0;color:#59716d;overflow-wrap:anywhere}.task-config-header button{flex-shrink:0}
 .task-config-body{padding:22px 26px}.task-config-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px;margin:0 0 16px;padding:18px;border:1px solid #e0eae7;border-radius:12px;background:#fff}.task-config-fields div{min-width:0}.task-config-fields dt{font-size:11px;color:#6f847f;margin-bottom:5px}.task-config-fields dd{font:13px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere;margin:0}.task-config-section{margin-top:24px}.task-config-section h3{font-size:15px;margin:0 0 12px}
 .task-config-command{border-radius:12px;overflow:hidden;background:#142528;color:#dcece6}.task-config-command-toolbar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#203337;border-bottom:1px solid #ffffff15;font-size:12px}.task-config-command-toolbar span{flex:1}.task-config-command-toolbar button{border:1px solid #ffffff25;border-radius:6px;background:transparent;color:#dcece6;padding:5px 9px;cursor:pointer}.task-config-command-toolbar button[aria-pressed=true]{background:#366157}.task-config-command-toolbar button:disabled{opacity:.45;cursor:default}.task-config-editor{display:flex;min-width:0}.task-config-code,.task-config-gutter{font:12.5px/1.8 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace!important;margin:0!important;padding:16px!important;background:transparent!important;color:#d8edda!important;border:0!important;max-height:340px;border-radius:0!important;tab-size:4}.task-config-code{flex:1;min-width:0;overflow:auto;white-space:pre}.task-config-code code{font:inherit;color:inherit;padding:0;background:none;white-space:inherit}.task-config-code.wrap{white-space:pre-wrap;overflow-wrap:anywhere}.task-config-gutter{flex:none;overflow:hidden;text-align:right;user-select:none;color:#76928c!important;border-right:1px solid #ffffff12!important;padding-right:12px!important}.task-config-gutter[hidden]{display:none}.task-config-copy-status{margin:0;padding:8px 14px 12px;color:#9fb9b1;font-size:11px}.task-config-status{padding:16px 0;color:#5a716b}
+.task-config-header { padding-block: 18px; }
+.task-config-header h2 { font-size: 21px; }
+.task-config-header p { font-size: 13px; }
+.task-config-fields { gap: 14px 24px; padding: 16px 18px; }
+.task-config-fields dt { font-size: 12px; color: #587369; font-weight: 500; }
+.task-config-fields dd { color: #294a40; }
+.task-config-overview { grid-template-columns: repeat(3, minmax(0, 1fr)); background: #f2f7f4; border-color: #dbe7df; }
+.task-config-field-wide { grid-column: 1 / -1; padding-bottom: 13px; border-bottom: 1px solid #e6eee9; }
+.task-config-state dd { display: inline-block; padding: 1px 8px; background: #fff; border: 1px solid #d9e5df; border-radius: 5px; font-size: 12px; }
+.task-config-section h3 { display: flex; align-items: center; gap: 9px; color: #294a40; }
+.task-config-section h3::before { content: ''; width: 3px; height: 15px; border-radius: 2px; background: #4c9b7a; }
+.task-config-mount { border-left: 3px solid #bfd8cb; }
+.task-config-command-toolbar button { min-height: 32px; }
+.task-config-command-toolbar button:hover:not(:disabled) { background: #355449; }
+.task-config-copy-status { color: #b6ccc3; }
+.task-config-status { padding: 16px; border: 1px solid #dfe9e3; border-radius: 9px; background: #fff; line-height: 1.7; }
 @media(max-width:600px){.task-detail-links{justify-content:flex-start}.task-config-dialog{width:calc(100vw - 16px);max-height:calc(100dvh - 24px);border-radius:12px}.task-config-header,.task-config-body{padding:16px}.task-config-header h2{font-size:19px}.task-config-fields{grid-template-columns:minmax(0,1fr);padding:14px;gap:12px}.task-config-command-toolbar{flex-wrap:wrap}.task-config-code{font-size:12px!important}}

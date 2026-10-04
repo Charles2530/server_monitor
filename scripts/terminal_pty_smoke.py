@@ -100,6 +100,25 @@ async def main():
                 # A status line on the last xterm row proves full-height rendering.
                 async def status_bottom():return 'smoke' in await page.evaluate("__testTerminal.buffer.active.getLine(__testTerminal.rows-1).translateToString()")
                 await until(status_bottom)
+                async def copy_mode():
+                    return subprocess.check_output([tmux,'-L',tmux_name,'display-message','-p','-t','smoke','#{pane_in_mode}'],text=True).strip()=='1'
+                async def check_copy_keys():
+                    # Use the keyboard's current focus; locator.press would hide
+                    # toolbar focus loss by refocusing xterm before each key.
+                    assert await page.locator('.xterm-helper-textarea').evaluate('(el) => document.activeElement === el'), 'Toolbar did not restore terminal focus'
+                    await page.keyboard.press('Control+b');await page.keyboard.press('[')
+                    await until(copy_mode)
+                    await page.keyboard.press('Escape')
+                    async def left_copy_mode():return not await copy_mode()
+                    await until(left_copy_mode)
+                await check_copy_keys()
+                await page.evaluate("navigator.clipboard.writeText = async () => {}")
+                for button in ('terminal-font-up','terminal-font-down','terminal-copy','terminal-fullscreen'):
+                    await page.locator('#'+button).click()
+                    await check_copy_keys()
+                await page.locator('#terminal-fullscreen').click()
+                await check_copy_keys()
+                print('tmux copy-mode keys passed before and after font, copy and fullscreen actions.',flush=True)
                 # Drop only the browser transport while tmux is attached. Resume
                 # the same PTY, alternate screen and rendered output, not a new shell.
                 original_shell=shells[-1]

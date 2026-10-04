@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="/static/ide.css">
     <script src="/static/sites.js" defer></script>
     <script src="/static/ide.js" defer></script>
+    <link rel="stylesheet" href="/static/typography.css">
   </head>
   <body>
     <header class="ide-header">
@@ -17,12 +18,11 @@
       <div class="ide-brand-icon"><svg class="session-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 7-5 5 5 5m10-10 5 5-5 5M14 4l-4 16"/></svg></div>
       <div class="ide-context"><h1>CCI VS Code</h1><p id="ide-task">正在读取任务…</p></div>
       <span class="site-badge" data-site-label></span>
-      <button id="ide-retry" class="button" type="button" hidden>重新连接</button>
     </header>
     <div class="ide-setup">
       <div class="session-welcome"><div class="welcome-icon"><svg class="session-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 7-5 5 5 5m10-10 5 5-5 5M14 4l-4 16"/></svg></div><span class="welcome-eyebrow">ILAB WORKSPACE / EDITOR</span><h2>打开远程工作区</h2><p>在浏览器中编辑 CCI 容器内的文件，继续你的开发工作。</p><div class="welcome-tags"><span>VS Code</span><span>CCI 容器</span><span>桌面浏览器</span></div></div>
     <div class="ide-connection">
-      <p id="ide-status" data-state="loading" role="status" aria-live="polite">正在读取实例与容器…</p>
+      <div class="session-status"><p id="ide-status" data-state="loading" role="status" aria-live="polite">正在读取实例与容器…</p><button id="ide-retry" class="button" type="button" hidden>重新连接</button></div>
       <form id="ide-picker" hidden>
         <label>实例<select id="ide-instance" aria-label="实例"></select></label>
         <label>容器<select id="ide-container" aria-label="容器"></select></label>

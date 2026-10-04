@@ -27,7 +27,7 @@ async def main():
   if mode=='untrusted':result[0]['url']='https://untrusted.example/terminal'
   return {'site':site,'task_id':kind+':job','name':'charles <img src=x onerror=alert(1)>','targets':result}
  def output(cursor=1):
-  return {'type':'output','cursor':cursor,'chunks':[base64.b64encode('\x1b[32mILAB terminal ready · 中文\x1b[0m\r\n$ '.encode()).decode()] if cursor==1 else [],'closed':False,'error':None}
+  return {'type':'output','cursor':cursor,'sequence':0,'chunks':[base64.b64encode('\x1b[32mILAB terminal ready · 中文\x1b[0m\r\n$ '.encode()).decode()] if cursor==1 else [],'closed':False,'error':None}
  async def api(route):
   path=urlparse(route.request.url).path;data=route.request.post_data_json or {};assert route.request.headers['x-monitor-site']==site
   assert route.request.method=='POST'
@@ -52,7 +52,7 @@ async def main():
    data=json.loads(raw)
    if 'session_id' in data:
     if transport=='delayed':await asyncio.sleep(2)
-    try:ws.send(json.dumps({'type':'ready'}))
+    try:ws.send(json.dumps({'type':'ready','sequence':0}))
     except Exception:pass
    elif data=={'type':'attach'}:ws.send(json.dumps(output()))
    elif 'sequence' in data:
@@ -86,11 +86,15 @@ async def main():
        await page.locator('.xterm-helper-textarea').fill('')
        await page.locator('.xterm-helper-textarea').press_sequentially('echo test')
        await page.get_by_role('button',name='Ctrl+C',exact=True).click()
-       await page.wait_for_timeout(100)
-       assert any(x.get('data')=='\x03' for x in inputs)
+       for _ in range(40):
+        if any('\x03' in x.get('data','') for x in inputs):break
+        await asyncio.sleep(.05)
+       assert any('\x03' in x.get('data','') for x in inputs)
        await page.locator('#terminal-font-up').click()
        await page.locator('#terminal-disconnect').click()
        await expect(page.locator('#terminal-transport')).to_have_text('已断开')
+       await expect(page.locator('#terminal-status')).to_have_attribute('data-state', 'idle')
+       await expect(page.locator('#terminal-status')).to_contain_text('已断开')
       await page.close()
    mode='single';kind='ACP';site='maoshanwang'
    for transport in ('http','delayed'):
@@ -106,7 +110,7 @@ async def main():
     await page.screenshot(path=str(ROOT/'data/terminal-embedded-mobile.png'))
     await page.get_by_role('button',name='Ctrl+C',exact=True).click()
     await page.wait_for_timeout(100)
-    assert read_calls and any(x.get('session_id')=='mock-session' and x.get('data')=='\x03' for x in inputs)
+    assert read_calls and any(x.get('session_id')=='mock-session' and '\x03' in x.get('data','') for x in inputs)
     await page.close()
    assert not errors,errors
    await ctx.close();await browser.close()

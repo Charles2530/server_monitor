@@ -1,5 +1,5 @@
 """Loopback-only dashboard API and independent background polling."""
-import copy
+import asyncio
 import json
 import fcntl
 import time
@@ -27,6 +27,10 @@ from .config import DATA, ROOT
 from .service import Monitor
 from .store import Store
 from .sites import SITES, MAOSHANWANG
+
+
+READ_TIMEOUT_SECONDS = 50
+LOG_TIMEOUT_SECONDS = 80
 
 
 @dataclass
@@ -127,18 +131,20 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
 
     @app.get('/api/state')
     async def state(runtime=Depends(current_site)):
-        snapshot=copy.deepcopy(runtime.monitor.state)
+        snapshot=dict(runtime.monitor.state)
         snapshot["site"]={"id":runtime.site.id,"console":runtime.site.console,"workspace":runtime.site.workspace}
-        for task in snapshot['tasks']+snapshot.get('waiting_tasks',[]):
-            task['url']=task_console_url(task,runtime.site)
-            task.pop('series',None)
-            task.pop('uid',None)
-            task.pop('source_id',None)
+        for key in ('tasks','waiting_tasks'):
+            snapshot[key]=[
+                {**{k:v for k,v in task.items() if k not in ('series','uid','source_id')},
+                 'url':task_console_url(task,runtime.site)}
+                for task in snapshot.get(key,[])
+            ]
         return snapshot
 
     @app.get('/api/history')
-    async def history(task_id: str=Query(max_length=300), hours: int=Query(default=1,ge=1,le=168), runtime=Depends(current_site)):
-        return {'task_id':task_id,'series':runtime.monitor.store.history(task_id,time.time()-hours*3600)}
+    def history(task_id: str=Query(max_length=300), hours: int=Query(default=1,ge=1,le=168), runtime=Depends(current_site)):
+        # Keep both SQLite and large curve JSON encoding in FastAPI's worker pool.
+        return JSONResponse({'task_id':task_id,'series':runtime.monitor.store.history(task_id,time.time()-hours*3600)})
 
     @app.post('/api/refresh',status_code=202)
     async def refresh(runtime=Depends(current_site)):
@@ -168,6 +174,14 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         except AuthRequired:return JSONResponse({'error':'请重新连接云会话。','code':'auth_required'},status_code=403)
         except Exception:return JSONResponse({'error':'操作暂不可用，请检查连接并核对云端任务状态。','code':'source_unavailable'},status_code=503)
 
+    async def read_only(callback, timeout=None):
+        async def bounded():
+            try:
+                return await asyncio.wait_for(callback(), READ_TIMEOUT_SECONDS if timeout is None else timeout)
+            except asyncio.TimeoutError:
+                raise ActionError('云端读取超时，请稍后刷新。','source_timeout',504) from None
+        return await perform(bounded)
+
     register_terminal_routes(app,current_site,perform,action_body,runtimes)
     register_ide_routes(app,current_site,perform,action_body)
 
@@ -181,7 +195,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
 
     @app.get('/api/logs/targets')
     async def log_targets(task_id: str=Query(max_length=100),runtime=Depends(current_site)):
-        return await perform(lambda:runtime.logs.targets(task_id))
+        return await read_only(lambda:runtime.logs.targets(task_id), min(30,READ_TIMEOUT_SECONDS))
 
     @app.get('/api/cci/terminal-targets')
     async def terminal_targets(task_id: str=Query(max_length=100),runtime=Depends(current_site)):
@@ -194,15 +208,15 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     @app.get('/api/logs')
     async def task_logs(task_id: str=Query(max_length=100),worker: str=Query(min_length=1,max_length=253),
                         container: str=Query(min_length=1,max_length=253),tail: int=Query(default=1000,ge=1,le=1000),runtime=Depends(current_site)):
-        return await perform(lambda:runtime.logs.read(task_id,worker,container,tail))
+        return await read_only(lambda:runtime.logs.read(task_id,worker,container,tail), LOG_TIMEOUT_SECONDS)
 
     @app.get('/api/acp/task-config')
     async def acp_task_config(task_id: str=Query(max_length=100),runtime=Depends(current_site)):
-        return await perform(lambda:runtime.actions.task_config(task_id))
+        return await read_only(lambda:runtime.actions.task_config(task_id))
 
     @app.get('/api/acp/options')
     async def acp_options(partition_id: str=Query(default=None,max_length=253),runtime=Depends(current_site)):
-        return await perform((lambda:runtime.actions.options(partition_id=partition_id)) if partition_id is not None else runtime.actions.options)
+        return await read_only((lambda:runtime.actions.options(partition_id=partition_id)) if partition_id is not None else runtime.actions.options)
 
     @app.post('/api/acp/preview')
     async def acp_preview(request:Request,runtime=Depends(current_site)):
@@ -210,29 +224,29 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         async def run():
             data=await action_body(request,('display_name','replicas','gpus_per_replica','command'),optional=('cluster_id','partition_id'))
             return await actions.preview(data)
-        return await perform(run)
+        return await read_only(run)
 
     @app.get('/api/acp/restart-options')
     async def acp_restart_options(task_id: str=Query(max_length=100),runtime=Depends(current_site)):
-        return await perform(lambda:runtime.actions.restart_options(task_id))
+        return await read_only(lambda:runtime.actions.restart_options(task_id))
 
     @app.post('/api/acp/restart-preview')
     async def acp_restart_preview(request:Request,runtime=Depends(current_site)):
         async def run():
             data=await action_body(request,('task_id','revision','command'))
             return await runtime.actions.restart_preview(data)
-        return await perform(run)
+        return await read_only(run)
 
     @app.get('/api/acp/release-restart-options')
     async def acp_release_restart_options(task_id: str=Query(max_length=100),runtime=Depends(current_site)):
-        return await perform(lambda:runtime.actions.restart_options(task_id,release=True))
+        return await read_only(lambda:runtime.actions.restart_options(task_id,release=True))
 
     @app.post('/api/acp/release-restart-preview')
     async def acp_release_restart_preview(request:Request,runtime=Depends(current_site)):
         async def run():
             data=await action_body(request,('task_id','revision','command'))
             return await runtime.actions.restart_preview(data,release=True)
-        return await perform(run)
+        return await read_only(run)
 
     @app.post('/api/acp/create')
     async def acp_create(request:Request,runtime=Depends(current_site)):

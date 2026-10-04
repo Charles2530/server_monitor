@@ -5,6 +5,16 @@
   const mobileMedia = matchMedia("(max-width:760px), (pointer:coarse)");
   let targets = [], generation = 0, controller = null, busy = false;
   let connection = null, nextCheck = 0, recoveryFailures = 0;
+  const loadingStarted = performance.now();
+  const recentKey = `ilab-ide-recent:${site.id}`;
+  function recentTarget() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(recentKey));
+      if (saved?.task_id === taskId && Number.isFinite(saved.saved_at) && Date.now() - saved.saved_at >= 0 && Date.now() - saved.saved_at < 1800000
+          && [saved.instance, saved.container].every(value => typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9_.-]{0,252}$/.test(value))) return saved;
+    } catch (_) { /* Storage may be unavailable; normal discovery remains usable. */ }
+    return null;
+  }
   $("ide-back").href = `/?site=${encodeURIComponent(site.id)}#tasks`;
   $("ide-task").textContent = taskId || "未指定任务";
 
@@ -99,13 +109,20 @@
     const destination = new URL(`${location.protocol}//${location.hostname}:${result.port}/_ilab_open/${result.ticket}`);
     if (destination.origin === location.origin) throw new Error("编辑器必须使用独立端口，请重试。");
     active(gen);
-    connection = { instance: target.instance, container: target.container, port: result.port };
+    $("ide-status").dataset.connectionSeconds = ((performance.now() - loadingStarted) / 1000).toFixed(1);
+    if (targets.length === 1 && !target.saved_at) {
+      try { localStorage.setItem(recentKey, JSON.stringify({ task_id: taskId, instance: target.instance, container: target.container, saved_at: Date.now() })); } catch (_) {}
+    }
+    $("ide-task").textContent = `${result.name || taskId} · ${taskId}`;
+    connection = { instance: target.instance, container: target.container, port: result.port, origin: destination.origin, ready: false };
     nextCheck = Date.now() + 30000;
     $("ide-frame").src = destination.href;
     $("ide-frame").hidden = false;
     busy = false; controls();
-    const codexNotice = result.codex?.configured && result.codex.installed === false ? " · Codex 插件准备失败，可保留当前内容后重新打开页面重试" : "";
-    status(`${target.instance} / ${target.container} · 编辑器已就绪${codexNotice}`, "ready");
+    const codexNotice = result.codex?.configured && result.codex.installed === false ? " · Codex 插件尚未准备完成" : "";
+    const appearanceNotice = result.appearance?.installed === false ? " · 外观预设尚未准备完成" : "";
+    connection.notice = result.optional_pending ? " · 插件与外观正在后台准备" : codexNotice + appearanceNotice;
+    status("连接已建立，正在加载编辑器…");
   }
   async function recover(force = false) {
     if (!connection || busy || document.hidden || (!force && Date.now() < nextCheck)) return;
@@ -123,7 +140,7 @@
       active(gen);
       recoveryFailures = 0;
       busy = false; controls();
-      status(`${connection.instance} / ${connection.container} · 连接可用；若编辑器仍提示断线，请在编辑器内重连。`, "ready");
+      status(connection.ready ? `${connection.instance} / ${connection.container} · 连接可用` : "连接可用，正在加载编辑器…", connection.ready ? "ready" : "loading");
     } catch (error) {
       if (gen !== generation) return;
       recoveryFailures += 1;
@@ -138,7 +155,19 @@
     const gen = generation; controller = new AbortController(); busy = true; controls();
     $("ide-retry").hidden = false; status("正在读取最新实例与容器…");
     try {
+      const remembered = recentTarget();
+      if (remembered) {
+        // This is only a selection hint. The server checks the live session or
+        // revalidates current ownership before creating any new transport.
+        targets = [remembered];
+        try { await open(remembered, gen); return; }
+        catch (error) {
+          active(gen);
+          try { localStorage.removeItem(recentKey); } catch (_) {}
+        }
+      }
       const result = await prepare("targets", { task_id: taskId }, gen);
+      $("ide-status").dataset.discoverySeconds = ((performance.now() - loadingStarted) / 1000).toFixed(1);
       identity(result);
       if (!Array.isArray(result.targets) || !result.targets.length) throw new Error("当前没有可用的运行实例，请稍后重试。");
       if (result.targets.some(t => !t || typeof t.instance !== "string" || !t.instance || typeof t.container !== "string" || !t.container)) throw new Error("实例或容器信息无效，请重试。");
@@ -159,6 +188,14 @@
     try { await open(target, gen); } catch (error) { failure(error, gen); }
   });
   $("ide-retry").addEventListener("click", () => connection ? recover(true) : load());
+  window.addEventListener("message", event => {
+    if (!connection || event.source !== $("ide-frame").contentWindow || event.origin !== connection.origin || event.data?.type !== "ilab-editor-ready") return;
+    if (connection.ready) return;
+    connection.ready = true;
+    const seconds = ((performance.now() - loadingStarted) / 1000).toFixed(1);
+    $("ide-status").dataset.readySeconds = seconds;
+    status(`${connection.instance} / ${connection.container} · 编辑器已就绪 · ${seconds} 秒${connection.notice || ""}`, "ready");
+  });
   // A desktop window crossing the layout breakpoint must not unload the editor.
   mobileMedia.addEventListener("change", () => { if (!connection) load(); });
   window.addEventListener("focus", () => recover());

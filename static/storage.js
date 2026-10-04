@@ -77,7 +77,7 @@
       if (!Array.isArray(data.volumes) || data.site !== site.id) throw new Error("存储响应与当前站点不匹配");
       if (!active || request !== serial) return;
       snapshot = data;
-      if (data.mount_refreshing) nextDelay = 2000;
+      if (data.mount_refreshing || data.refreshing) nextDelay = 2000;
       const selected = $("storage-zone").value;
       $("storage-zone").replaceChildren(new Option("全部分区", ""));
       for (const zone of [...new Set(data.volumes.map((v) => v.zone))].sort()) $("storage-zone").append(new Option(zoneName(zone), zone));

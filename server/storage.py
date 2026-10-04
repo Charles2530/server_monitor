@@ -11,6 +11,8 @@ from .normalize import iso
 from .acp_states import is_charles
 
 
+CAPACITY_TIMEOUT_SECONDS = 55
+
 UNITS = {name:1000**i for i,name in enumerate(('B','KB','MB','GB','TB','PB'))}
 UNITS.update({name:1024**i for i,name in enumerate(('B','KIB','MIB','GIB','TIB','PIB'))})
 
@@ -30,7 +32,9 @@ class StorageManager:
         self.site,self.transport=site,transport
         self.session_loader=session_loader or (lambda:load_session(site))
         self.reader=Collector(site)
-        self.lock=asyncio.Lock()
+        self.refresh_task=None
+        self.refresh_checked_at=0
+        self.refresh_error=None
         self.cached=None
         self.cached_at=0
         self.mount_task=None
@@ -158,34 +162,54 @@ class StorageManager:
         self.mount_cache={'records':records,'status':status,'warnings':warnings}
         self.mount_checked_at=time.monotonic()
 
+    async def refresh_volumes(self):
+        async def read():
+            headers=self.session_loader()['headers']
+            async with httpx.AsyncClient(headers=headers,timeout=25,follow_redirects=False,transport=self.transport) as client:
+                volumes=await self.volumes(client)
+                warnings=[]
+                await self.usage(client,volumes,warnings)
+            return {'site':self.site.id,'volumes':sorted(volumes,key=lambda v:(v['zone'],v['name'])),
+                    'updated_at':iso(time.time()),'warnings':warnings,
+                    'console_url':self.site.console+'/afs/list'}
+        try:
+            self.cached=await asyncio.wait_for(read(),CAPACITY_TIMEOUT_SECONDS)
+            self.cached_at=time.monotonic()
+            self.refresh_error=None
+        except Exception:
+            self.refresh_error='存储容量刷新失败；保留上次结果，数据可能过期。'
+            if self.cached is None:raise
+        finally:self.refresh_checked_at=time.monotonic()
+
     async def close(self):
-        if self.mount_task and not self.mount_task.done():
-            self.mount_task.cancel()
-            await asyncio.gather(self.mount_task,return_exceptions=True)
+        tasks=[t for t in (self.refresh_task,self.mount_task) if t and not t.done()]
+        for task in tasks:task.cancel()
+        await asyncio.gather(*tasks,return_exceptions=True)
 
     async def snapshot(self):
-        async with self.lock:
-            if self.cached is None or time.monotonic()-self.cached_at>=30:
-                headers=self.session_loader()['headers']
-                async with httpx.AsyncClient(headers=headers,timeout=25,follow_redirects=False,transport=self.transport) as client:
-                    volumes=await self.volumes(client)
-                    warnings=[]
-                    await self.usage(client,volumes,warnings)
-                self.cached={'site':self.site.id,'volumes':sorted(volumes,key=lambda v:(v['zone'],v['name'])),
-                             'updated_at':iso(time.time()),'warnings':warnings,
-                             'console_url':self.site.console+'/afs/list'}
-                self.cached_at=time.monotonic()
-            data=copy.deepcopy(self.cached)
-            interval=300 if self.mount_cache and all(v=='ok' for v in self.mount_cache['status'].values()) else 30
-            if (self.mount_task is None or self.mount_task.done()) and (self.mount_cache is None or time.monotonic()-self.mount_checked_at>=interval):
-                self.mount_task=asyncio.create_task(self.refresh_mounts(copy.deepcopy(data['volumes'])))
-            data['mount_refreshing']=bool(self.mount_task and not self.mount_task.done())
-            data['mount_updated_at']=self.mount_updated_at
-            data['mount_status']=copy.deepcopy(self.mount_cache['status']) if self.mount_cache else {'CCI':'loading','ACP':'loading'}
-            if self.mount_cache:
-                for volume in data['volumes']:
-                    volume['mounts']=copy.deepcopy(self.mount_cache['records'].get((volume['zone'],volume['id']),[]))
-                data['warnings'].extend(self.mount_cache['warnings'])
-            data['warnings']=sorted(set(data['warnings']))
-            data['status']='partial' if data['warnings'] else 'ok'
-            return data
+        refreshing=bool(self.refresh_task and not self.refresh_task.done())
+        due=self.cached is None or time.monotonic()-self.cached_at>=30
+        retry_ready=not self.refresh_error or time.monotonic()-self.refresh_checked_at>=30
+        if not refreshing and due and retry_ready:
+            self.refresh_task=asyncio.create_task(self.refresh_volumes())
+            # A visitor can leave while the shared first read is still running.
+            self.refresh_task.add_done_callback(lambda t: None if t.cancelled() else t.exception())
+        if self.cached is None:
+            await asyncio.shield(self.refresh_task)
+        data=copy.deepcopy(self.cached)
+        interval=300 if self.mount_cache and all(v=='ok' for v in self.mount_cache['status'].values()) else 30
+        if (self.mount_task is None or self.mount_task.done()) and (self.mount_cache is None or time.monotonic()-self.mount_checked_at>=interval):
+            self.mount_task=asyncio.create_task(self.refresh_mounts(copy.deepcopy(data['volumes'])))
+        data['mount_refreshing']=bool(self.mount_task and not self.mount_task.done())
+        data['mount_updated_at']=self.mount_updated_at
+        data['mount_status']=copy.deepcopy(self.mount_cache['status']) if self.mount_cache else {'CCI':'loading','ACP':'loading'}
+        if self.mount_cache:
+            for volume in data['volumes']:
+                volume['mounts']=copy.deepcopy(self.mount_cache['records'].get((volume['zone'],volume['id']),[]))
+            data['warnings'].extend(self.mount_cache['warnings'])
+        data['refreshing']=bool(self.refresh_task and not self.refresh_task.done())
+        if self.refresh_error:data['warnings'].append(self.refresh_error)
+        elif data['refreshing']:data['warnings'].append('存储容量正在后台更新，当前显示上次快照。')
+        data['warnings']=sorted(set(data['warnings']))
+        data['status']='partial' if data['warnings'] else 'ok'
+        return data

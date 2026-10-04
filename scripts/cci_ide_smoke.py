@@ -78,6 +78,8 @@ async def main():
                     result = {'pending': False, 'error': '模拟连接暂不可用'}
                 elif mode == 'error' and job.startswith('open-'):
                     result = {'pending': False, 'error': '模拟安装失败'}
+                elif mode == 'stale_selection' and job.startswith('open-') and jobs[job]['instance'] == 'gone-pod':
+                    result = {'pending': False, 'error': '所选 CCI 容器已不可用'}
                 elif mode == 'progress' and job.startswith('open-'):
                     result = {'pending': True, 'message': '正在准备编辑器…', 'progress': progress_data}
                 elif mode in ('pending', 'late') and job.startswith('open-'):
@@ -96,19 +98,28 @@ async def main():
         try: await route.fulfill(json=result)
         except Exception: pass  # Closing or retrying cancels pending browser requests.
 
-    async def page_for(ctx, path='/ide?site=maoshanwang&task_id=CCI:job'):
+    async def page_for(ctx, path='/ide?site=maoshanwang&task_id=CCI:job', *, keep_selection=False):
         page = await ctx.new_page()
         page.on('pageerror', lambda error: errors.append(str(error)))
+        if not keep_selection:
+            await page.add_init_script('localStorage.removeItem("ilab-ide-recent:maoshanwang");localStorage.removeItem("ilab-ide-recent:sensecore");')
         await page.add_init_script('window.requestTimeouts=[];const originalTimeout=window.setTimeout;window.setTimeout=(fn,ms,...args)=>{window.requestTimeouts.push(ms);return originalTimeout(fn,ms,...args)};')
         await page.goto(base + path)
         return page
+
+    async def editor_page(route):
+        if urlparse(route.request.url).path == '/_ilab_frame_status.js':
+            await route.fulfill(content_type='application/javascript', body=(ROOT / 'static/ide-frame-status.js').read_text())
+            return
+        workbench_class = '' if mode == 'framepending' else 'monaco-workbench'
+        await route.fulfill(content_type='text/html', body=f'<title>Mock editor</title><script src="/_ilab_frame_status.js" data-parent-origin="{base}"></script><main class="{workbench_class}">Editor fixture</main><textarea aria-label="Unsaved document"></textarea>')
 
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch(**browser_launch_options())
             ctx = await browser.new_context(viewport={'width': 1440, 'height': 1000})
             await ctx.route('**/api/**', api)
-            await ctx.route('http://127.0.0.1:43219/**', lambda route: route.fulfill(content_type='text/html', body='<title>Mock editor</title><main>Editor fixture</main><textarea aria-label="Unsaved document"></textarea>'))
+            await ctx.route('http://127.0.0.1:43219/**', editor_page)
             page = await page_for(ctx, '/?site=maoshanwang#tasks')
             await expect(page.locator('#cci-terminal-selected')).to_be_visible()
             link = page.locator('#cci-ide-selected')
@@ -122,6 +133,26 @@ async def main():
             await page.evaluate('(task)=>document.dispatchEvent(new CustomEvent("monitor-selection",{detail:task}))', task)
             await page.set_viewport_size({'width': 760, 'height': 900})
             await expect(link).to_be_hidden()
+            await page.close()
+
+            site, mode = 'maoshanwang', 'single'
+            page = await page_for(ctx)
+            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'ready')
+            discovered_at = await page.evaluate('JSON.parse(localStorage.getItem("ilab-ide-recent:maoshanwang")).saved_at')
+            await page.close()
+            before = len(calls)
+            page = await page_for(ctx, keep_selection=True)
+            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'ready')
+            assert not any(path.endswith('/targets') for path, _ in calls[before:]), 'Healthy reopen must go directly to authenticated open'
+            assert await page.evaluate('JSON.parse(localStorage.getItem("ilab-ide-recent:maoshanwang")).saved_at') == discovered_at, 'Fast reuse must not extend discovery freshness'
+            await page.evaluate('localStorage.setItem("ilab-ide-recent:maoshanwang",JSON.stringify({task_id:"CCI:job",instance:"gone-pod",container:"main",saved_at:Date.now()}))')
+            await page.close()
+            mode = 'stale_selection'
+            before = len(calls)
+            page = await page_for(ctx, keep_selection=True)
+            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'ready')
+            assert any(path.endswith('/targets') for path, _ in calls[before:])
+            assert opens[-1]['instance'] == 'pod-1'
             await page.close()
 
             for site in ('maoshanwang', 'sensecore'):
@@ -158,6 +189,18 @@ async def main():
                             await expect(page.locator('#ide-frame')).to_be_visible()
                     assert 15000 in await page.evaluate('window.requestTimeouts')
                     await page.close()
+
+            site, mode = 'maoshanwang', 'framepending'
+            page = await page_for(ctx)
+            await expect(page.locator('#ide-frame')).to_be_visible()
+            await expect(page.locator('#ide-status')).to_contain_text('正在加载编辑器')
+            await page.evaluate('window.dispatchEvent(new MessageEvent("message", {origin:"http://attacker.test",source:document.getElementById("ide-frame").contentWindow,data:{type:"ilab-editor-ready"}}))')
+            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'loading')
+            await page.frame_locator('#ide-frame').locator('main').evaluate('(el)=>el.classList.add("monaco-workbench")')
+            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'ready')
+            await expect(page.locator('#ide-status')).to_contain_text('秒')
+            assert 0 <= float(await page.locator('#ide-status').get_attribute('data-ready-seconds')) < 10
+            await page.close()
 
             site, mode = 'maoshanwang', 'single'
             page = await page_for(ctx)

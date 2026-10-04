@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 import httpx
 from .auth import load_session
+from .store import store_call
 from .collector import Collector
 from .acp_states import is_charles
 from .normalize import iso,task_from_raw,task_console_url
@@ -58,7 +59,7 @@ class TaskHistory:
         self.checked_at=None
 
     async def refresh(self):
-        try:observed=self.store.running_task_ids()
+        try:observed=await store_call(self.store.running_task_ids)
         except Exception:
             for source in self.sources.values():source["status"]="error"
             self.checked_at=time.monotonic()

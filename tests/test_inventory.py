@@ -150,3 +150,46 @@ async def test_sensecore_inventory_does_not_gain_maoshanwang_allocation_reads():
     state={'clusters':[{'id':'/subscriptions/s/aec2s/modeltoolchain'}],'source_status':{}}
     await enrich_clusters(request,None,state,{},100,all_bound=True)
     assert len(calls)==1 and 'allocation' not in state['clusters'][0]['inventory']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('kind',['CCI','ACP'])
+async def test_busy_task_metrics_leave_slots_for_node_inventory(monkeypatch,kind):
+    import asyncio
+    import httpx
+    from server.collector import Collector
+    monkeypatch.setattr('server.inventory.ALLOCATION_TIMEOUT_SECONDS', .1)
+    collector=Collector();collector.workspace_uid='workspace';collector.station='/station'
+    release=asyncio.Event();busy=asyncio.Event();active=0;peak=0;started=0
+    async def handler(request):
+        nonlocal active,peak,started
+        active+=1;peak=max(peak,active)
+        try:
+            if request.url.path.endswith(('/metrics','/workers')):
+                started+=1
+                if started>=4:busy.set()
+                await release.wait()
+                if request.url.path.endswith('/workers'):
+                    return httpx.Response(200,json={'workers':[{'name':'worker-0'}]})
+                return httpx.Response(200,json={'metrics_result':[]})
+            if request.url.path.endswith('/acns'):
+                return httpx.Response(200,json={'acns':[allocation_node('n')],'total_size':1,'next_page_token':''})
+            if request.url.path.endswith('/observe'):
+                return httpx.Response(200,json={'observations':{'acns':[observation('n')]},'total_size':1,'next_page_token':''})
+            raise AssertionError(request.url.path)
+        finally:active-=1
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        jobs=[asyncio.create_task(collector.task_metrics(client,{'kind':kind,'uid':str(i),'source_id':str(i),'series':[]},100)) for i in range(6)]
+        try:
+            await asyncio.wait_for(busy.wait(),1)
+            # The observation deadline should measure a usable request window,
+            # not expire waiting behind all the slow metric panels.
+            from server.inventory import read_allocation
+            cluster={'id':'/subscriptions/s/aec2s/modeltoolchain-test'}
+            allocation=await read_allocation(collector.request,client,cluster,[allocation_node('n')],100)
+            assert allocation['status']=='ok'
+            assert allocation['idle_gpu_groups']==[{'gpus_per_node':8,'nodes':1}]
+            assert peak<=6
+        finally:
+            release.set()
+            await asyncio.gather(*jobs)

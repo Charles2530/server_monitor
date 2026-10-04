@@ -53,12 +53,12 @@ async def main():
         await page.reload(wait_until='networkidle')
         row=page.locator('#cluster-body tr').filter(has=page.get_by_text(stale['name'],exact=True))
         assert '旧总量' in await row.inner_text() and '旧状态' in await row.inner_text()
-        assert '09/28' in await row.inner_text()
+        assert await row.locator('td').count()==6, 'Collection timestamps should not occupy a separate column'
         stale['inventory']=None
         await page.reload(wait_until='networkidle')
         assert '—' in await page.locator('#cluster-body tr').filter(has=page.get_by_text(stale['name'],exact=True)).locator('td').nth(1).inner_text()
         assert not errors, errors
         await browser.close()
-        print('Inventory browser checks passed: total/remaining separation, node health, original stale timestamp, missing inventory, 390px no overflow, no JS errors.')
+        print('Inventory browser checks passed: total/remaining separation, node health, stale warnings, missing inventory, 390px no overflow, no JS errors.')
 
 asyncio.run(main())

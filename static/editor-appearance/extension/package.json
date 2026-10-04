@@ -1,0 +1,110 @@
+{
+  "name": "workspace-appearance",
+  "displayName": "iLab Workspace Appearance",
+  "description": "Readable code typography and Material file icons for iLab Server Monitor. User settings take precedence.",
+  "version": "1.0.0",
+  "publisher": "ilab",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Themes"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
+  "contributes": {
+    "iconThemes": [
+      {
+        "id": "ilab-material-icons",
+        "label": "iLab Material Icons",
+        "path": "./icons.json"
+      }
+    ],
+    "configurationDefaults": {
+      "workbench.iconTheme": "ilab-material-icons",
+      "editor.fontFamily": "'iLab JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace",
+      "editor.fontSize": 14,
+      "editor.fontWeight": "400",
+      "editor.lineHeight": 24,
+      "editor.fontLigatures": true,
+      "editor.padding.top": 14,
+      "editor.padding.bottom": 14,
+      "editor.minimap.enabled": false,
+      "editor.renderWhitespace": "selection",
+      "editor.guides.bracketPairs": true,
+      "editor.bracketPairColorization.enabled": true,
+      "workbench.tree.indent": 18,
+      "workbench.tree.renderIndentGuides": "onHover",
+      "explorer.compactFolders": false,
+      "breadcrumbs.enabled": true,
+      "workbench.list.smoothScrolling": true,
+      "terminal.integrated.fontFamily": "'iLab JetBrains Mono', 'SFMono-Regular', Menlo, Consolas, monospace",
+      "terminal.integrated.fontSize": 13,
+      "workbench.colorCustomizations": {
+        "[Default Dark Modern]": {
+          "editor.background": "#182025",
+          "editor.foreground": "#dce5e9",
+          "editor.lineHighlightBackground": "#202b31",
+          "editorLineNumber.foreground": "#627984",
+          "editorLineNumber.activeForeground": "#b5cecc",
+          "editorCursor.foreground": "#8bd8bd",
+          "editorIndentGuide.background1": "#2d3b42",
+          "editorIndentGuide.activeBackground1": "#537569",
+          "editor.selectionBackground": "#34574b88",
+          "sideBar.background": "#141b20",
+          "sideBar.foreground": "#bfcdd2",
+          "sideBarSectionHeader.background": "#1d272d",
+          "activityBar.background": "#10171b",
+          "activityBar.activeBorder": "#7cd2af",
+          "activityBar.foreground": "#a7ddc8",
+          "list.activeSelectionBackground": "#28483d",
+          "list.activeSelectionForeground": "#ecf6f0",
+          "list.hoverBackground": "#213039",
+          "editorGroupHeader.tabsBackground": "#141b20",
+          "tab.activeBackground": "#182025",
+          "tab.activeBorderTop": "#7cd2af",
+          "statusBar.background": "#1b3e33",
+          "statusBar.foreground": "#d2eee2",
+          "statusBar.noFolderBackground": "#182c26",
+          "panel.background": "#141b20",
+          "panel.border": "#2a3b40",
+          "titleBar.activeBackground": "#11191e",
+          "focusBorder": "#6dbb9c"
+        },
+        "[Dark Modern]": {
+          "editor.background": "#182025",
+          "editor.foreground": "#dce5e9",
+          "editor.lineHighlightBackground": "#202b31",
+          "editorLineNumber.foreground": "#627984",
+          "editorLineNumber.activeForeground": "#b5cecc",
+          "editorCursor.foreground": "#8bd8bd",
+          "editorIndentGuide.background1": "#2d3b42",
+          "editorIndentGuide.activeBackground1": "#537569",
+          "editor.selectionBackground": "#34574b88",
+          "sideBar.background": "#141b20",
+          "sideBar.foreground": "#bfcdd2",
+          "sideBarSectionHeader.background": "#1d272d",
+          "activityBar.background": "#10171b",
+          "activityBar.activeBorder": "#7cd2af",
+          "activityBar.foreground": "#a7ddc8",
+          "list.activeSelectionBackground": "#28483d",
+          "list.activeSelectionForeground": "#ecf6f0",
+          "list.hoverBackground": "#213039",
+          "editorGroupHeader.tabsBackground": "#141b20",
+          "tab.activeBackground": "#182025",
+          "tab.activeBorderTop": "#7cd2af",
+          "statusBar.background": "#1b3e33",
+          "statusBar.foreground": "#d2eee2",
+          "statusBar.noFolderBackground": "#182c26",
+          "panel.background": "#141b20",
+          "panel.border": "#2a3b40",
+          "titleBar.activeBackground": "#11191e",
+          "focusBorder": "#6dbb9c"
+        }
+      },
+      "workbench.colorTheme": "Dark Modern"
+    }
+  }
+}
