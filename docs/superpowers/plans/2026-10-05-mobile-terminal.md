@@ -32,5 +32,5 @@ Files: static/terminal.html, static/terminal.css, static/terminal.js, new static
 
 - [x] Run complete `.venv/bin/python -m pytest tests -q`; mobile smoke plus desktop/local PTY checks and inspect screenshots.
 - [x] Independent review entire diff against approved spec; fix critical/important findings with targeted tests.
-- [ ] Document limits (no connected physical phone) and usage. Commit implementation, fast-forward local main after verifying clean checkout, never push.
-- [ ] Redeploy via documented system rollback → deploy_launchagent → mobile_host install → boot_services install. Check runtime hashes, 5 PIDs, ports, fresh site snapshots, phone pairing counts and Feishu status.
+- [x] Document limits (no connected physical phone) and usage. Commit implementation, fast-forward local main after verifying clean checkout, never push.
+- [x] Redeploy via documented system rollback → deploy_launchagent → mobile_host install → boot_services install. Check runtime hashes, 5 PIDs, ports, fresh site snapshots, phone pairing counts and Feishu status.
