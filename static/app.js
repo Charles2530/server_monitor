@@ -449,7 +449,9 @@
     loadHistory();
   }));
   byId("task-search").addEventListener("input", (event) => { model.search = event.target.value.trim().toLocaleLowerCase(); renderTasks(); renderDetail(); loadHistory(); });
-  byId("refresh-button").addEventListener("click", () => action("refresh-button", "/api/refresh", "已请求刷新。采集完成后，页面会自动更新。"));
+  byId("refresh-button").addEventListener("click", () => {
+    if (location.hash !== "#tokenhub") action("refresh-button", "/api/refresh", "已请求刷新。采集完成后，页面会自动更新。");
+  });
   byId("connect-button").addEventListener("click", () => action("connect-button", "/api/connect", "自动登录已开始，连接状态将自动更新。"));
   document.addEventListener("monitor-refresh", () => poll());
   document.addEventListener("workspace-page", (event) => {

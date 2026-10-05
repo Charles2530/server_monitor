@@ -10,9 +10,11 @@ from .mobile_access import AccessError,DeviceStore
 from .store import store_call
 
 READ_PATHS=frozenset(('/', '/terminal', '/api/state','/api/history','/api/task-history','/api/storage',
+    '/api/tokenhub/state','/api/tokenhub/keys','/api/tokenhub/usage','/api/tokenhub/trend','/api/tokenhub/key-groups',
     '/api/logs','/api/logs/targets','/api/cci/terminal-targets','/api/acp/terminal-targets',
     '/api/acp/options','/api/acp/task-config','/api/acp/restart-options','/api/acp/release-restart-options'))
 WRITE_PATHS=frozenset(('/api/connect','/api/refresh','/api/acp/preview','/api/acp/create','/api/acp/stop',
+    '/api/tokenhub/key-group',
     '/api/acp/restart-preview','/api/acp/release-restart-preview',
     '/api/terminal/open','/api/terminal/targets','/api/terminal/status','/api/terminal/read','/api/terminal/write','/api/terminal/close'))
 MAX_BODY=131072

@@ -159,6 +159,7 @@ MONITOR_BROWSER_CHANNEL=auto
 | 页面 | 内容 |
 | --- | --- |
 | 资源总览 | 标准资源池可用 GPU、CPU、内存，已接入集群的节点健康与总 GPU 数 |
+| TokenHub | 余额、花费趋势、密钥用量与当前并发、分组调整、账号额度 |
 | 运行任务 | 本人名称包含 `charles` 的运行中 CCI / ACP 任务、指标曲线、日志及详情右上角的云任务跳转 |
 | ACP 任务 | 配置模板、节点数、每节点 GPU 数、启动命令、集群，预览后创建 |
 | 等待队列 | 当前工作空间所有用户的 CCI / ACP 等待、初始化与启动中任务 |
@@ -166,6 +167,14 @@ MONITOR_BROWSER_CHANNEL=auto
 | 任务历史 | charles 的成功、失败、已停止任务列表，支持筛选、分页和跳转云控制台，无历史曲线 |
 
 两站点的标准集群展示和可用资源汇总均忽略 `Public AEC2`。
+
+### TokenHub
+
+资源总览增加 TokenHub 摘要，侧边栏的 TokenHub 页面提供仪表板、API 密钥、账号额度三个页签。仪表板突出余额与今日实际消费，支持切换最近 7／30 天实际花费折线图（USD），并显示账号额度速览；用量明细保留在折叠区域。账号额度使用原站独立接口，按账号显示周期使用率、可用状态及重置时间；本站账户独立于 GPU 云站点，切换茅山王／SenseCore 不会切换 TokenHub 账户。金额保留 USD 单位，与已用 token 分开展示；未读取到的数据使用“—”或“未知”，读取失败保留旧值和原更新时间。
+
+首次在运行服务的电脑上点击“连接 TokenHub”，在弹出的独立浏览器里完成 GitHub 登录（限时 5 分钟）。登录成功后窗口自动关闭，后端每 60 秒更新摘要并在需要时刷新本站会话。`data/tokenhub/session.json` 仅保存 TokenHub access/refresh token，目录权限 700、文件权限 600，不入 Git，不保存 GitHub 密码或 Cookie。刷新失败时需手动重新连接；“断开本机连接”只删除本机本站会话，不撤销 GitHub 授权或远端 API Key。
+
+用量按北京时间选择起止日期，最长 366 天，每页 20 条。API 密钥列表展示今日／近 30 天实际用量（四位小数）、当前并发、分组和使用时间，不返回明文 Key。点击“调整分组”后选择可用分组并保存，只更新该密钥的分组；保存前会重新校验账号、密钥归属和当前分组，取消或仅选择不会写入。保存结果不确定时需刷新确认，不自动重试。创建密钥和其他账户管理仍前往原站。配对的手机可读取详情及调整密钥分组，连接和断开需在本机执行。原站登录态与本机采集会话独立，打开原站可能需要再次登录。此次改版只需更新电脑端服务，旧 APK 重新打开页面即可读取新版网页和数据；网页兼容旧 APK 注入的导航样式。为兼容旧 APK 的外链白名单，手机端原站链接改为地址复制弹窗，复制后在系统浏览器打开；电脑端仍直接跳转。手机网关只开放明确列出的查询接口和分组保存接口，不提供任意代理。
 
 左下角切换 `maoshanwang` / `sensecore`。URL 参数 `?site=sensecore` 可直接选择站点；刷新和浏览器前进、后退保留站点与页面。
 
@@ -341,10 +350,20 @@ mv "$HOME/Library/LaunchAgents/charles.server-monitor.plist.disabled" \
 
 API 的站点由 `X-Monitor-Site` 选择，支持 `maoshanwang` / `sensecore`，缺省为前者。所有 POST 还需 `X-Monitor-Request: 1`；浏览器调用受同源检查限制。
 
+`/api/tokenhub/*` 为独立账户，不使用 GPU 站点请求头。它们仅连接固定 TokenHub 域名，不接受任意上游 URL。
+
 | 方法 | 路径 | 用途 |
 | --- | --- | --- |
 | GET | `/api/task-history` | 后台读取当前站点的已结束任务列表、读取进度和过滤数量 |
 | GET | `/api/storage` | 当前站点 AFS 存储卷、容量和 charles 最近挂载记录，只读 |
+| GET | `/api/tokenhub/state` | TokenHub 摘要及每部分更新时间；`refresh=true` 主动读取 |
+| GET | `/api/tokenhub/trend?days=7` | 最近 7 或 30 天的每日实际花费，含各类 Token 与日期范围 |
+| GET | `/api/tokenhub/keys?page=1` | API 密钥元数据、今日／近 30 天实际用量及当前并发；每页 20 条，不含明文 Key |
+| GET | `/api/tokenhub/usage?start_date=2026-10-01&end_date=2026-10-06&page=1` | 按北京时间日期范围读取用量明细 |
+| GET | `/api/tokenhub/key-groups?key_id=1` | 当前密钥分组及该账号可选择的分组 |
+| POST | `/api/tokenhub/key-group` | 校验账号、旧分组与目标分组后保存；请求包含 `key_id`、`group_id`、`expected_group_id`、`account_id` |
+| POST | `/api/tokenhub/connect` | 本机打开独立登录窗口，异步返回；手机不开放 |
+| POST | `/api/tokenhub/disconnect` | 清除本机 TokenHub 会话及缓存；手机不开放 |
 | GET | `/api/state` | 当前采集快照、任务、资源和队列 |
 | GET | `/api/history?task_id=ACP:...&hours=1` | 已采集的历史指标，1–168 小时 |
 | POST | `/api/refresh` | 请求后台刷新，异步返回 |

@@ -18,7 +18,7 @@
   .site-switcher strong { text-align: center; flex: 1; }
   .sidebar nav {
     position: fixed; inset: auto 0 0; z-index: 60; width: 100%;
-    display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px;
+    display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px;
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); margin: 0;
     background: #fcfefdf5; backdrop-filter: blur(16px);
     border-top: 1px solid #dce8e1; box-shadow: 0 -4px 24px #183f3508;
@@ -27,7 +27,7 @@
   .sidebar .nav-item {
     display: flex; flex-direction: column; justify-content: center; align-items: center;
     gap: 5px; padding: 6px 0; min-height: 52px; border-radius: 10px;
-    font-size: 11px; line-height: 1.25; letter-spacing: 0; white-space: nowrap;
+    font-size: 10px; line-height: 1.25; letter-spacing: 0; white-space: nowrap;
   }
   .sidebar .nav-item .ui-icon { display: block; width: 20px; height: 20px; }
   .sidebar .nav-item.active { background: #e0f2e9; box-shadow: none; color: #06775d; }

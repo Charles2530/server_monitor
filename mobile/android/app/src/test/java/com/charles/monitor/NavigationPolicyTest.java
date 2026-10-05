@@ -8,6 +8,11 @@ public class NavigationPolicyTest {
             assertFalse(NavigationPolicy.local(u, "http://127.0.0.1:1234"));
     }
     @Test public void onlyKnownOfficialAndLoginDomains() {
+        assertTrue(NavigationPolicy.official("https://tokenhub.ilab.beer/keys"));
+        assertFalse(NavigationPolicy.official("https://tokenhub.ilab.beer.evil.test/"));
+        assertFalse(NavigationPolicy.official("https://tokenhub.ilab.beer@evil.test/"));
+        assertFalse(NavigationPolicy.official("http://tokenhub.ilab.beer/"));
+        assertFalse(NavigationPolicy.official("https://tokenhub.ilab.beer:8443/"));
         assertTrue(NavigationPolicy.official("https://console.sensecore.cn/cn-sh-01/acp/terminal"));
         assertTrue(NavigationPolicy.login("https://login.tailscale.com/a/test"));
         assertFalse(NavigationPolicy.official("https://console.sensecore.cn.evil.test/"));

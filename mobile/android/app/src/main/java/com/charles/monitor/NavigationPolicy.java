@@ -17,6 +17,7 @@ final class NavigationPolicy {
             return "https".equals(url.getScheme()) && url.getRawUserInfo() == null
                     && (url.getPort() == -1 || url.getPort() == 443)
                     && ("console.sensecore.cn".equals(url.getHost())
+                    || "tokenhub.ilab.beer".equals(url.getHost())
                     || "console.ms-sc-01.maoshanwangtech.com".equals(url.getHost()));
         } catch (Exception e) { return false; }
     }

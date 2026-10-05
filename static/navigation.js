@@ -3,6 +3,7 @@
 (() => {
   const pages = {
     overview: ["资源总览", "OVERVIEW", "查看任务配置、标准集群余量、总卡数与节点健康。"],
+    tokenhub: ["TokenHub", "AI API RESOURCES", "余额、今日消费与花费趋势，API 密钥和账号额度集中查看。"],
     tasks: ["运行任务", "RUNNING TASKS", "选择任务查看 CPU、GPU、内存与显存；支持停止 ACP 任务。"],
     acp: ["ACP 任务", "CREATE ACP TASK", window.MonitorSite?.id === "sensecore" ? "先选 AFS 分区，再选集群和卡数，预览镜像与挂载后创建。" : "配置任务并预览创建；可指定集群，默认按优先规则选择。"],
     history: ["任务历史", "TASK HISTORY", "查看 charles 已成功、失败或停止的任务，并跳转云控制台。"],
@@ -24,6 +25,9 @@
     document.getElementById("page-title").textContent = title;
     document.getElementById("page-eyebrow").textContent = `WORKSPACE / ${eyebrow}`;
     document.getElementById("page-description").textContent = description;
+    document.getElementById("status-banner").hidden = route === "tokenhub";
+    document.getElementById("connect-button").hidden = route === "tokenhub";
+    document.querySelector(".heading-tag[data-site-label]").textContent = route === "tokenhub" ? "AI API" : window.MonitorSite.id;
     document.title = "iLab Server Monitor";
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     document.dispatchEvent(new CustomEvent("workspace-page", { detail: route }));

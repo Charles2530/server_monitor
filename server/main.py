@@ -22,6 +22,8 @@ from .cci_ide import CCIEditor
 from .ide_routes import register_ide_routes
 from .storage import StorageManager
 from .task_history import TaskHistory
+from .tokenhub import TokenHub
+from .tokenhub_routes import register_tokenhub_routes
 from .normalize import task_console_url
 from .config import DATA, ROOT
 from .service import Monitor
@@ -47,7 +49,8 @@ class SiteRuntime:
     ide: object = None
 
 
-def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=None):
+def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=None, tokenhub=None):
+    tokenhub = tokenhub or TokenHub()
     if runtimes is None:
         if monitor is not None:
             runtimes={'maoshanwang':SiteRuntime(monitor,actions or ACPManager(monitor.store),logs or TaskLogs())}
@@ -83,9 +86,11 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
             for runtime in runtimes.values():
                 instance=runtime.monitor
                 instance.loop_task=instance.spawn(instance.loop())
+            tokenhub.loop_task=asyncio.create_task(tokenhub.loop())
         try:
             yield
         finally:
+            await tokenhub.close()
             for runtime in runtimes.values():
                 await runtime.ide.close()
                 await runtime.terminal_bridge.close()
@@ -97,6 +102,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     app=FastAPI(lifespan=lifespan,docs_url=None,redoc_url=None,openapi_url=None)
     app.state.monitor=runtimes["maoshanwang"].monitor
     app.state.runtimes=runtimes
+    app.state.tokenhub=tokenhub
 
     @app.middleware('http')
     async def local_only(request: Request, call_next):
@@ -184,6 +190,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
 
     register_terminal_routes(app,current_site,perform,action_body,runtimes)
     register_ide_routes(app,current_site,perform,action_body)
+    register_tokenhub_routes(app,tokenhub)
 
     @app.get('/api/task-history')
     async def task_history(runtime=Depends(current_site)):
