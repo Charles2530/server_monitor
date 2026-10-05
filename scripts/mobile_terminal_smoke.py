@@ -81,14 +81,14 @@ async def main():
                     await expect(page.locator(button)).to_be_in_viewport()
                 if height == 180: await page.screenshot(path=str(ROOT/'data/terminal-mobile-landscape.png'))
             # Android/browser keyboards may resize only visualViewport, leaving innerHeight intact.
-            await page.set_viewport_size({'width':844,'height':390})
+            await page.set_viewport_size({'width':844,'height':780})
             await page.evaluate("""() => {
                 Object.defineProperties(visualViewport, {height:{configurable:true,get:()=>180}, offsetTop:{configurable:true,get:()=>10}});
                 visualViewport.dispatchEvent(new Event('resize'));
             }""")
             await page.wait_for_timeout(120)
             visible = await page.evaluate("({rows:testTerm.rows, top:document.body.getBoundingClientRect().top, bottom:document.body.getBoundingClientRect().bottom, inner:innerHeight})")
-            assert visible['inner'] == 390 and visible['rows'] >= 5 and visible['top'] == 10 and visible['bottom'] <= 190, visible
+            assert visible['inner'] == 780 and visible['rows'] >= 5 and visible['top'] == 10 and visible['bottom'] <= 190, visible
             await page.evaluate("delete visualViewport.height;delete visualViewport.offsetTop;visualViewport.dispatchEvent(new Event('resize'))")
             await page.locator('#terminal-more').tap()
             await expect(page.locator('#terminal-menu')).to_be_visible()
@@ -154,6 +154,24 @@ async def main():
             assert ''.join(x['data'] for x in inputs[before:]) == 'z', inputs[before:]
             assert len(opens) == 1, opens
             await page.screenshot(path=str(ROOT/'data/terminal-mobile-portrait.png'))
+            # Presentation fixtures only; no commands are sent to a shell.
+            await page.evaluate("""() => new Promise(resolve => {
+                testTerm.reset();
+                document.querySelector('#terminal-input-notice').textContent = '';
+                document.querySelector('.terminal-keyboard').scrollLeft = 0;
+                testTerm.write('\\x1b[38;2;160;219;194mcharles@worker-0\\x1b[0m \\x1b[38;2;145;160;181m~/workspace\\x1b[0m\\r\\n$ ls -lh\\r\\n\\x1b[38;2;137;183;236mcheckpoints/  configs/  datasets/\\x1b[0m\\r\\ntrain.py      README.md\\r\\n\\r\\n$ python --version\\r\\nPython 3.11.9\\r\\n\\r\\n$ ', resolve);
+            })""")
+            await page.set_viewport_size({'width':393,'height':780})
+            await page.wait_for_timeout(150)
+            await page.screenshot(path=str(ROOT/'data/terminal-polish-portrait.png'))
+            await page.locator('#terminal-more').tap()
+            await page.screenshot(path=str(ROOT/'data/terminal-polish-tools.png'))
+            await page.locator('#terminal-connection summary').tap()
+            await page.screenshot(path=str(ROOT/'data/terminal-polish-connection.png'))
+            await page.locator('#terminal-menu-close').tap()
+            await page.set_viewport_size({'width':844,'height':180})
+            await page.wait_for_timeout(150)
+            await page.screenshot(path=str(ROOT/'data/terminal-polish-landscape.png'))
             assert not errors, errors
             await browser.close()
             print('Mobile terminal passed: touch layout, IME, cursor modes, Ctrl, same-shell HTTP recovery and no replay.')

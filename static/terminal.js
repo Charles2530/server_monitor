@@ -78,7 +78,7 @@
     if (term) { term.reset(); return; }
     term = new Terminal({ cursorBlink: true, fontSize: mobile.query.matches ? 12 : 14, lineHeight: 1.22, scrollback: 5000,
       fontFamily: '"SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace', allowProposedApi: false, disableStdin: true,
-      theme: { background: "#101b19", foreground: "#dfebe4", cursor: "#97e9b6", selectionBackground: "#47695b99", black: "#182722", red: "#f28585", green: "#89d4a4", yellow: "#e4ce89", blue: "#89b7ec", magenta: "#c5a4e4", cyan: "#82d1cf", white: "#dfebe4", brightBlack: "#7c9588", brightRed: "#ffa3a3", brightGreen: "#aaf0bf", brightYellow: "#f8e5ae", brightBlue: "#b2d4ff", brightMagenta: "#e0c0ff", brightCyan: "#a8f0ed", brightWhite: "#ffffff" } });
+      theme: { background: "#11161e", foreground: "#d6deeb", cursor: "#a0dbc2", selectionBackground: "#3a4d6380", black: "#182722", red: "#f28585", green: "#89d4a4", yellow: "#e4ce89", blue: "#89b7ec", magenta: "#c5a4e4", cyan: "#82d1cf", white: "#dfebe4", brightBlack: "#7c9588", brightRed: "#ffa3a3", brightGreen: "#aaf0bf", brightYellow: "#f8e5ae", brightBlue: "#b2d4ff", brightMagenta: "#e0c0ff", brightCyan: "#a8f0ed", brightWhite: "#ffffff" } });
     fit = new FitAddon.FitAddon(); term.loadAddon(fit); term.open($("terminal-mount"));
     mobile.bind(term);
     term.onData(data => {
