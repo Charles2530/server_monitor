@@ -213,6 +213,17 @@ async def main():
                 await mobile.locator('.xterm-helper-textarea').press('Enter')
                 await expect(mobile.locator('.xterm-rows')).to_contain_text('HTTP_retained')
                 assert len(shells)==shell_count and not mobile_shell.closed
+                # One mobile Enter moves from a no-output command to the next
+                # prompt by exactly one row, including the mixed key/IME trace.
+                await mobile.locator('.xterm-helper-textarea').press_sequentially(':')
+                await asyncio.sleep(.15)
+                row_before=await mobile.evaluate('testTerm.buffer.active.baseY+testTerm.buffer.active.cursorY')
+                await mobile.evaluate(TRACE, {'scenario':'mixed-enter','text':None})
+                await mobile.wait_for_function('row => testTerm.buffer.active.baseY+testTerm.buffer.active.cursorY > row',arg=row_before)
+                await asyncio.sleep(.2)
+                row_after=await mobile.evaluate('testTerm.buffer.active.baseY+testTerm.buffer.active.cursorY')
+                assert row_after-row_before==1, ('One Enter must advance exactly one row',row_before,row_after)
+                print('Mobile mixed Enter passed: next shell prompt is exactly one row below the command.',flush=True)
                 # Exercise WebView-style text events through the actual HTTP bridge and PTY.
                 command_text = "printf '\\nIME_REPEAT:%s\\n' aaabookkeeper"
                 for char in command_text:

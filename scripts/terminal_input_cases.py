@@ -17,6 +17,23 @@ TRACE = r'''async ({scenario, text}) => {
  if(scenario==='229-input-keyup'){key('keydown',229);edit(text);key('keyup',229);}
  if(scenario==='229-keyup-input'){key('keydown',229);key('keyup',229);edit(text);}
  if(scenario==='input-only')edit(text);
+ if(scenario.startsWith('mixed-')){
+   if(scenario.includes('composition')){
+     composition('compositionstart','');composition('compositionupdate','你好');
+     edit('你好','insertCompositionText',true);await tick();
+     composition('compositionend','你好');
+   }
+   const backwards=scenario.includes('backspace'), forwards=scenario.includes('delete');
+   const code=backwards?8:forwards?46:13, name=backwards?'Backspace':forwards?'Delete':'Enter';
+   const type=backwards?'deleteContentBackward':forwards?'deleteContentForward':'insertLineBreak';
+   key('keydown',code,name);
+   if(scenario.includes('keyup-first'))key('keyup',code,name);
+   if(scenario.endsWith('input-only')){
+     if(!backwards&&!forwards)a.value+='\n';
+     a.dispatchEvent(new InputEvent('input',{inputType:type,bubbles:true,composed:true}));
+   }else edit(null,type);
+   if(!scenario.includes('keyup-first'))key('keyup',code,name);
+ }
  if(scenario==='delete-input-only')a.dispatchEvent(new InputEvent('input',{inputType:'deleteContentBackward',bubbles:true,composed:true}));
  if(scenario==='enter-input-only')a.dispatchEvent(new InputEvent('input',{inputType:'insertLineBreak',bubbles:true,composed:true}));
  if(scenario==='delete')edit(null,'deleteContentBackward');
@@ -53,6 +70,14 @@ TRACE = r'''async ({scenario, text}) => {
 
 async def check_mobile_input(page, inputs):
     cases = [
+        ('mixed-composition-enter-input-only',None,'你好\r'),
+        ('mixed-composition-backspace-input-only',None,'你好\x7f'),
+        ('mixed-composition-enter',None,'你好\r'),
+        ('mixed-composition-backspace',None,'你好\x7f'),
+        ('mixed-enter',None,'\r'), ('mixed-enter-keyup-first',None,'\r'),
+        ('mixed-enter-input-only',None,'\r'), ('mixed-enter-keyup-first-input-only',None,'\r'),
+        ('mixed-backspace',None,'\x7f'), ('mixed-backspace-input-only',None,'\x7f'),
+        ('mixed-delete',None,'\x1b[3~'), ('mixed-delete-input-only',None,'\x1b[3~'),
         ('229-keyup-input','a','a'), ('229-input-keyup','b','b'),
         ('input-only','c','c'), ('composition-end-input','a','a'),
         ('composition-229','你','你'), ('composition-end-input','好','好'),
@@ -67,6 +92,12 @@ async def check_mobile_input(page, inputs):
         await asyncio.sleep(.06)
         actual=''.join(x['data'] for x in inputs[before:])
         assert actual==expected,(scenario,repr(expected),repr(actual))
+    # Consecutive real Enters are distinct even immediately after a mixed event.
+    before=len(inputs)
+    for scenario in ('mixed-enter','enter-input-only','mixed-enter-input-only','enter'):
+        await page.evaluate(TRACE,{'scenario':scenario,'text':None})
+    await asyncio.sleep(.08)
+    assert ''.join(x['data'] for x in inputs[before:])=='\r'*4
     # Genuine repeat characters and repeated presses must never be deduplicated.
     before=len(inputs)
     for _ in range(3):

@@ -38,7 +38,26 @@ window.TerminalMobile = class {
     // Android 229 keydowns must not also schedule xterm's textarea-diff sender.
     // Committed text below has one owner: input events, or xterm's composition helper.
     this.imeKey = false;
+    const clearKeyEdit = () => { clearTimeout(this.keyEditTimer); this.keyEdit = null; };
+    // Some WebViews report the same Enter/Delete as both a key and an IME edit.
+    // Only a key actually emitted by xterm owns its following edit event.
+    term.onKey(({ domEvent }) => {
+      if (!this.query.matches) return;
+      const types = { 13: ["insertLineBreak", "insertParagraph"], 8: ["deleteContentBackward", "deleteWordBackward"], 46: ["deleteContentForward"] };
+      if (types[domEvent.keyCode]) this.keyEdit = { types: types[domEvent.keyCode], value: term.textarea.value };
+    });
+    const consumeKeyEdit = event => {
+      const edit = this.keyEdit;
+      clearKeyEdit();
+      if (!edit?.types.includes(event.inputType)) return false;
+      if (event.type === "input") term.textarea.value = edit.value;
+      return true;
+    };
     term.attachCustomKeyEventHandler(event => {
+      if (event.type === "keydown") clearKeyEdit();
+      // Include a trailing input in this keyup turn, but never swallow the next
+      // independent soft-keyboard press when it has no keydown of its own.
+      if (event.type === "keyup") this.keyEditTimer = setTimeout(clearKeyEdit, 0);
       if (this.query.matches && event.keyCode === 229) {
         if (event.type === "keydown") this.imeKey = true;
         return false;
@@ -57,7 +76,7 @@ window.TerminalMobile = class {
       if (event.target !== term.textarea || !this.query.matches || !event.cancelable || (this.composing && !this.compositionEnding)) return;
       if (Object.hasOwn(edits, event.inputType)) {
         event.preventDefault(); event.stopPropagation();
-        this.imeKey = false; sendEdit(edits[event.inputType]);
+        this.imeKey = false; if (!consumeKeyEdit(event)) sendEdit(edits[event.inputType]);
       }
     }, true);
     term.element.addEventListener("input", event => {
@@ -65,7 +84,9 @@ window.TerminalMobile = class {
       if (this.compositionEnding && Object.hasOwn(edits, event.inputType)) {
         // input-only edits already changed the DOM. Let xterm commit the candidate
         // snapshot first, then apply this distinct Enter/Delete once to the PTY.
-        event.stopPropagation(); term.textarea.value = this.compositionValue;
+        event.stopPropagation();
+        if (consumeKeyEdit(event)) return;
+        term.textarea.value = this.compositionValue;
         sendEdit(edits[event.inputType]); return;
       }
       if (this.composing) {
@@ -77,7 +98,7 @@ window.TerminalMobile = class {
         event.stopPropagation(); this.imeKey = false;
         if (this.isAlive() && event.data) term.input(event.data, true);
       } else if (Object.hasOwn(edits, event.inputType)) {
-        event.stopPropagation(); this.imeKey = false; sendEdit(edits[event.inputType]);
+        event.stopPropagation(); this.imeKey = false; if (!consumeKeyEdit(event)) sendEdit(edits[event.inputType]);
       } else if (event.inputType === "insertFromPaste") {
         event.stopPropagation(); this.imeKey = false; this.resetCtrl();
         if (this.isAlive() && event.data) term.paste(event.data);
@@ -85,6 +106,7 @@ window.TerminalMobile = class {
     }, true);
     term.element.addEventListener("paste", () => this.resetCtrl(), true);
     term.textarea.addEventListener("compositionstart", () => {
+      clearKeyEdit();
       clearTimeout(this.compositionTimer);
       this.composing = true; this.compositionEnding = false; this.imeKey = false;
     });
@@ -95,7 +117,7 @@ window.TerminalMobile = class {
       this.compositionTimer = setTimeout(() => { this.composing = false; this.compositionEnding = false; }, 0);
     });
     term.textarea.addEventListener("focus", () => this.keyboardState(true));
-    term.textarea.addEventListener("blur", () => this.keyboardState(false));
+    term.textarea.addEventListener("blur", () => { clearKeyEdit(); this.keyboardState(false); });
     this.updateControls();
   }
   keyboardState(focused) {

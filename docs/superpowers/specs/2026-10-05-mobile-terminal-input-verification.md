@@ -26,3 +26,11 @@ Additional audit fixes: shortcuts consume one-shot Ctrl; clipboard paste stays l
 - Full project suite: 501 passed, five existing WebSocket deprecation warnings. Independent review caught the composition-ending edit edge case; corrected traces pass.
 
 No physical Android device was connected. DOM traces, CDP composition and local PTY checks do not replace the user's specific phone/IME validation. No real cloud task creation, command execution, stop or restart was used. Changes are served by the Mac; existing APK and pairing remain compatible.
+
+## Follow-up: extra blank line on Enter
+
+A mixed trace, `keydown(Enter) → beforeinput(insertLineBreak) → keyup`, exposed another duplicate: xterm sent CR for the key, then our soft-keyboard adapter sent CR again for the edit. Backspace had the same two-owner issue. The new regression failed with `\r\r`, expected `\r`, before the fix. Measured mobile rows remain 17 CSS px at 12 px font size; no spacing styles or remote shell output are changed. These are simulated WebView traces, not a captured trace from the reporting phone.
+
+Record only Enter/Delete keys actually emitted by xterm's public onKey event, and consume their corresponding edit once. Clear ownership at the next keydown, composition start, blur, or end of the keyup event turn. This is bounded to a key lifecycle rather than deduplicating matching text by elapsed time. Input-only Enter and deliberate repeated Enter remain independent. Input-only duplicate edits also restore the textarea snapshot to avoid leaving a stray newline for later IME processing.
+
+Regression coverage adds mixed Enter/Backspace/Delete, edits after keyup in the same turn, missing beforeinput, consecutive independent Enters, and Enter/Backspace immediately after compositionend with and without beforeinput (33 event traces in total). Independent review caught the composition-ending crossover; its new test failed before correction and passed after consuming the key snapshot in that path. The isolated local PTY check submits a no-output command with a mixed Enter and verifies that the next prompt advances exactly one row.
