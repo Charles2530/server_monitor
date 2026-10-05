@@ -35,10 +35,64 @@ window.TerminalMobile = class {
     });
   }
   bind(term) {
-    term.textarea.addEventListener("compositionstart", () => { this.composing = true; });
+    // Android 229 keydowns must not also schedule xterm's textarea-diff sender.
+    // Committed text below has one owner: input events, or xterm's composition helper.
+    this.imeKey = false;
+    term.attachCustomKeyEventHandler(event => {
+      if (this.query.matches && event.keyCode === 229) {
+        if (event.type === "keydown") this.imeKey = true;
+        return false;
+      }
+      if (event.type === "keydown") this.imeKey = false;
+      return true;
+    });
+    const edits = { deleteContentBackward: "\x7f", deleteContentForward: "\x1b[3~", deleteWordBackward: "\x17", insertLineBreak: "\r", insertParagraph: "\r" };
+    const sendEdit = data => {
+      if (!this.isAlive()) return;
+      const send = () => { if (this.isAlive()) term.input(data, true); };
+      // Let xterm commit the candidate before Enter/Delete reaches the PTY.
+      if (this.compositionEnding) setTimeout(send, 0); else send();
+    };
+    term.element.addEventListener("beforeinput", event => {
+      if (event.target !== term.textarea || !this.query.matches || !event.cancelable || (this.composing && !this.compositionEnding)) return;
+      if (Object.hasOwn(edits, event.inputType)) {
+        event.preventDefault(); event.stopPropagation();
+        this.imeKey = false; sendEdit(edits[event.inputType]);
+      }
+    }, true);
+    term.element.addEventListener("input", event => {
+      if (event.target !== term.textarea || !this.query.matches) return;
+      if (this.compositionEnding && Object.hasOwn(edits, event.inputType)) {
+        // input-only edits already changed the DOM. Let xterm commit the candidate
+        // snapshot first, then apply this distinct Enter/Delete once to the PTY.
+        event.stopPropagation(); term.textarea.value = this.compositionValue;
+        sendEdit(edits[event.inputType]); return;
+      }
+      if (this.composing) {
+        // xterm's compositionend task reads the committed textarea once.
+        if (this.compositionEnding) this.compositionValue = term.textarea.value;
+        event.stopPropagation(); return;
+      }
+      if (event.inputType === "insertText" && this.imeKey) {
+        event.stopPropagation(); this.imeKey = false;
+        if (this.isAlive() && event.data) term.input(event.data, true);
+      } else if (Object.hasOwn(edits, event.inputType)) {
+        event.stopPropagation(); this.imeKey = false; sendEdit(edits[event.inputType]);
+      } else if (event.inputType === "insertFromPaste") {
+        event.stopPropagation(); this.imeKey = false; this.resetCtrl();
+        if (this.isAlive() && event.data) term.paste(event.data);
+      }
+    }, true);
+    term.element.addEventListener("paste", () => this.resetCtrl(), true);
+    term.textarea.addEventListener("compositionstart", () => {
+      clearTimeout(this.compositionTimer);
+      this.composing = true; this.compositionEnding = false; this.imeKey = false;
+    });
     term.textarea.addEventListener("compositionend", () => {
       // xterm commits composition in its own end-of-event task; don't overtake it with Enter.
-      setTimeout(() => { this.composing = false; }, 0);
+      this.compositionValue = term.textarea.value;
+      this.compositionEnding = true; this.imeKey = false;
+      this.compositionTimer = setTimeout(() => { this.composing = false; this.compositionEnding = false; }, 0);
     });
     term.textarea.addEventListener("focus", () => this.keyboardState(true));
     term.textarea.addEventListener("blur", () => this.keyboardState(false));
@@ -67,9 +121,10 @@ window.TerminalMobile = class {
     if (this.composing) { this.compositionNotice(); return false; }
     return true;
   }
+  resetCtrl() { this.ctrl = false; this.ctrlButton.setAttribute("aria-pressed", "false"); }
   input(data) {
     if (!this.ctrl) return data;
-    this.ctrl = false; this.ctrlButton.setAttribute("aria-pressed", "false");
+    this.resetCtrl();
     if (/^[a-z]$/i.test(data)) return String.fromCharCode(data.toUpperCase().charCodeAt(0) - 64);
     // Conventional terminal aliases; masking arbitrary punctuation can send XON/XOFF.
     const controls = { " ": "\x00", "@": "\x00", "3": "\x1b", "[": "\x1b", "4": "\x1c", "\\": "\x1c",

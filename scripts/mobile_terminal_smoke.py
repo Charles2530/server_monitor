@@ -8,6 +8,7 @@ from http.server import ThreadingHTTPServer
 from urllib.parse import urlsplit
 from playwright.async_api import async_playwright, expect
 from browser_support import browser_launch_options
+from terminal_input_cases import check_mobile_input, check_mobile_tools
 from v2_browser_smoke import ROOT, Handler
 
 class TerminalHandler(Handler):
@@ -133,6 +134,8 @@ async def main():
                 await page.locator('[data-terminal-key=ctrl]').tap()
                 await page.locator('.xterm-helper-textarea').press_sequentially(char)
                 await sent(control, before)
+            await check_mobile_input(page, inputs)
+            await check_mobile_tools(page, inputs)
             # IME candidates must not race a shortcut Enter; committed text appears once.
             cdp = await context.new_cdp_session(page)
             before = len(inputs)

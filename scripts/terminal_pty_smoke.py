@@ -12,6 +12,7 @@ from server.store import Store
 from server.service import Monitor
 from server.terminal_bridge import TerminalBridge
 from server.sites import MAOSHANWANG
+from terminal_input_cases import TRACE
 
 class PTYSocket:
     def __init__(self):
@@ -191,6 +192,7 @@ async def main():
                 # read must also resume the same PTY and synchronize input sequence.
                 mobile=await browser.new_page(viewport={'width':390,'height':844})
                 mobile.on('pageerror',lambda e:errors.append(str(e)))
+                await mobile.add_init_script("Object.defineProperty(window,'Terminal',{configurable:true,set(Base){delete window.Terminal;window.Terminal=class extends Base{constructor(...args){super(...args);window.testTerm=this;}};}})")
                 await mobile.add_init_script("""const NativeSocket=WebSocket;window.WebSocket=class extends NativeSocket{
                   constructor(url){super(url.replace('/api/terminal/socket','/api/terminal/unavailable'));}};""")
                 await mobile.goto(f'http://127.0.0.1:{port}/terminal?task_id=CCI:test')
@@ -211,6 +213,20 @@ async def main():
                 await mobile.locator('.xterm-helper-textarea').press('Enter')
                 await expect(mobile.locator('.xterm-rows')).to_contain_text('HTTP_retained')
                 assert len(shells)==shell_count and not mobile_shell.closed
+                # Exercise WebView-style text events through the actual HTTP bridge and PTY.
+                command_text = "printf '\\nIME_REPEAT:%s\\n' aaabookkeeper"
+                for char in command_text:
+                    await mobile.evaluate(TRACE, {'scenario':'229-keyup-input','text':char})
+                await mobile.evaluate(TRACE, {'scenario':'enter-input-only','text':None})
+                await expect(mobile.locator('.xterm-rows')).to_contain_text('IME_REPEAT:aaabookkeeper')
+                await mobile.evaluate(TRACE, {'scenario':'229-keyup-input','text':"printf '\\nIME_UNICODE:%s\\n' '"})
+                await mobile.evaluate(TRACE, {'scenario':'composition-end-input','text':'你好😀'})
+                await mobile.evaluate(TRACE, {'scenario':'input-only','text':"'"})
+                await mobile.evaluate(TRACE, {'scenario':'enter','text':None})
+                await expect(mobile.locator('.xterm-rows')).to_contain_text('IME_UNICODE:你好😀')
+                visible_text = await mobile.locator('.xterm-rows').inner_text()
+                assert visible_text.count('IME_REPEAT:aaabookkeeper') == 1, visible_text
+                assert visible_text.count('IME_UNICODE:你好😀') == 1, visible_text
                 await mobile.locator('#terminal-more').click()
                 await mobile.locator('#terminal-disconnect').click()
                 assert not errors,errors

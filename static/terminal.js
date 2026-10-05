@@ -315,7 +315,7 @@
   function focusTerminal() { if (alive) term?.focus(); }
   for (const [id, delta] of [["terminal-font-down", -1], ["terminal-font-up", 1]]) $(id).addEventListener("click", () => { if (term) { term.options.fontSize = Math.max(10, Math.min(24, term.options.fontSize + delta)); fitScreen(); focusTerminal(); } });
   $("terminal-copy").addEventListener("click", async () => { try { await navigator.clipboard.writeText(term.getSelection()); } catch { $("terminal-hint").textContent = "无法访问剪贴板，请使用系统复制操作。"; } finally { focusTerminal(); } });
-  $("terminal-paste").addEventListener("click", async () => { if (alive) { try { term.paste(await navigator.clipboard.readText()); term.focus(); } catch { $("terminal-hint").textContent = "无法访问剪贴板，请使用系统粘贴操作。"; } } });
+  $("terminal-paste").addEventListener("click", async () => { if (alive) { try { const text = await navigator.clipboard.readText(); mobile.resetCtrl(); term.paste(text); mobile.menu.close(); term.focus(); } catch { $("terminal-hint").textContent = "无法访问剪贴板，请使用系统粘贴操作。"; } } });
   $("terminal-fullscreen").addEventListener("click", async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await $("terminal-workspace").requestFullscreen(); } catch { $("terminal-hint").textContent = "当前浏览器不支持全屏。"; } finally { focusTerminal(); } });
   document.addEventListener("fullscreenchange", () => {
     $("terminal-fullscreen").textContent = document.fullscreenElement ? "退出全屏" : "全屏";
@@ -327,7 +327,7 @@
     if (key === "ctrl" || !mobile.allowShortcut()) return;
     const arrows = { up: "A", down: "B", left: "D", right: "C" };
     const data = arrows[key] ? `\x1b${term.modes.applicationCursorKeysMode ? "O" : "["}${arrows[key]}` : keys[key];
-    if (data) enqueue(data);
+    if (data) enqueue(mobile.input(data));
     if (!mobile.compact) term.focus();
   }));
   window.addEventListener("pageshow", event => { if (event.persisted) recover(); });
