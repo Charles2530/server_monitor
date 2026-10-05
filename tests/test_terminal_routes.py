@@ -34,6 +34,24 @@ def test_http_terminal_scopes_and_validation(tmp_path):
         assert r.status_code==503 and 'PRIVATE' not in r.text
 
 
+def test_http_terminal_read_forwards_optional_wait_and_defaults_true(tmp_path):
+    app,bridge=app_with_bridge(tmp_path)
+    bridge.read.return_value={'type':'output','cursor':7,'chunks':[],'closed':False,'error':None,'sequence':3}
+    headers={'X-Monitor-Request':'1','X-Monitor-Device':'phone-a'}
+    with TestClient(app,base_url='http://localhost:8766') as client:
+        response=client.post('/api/terminal/read',json={'session_id':'opaque','cursor':7,'wait':False},headers=headers)
+        assert response.status_code==200
+        bridge.read.assert_awaited_once_with('opaque',7,'phone-a',wait=False)
+
+        bridge.read.reset_mock()
+        response=client.post('/api/terminal/read',json={'session_id':'opaque','cursor':7},headers=headers)
+        assert response.status_code==200
+        bridge.read.assert_awaited_once_with('opaque',7,'phone-a',wait=True)
+
+        response=client.post('/api/terminal/read',json={'session_id':'opaque','cursor':7,'wait':False,'extra':True},headers=headers)
+        assert response.status_code==400
+
+
 def test_websocket_rejects_cross_origin_and_nonlocal_host(tmp_path):
     app,bridge=app_with_bridge(tmp_path)
     with TestClient(app,base_url='http://localhost:8766') as client:

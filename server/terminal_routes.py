@@ -36,8 +36,8 @@ def register_terminal_routes(app,current_site,perform,action_body,runtimes):
     @app.post('/api/terminal/read')
     async def read_terminal(request:Request,runtime=Depends(current_site)):
         async def run():
-            data=await action_body(request,('session_id','cursor'))
-            return await runtime.terminal_bridge.read(data['session_id'],data['cursor'],owner(request))
+            data=await action_body(request,('session_id','cursor'),optional=('wait',))
+            return await runtime.terminal_bridge.read(data['session_id'],data['cursor'],owner(request),wait=data.get('wait',True))
         return await perform(run)
 
     @app.post('/api/terminal/write')

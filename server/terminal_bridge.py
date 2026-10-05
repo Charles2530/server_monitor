@@ -223,14 +223,14 @@ class TerminalBridge:
         if s and s.owner==owner and s.transport is lease:
             s.transport=None;s.touched=time.monotonic()
 
-    async def read(self,key,cursor,owner):
+    async def read(self,key,cursor,owner,*,wait=True):
         s=self.get(key,owner)
-        if type(cursor) is not int or cursor<0 or cursor>s.cursor:
+        if type(cursor) is not int or cursor<0 or cursor>s.cursor or type(wait) is not bool:
             raise ActionError('终端读取位置无效。')
         # Client acknowledgement releases memory. Repeated reads at the same cursor are safe.
         while s.frames and s.frames[0][0]<=cursor:
             _,data=s.frames.popleft();s.size-=len(data)
-        if not s.frames and not s.ended:
+        if wait and not s.frames and not s.ended:
             s.event.clear()
             try:await asyncio.wait_for(s.event.wait(),READ_TIMEOUT)
             except asyncio.TimeoutError:pass

@@ -1,0 +1,35 @@
+/* Last in the cascade: desktop typography must not expand phone terminal chrome. */
+.terminal-mobile-controls, .terminal-mobile-back { display: none; }
+#terminal-input-notice:empty { display: none; }
+#terminal-input-notice { position: absolute; z-index: 4; bottom: 44px; left: 8px; right: 8px; margin: 0; padding: 6px 10px; background: #39493b; color: #fff; border-radius: 5px; pointer-events: none; font-size: 12px; }
+#terminal-menu { width: min(440px, calc(100vw - 16px)); max-height: calc(var(--terminal-viewport-height, 100dvh) - 16px); padding: 0; border: 1px solid #4c6b5c; border-radius: 12px; color: #d7e9e0; background: #182b23; overflow: auto; }
+#terminal-menu::backdrop { background: #0007; }
+.terminal-menu-heading { position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #182b23; z-index: 3; }
+#terminal-menu h2 { margin: 0; font-size: 16px; }
+#terminal-menu-close { min-width: 40px; min-height: 36px; color: inherit; background: #294437; border: 1px solid #496653; border-radius: 6px; font-size: 13px; }
+#terminal-menu-content { display: grid; gap: 12px; padding: 8px 12px 16px; }
+#terminal-menu .terminal-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+#terminal-menu .terminal-tools button { min-height: 40px; font-size: 13px; }
+#terminal-menu .terminal-setup { padding: 0; border: 0; }
+#terminal-menu .connection-bar, #terminal-menu .session-status { display: block; }
+#terminal-menu #terminal-status { color: #d7e9e0; font-size: 13px; }
+#terminal-menu #terminal-retry { margin: 8px 0; }
+#terminal-menu #terminal-picker { position: static; width: 100%; color: #29453b; margin-top: 8px; }
+#terminal-menu .official-link { display: block; color: #a6e0b9; }
+#terminal-menu .terminal-hint { display: block; color: #c3d5c9; border: 0; padding: 0; font-size: 12px; }
+body.terminal-compact { position: fixed; top: var(--terminal-viewport-top, 0px); left: 0; width: 100%; padding: 0; gap: 0; background: #101b19; }
+body.terminal-compact > .terminal-header { display: none; }
+body.terminal-compact #terminal-workspace { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; border: 0; border-radius: 0; height: 100%; min-height: 0; padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+body.terminal-compact .terminal-toolbar { grid-column: 1; grid-row: 1; flex-wrap: nowrap; gap: 4px; padding: 2px 4px; min-width: 0; padding-top: max(2px, env(safe-area-inset-top)); }
+body.terminal-compact .terminal-session { flex: 1 1 0; min-width: 0; gap: 5px; font-size: 11px; }
+body.terminal-compact .terminal-session > svg, body.terminal-compact #terminal-size { display: none; }
+body.terminal-compact #terminal-target-name { min-width: 0; flex: 1; font-size: 11px; }
+body.terminal-compact #terminal-transport { flex-shrink: 0; font-size: 10px; padding: 2px 4px; max-width: 82px; overflow: hidden; text-overflow: ellipsis; }
+body.terminal-compact .terminal-mobile-back { display: inline-flex; flex-shrink: 0; width: 32px; min-height: 34px; padding: 0; border: 0; background: transparent; color: #d7e9e0; }
+body.terminal-compact .terminal-mobile-controls { display: flex; flex-shrink: 0; gap: 4px; }
+.terminal-mobile-controls button { min-height: 34px; padding: 4px 7px; color: #d7e9e0; background: #21372c; border: 1px solid #354b41; border-radius: 5px; font-size: 12px; }
+body.terminal-compact #terminal-screen { grid-column: 1; grid-row: 2; padding: 3px 4px; min-height: 0; }
+body.terminal-compact .terminal-keyboard { grid-column: 1; grid-row: 3; display: flex; flex-wrap: nowrap; gap: 4px; padding: 2px 4px max(2px, env(safe-area-inset-bottom)); overflow-x: auto; scrollbar-width: none; touch-action: pan-x; overscroll-behavior-x: contain; }
+body.terminal-compact .terminal-keyboard::-webkit-scrollbar { display: none; }
+body.terminal-compact .terminal-keyboard button { flex: 0 0 auto; min-height: 36px; min-width: 34px; padding: 4px 7px; font-size: 12px; }
+[data-terminal-key=ctrl][aria-pressed=true] { background: #397451; border-color: #a6e0b9; color: white; }

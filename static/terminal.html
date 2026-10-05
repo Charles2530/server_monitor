@@ -2,7 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="color-scheme" content="light">
     <meta name="theme-color" content="#f4f7f6">
     <title>Web Terminal · iLab Server Monitor</title>
@@ -13,8 +13,10 @@
     <script src="/static/sites.js" defer></script>
     <script src="/static/vendor/xterm.js" defer></script>
     <script src="/static/vendor/xterm-addon-fit.js" defer></script>
+    <script src="/static/terminal-mobile.js" defer></script>
     <script src="/static/terminal.js" defer></script>
     <link rel="stylesheet" href="/static/typography.css">
+    <link rel="stylesheet" href="/static/terminal-mobile.css">
   </head>
   <body>
     <header class="terminal-header">
@@ -24,7 +26,7 @@
       <span class="site-badge" data-site-label></span>
       <a id="terminal-official" class="official-link" target="_blank" rel="noopener noreferrer" hidden>云控制台 ↗</a>
     </header>
-    <div class="terminal-setup">
+    <div id="terminal-setup" class="terminal-setup">
       <div class="session-welcome"><div class="welcome-icon"><svg class="session-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 6 6 6-6 6M13 18h6"/></svg></div><span class="welcome-eyebrow">ILAB WORKSPACE / TERMINAL</span><h2>连接任务终端</h2><p>选择运行实例，在当前页面使用交互式 Shell。</p><div class="welcome-tags"><span>CCI / ACP</span><span>实时输入输出</span><span>支持移动端</span></div></div>
     <div class="connection-bar">
       <div class="session-status"><p id="terminal-status" data-state="loading" role="status" aria-live="polite">正在读取最新实例与容器…</p><button id="terminal-retry" class="button" type="button" hidden>重新连接</button></div>
@@ -40,8 +42,9 @@
     </div>
     <section id="terminal-workspace" class="terminal-workspace" hidden aria-label="交互式终端">
       <div class="terminal-toolbar">
+        <a id="terminal-mobile-back" class="button terminal-mobile-back" aria-label="返回监控">←</a>
         <div class="terminal-session"><svg class="session-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 6 6 6-6 6M13 18h6"/></svg><span id="terminal-led" class="terminal-led"></span><strong id="terminal-target-name">Terminal</strong><span id="terminal-transport">连接中</span><span id="terminal-size" aria-label="终端列数与行数"></span></div>
-        <div class="terminal-tools">
+        <div id="terminal-tools" class="terminal-tools">
           <button id="terminal-font-down" type="button" title="缩小字号" aria-label="缩小字号">A−</button>
           <button id="terminal-font-up" type="button" title="放大字号" aria-label="放大字号">A＋</button>
           <button id="terminal-copy" type="button">复制选中</button>
@@ -49,16 +52,19 @@
           <button id="terminal-fullscreen" type="button">全屏</button>
           <button id="terminal-disconnect" type="button">断开</button>
         </div>
+        <div class="terminal-mobile-controls"><button id="terminal-mobile-keyboard" type="button" aria-pressed="false">键盘</button><button id="terminal-more" type="button" aria-haspopup="dialog">更多</button></div>
       </div>
       <div id="terminal-screen" aria-label="命令行输入和输出"><div id="terminal-mount"></div></div>
       <div class="terminal-keyboard" aria-label="终端快捷键">
-        <button type="button" data-terminal-key="interrupt">Ctrl+C</button><button type="button" data-terminal-key="tab">Tab</button><button type="button" data-terminal-key="escape">Esc</button>
+        <button type="button" data-terminal-key="ctrl" aria-pressed="false">Ctrl</button><button type="button" data-terminal-key="interrupt">Ctrl+C</button><button type="button" data-terminal-key="tab">Tab</button><button type="button" data-terminal-key="escape">Esc</button>
         <button type="button" data-terminal-key="up" aria-label="方向上">↑</button><button type="button" data-terminal-key="down" aria-label="方向下">↓</button>
         <button type="button" data-terminal-key="left" aria-label="方向左">←</button><button type="button" data-terminal-key="right" aria-label="方向右">→</button>
-        <button type="button" data-terminal-key="enter">Enter</button>
+        <button type="button" data-terminal-key="backspace" aria-label="退格">⌫</button><button type="button" data-terminal-key="enter">Enter</button>
       </div>
+      <p id="terminal-input-notice" role="status" aria-live="polite"></p>
       <p id="terminal-hint" class="terminal-hint" role="status">断开会关闭当前 Shell，其中的前台命令可能中断。</p>
     </section>
 
+    <dialog id="terminal-menu" aria-labelledby="terminal-menu-title"><div class="terminal-menu-heading"><h2 id="terminal-menu-title">终端工具与连接</h2><button id="terminal-menu-close" type="button">关闭</button></div><div id="terminal-menu-content"></div></dialog>
   </body>
 </html>

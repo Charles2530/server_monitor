@@ -235,3 +235,43 @@ async def test_attached_background_session_survives_idle_and_detach_can_resume(m
         s.touched=time.monotonic()-IDLE_SECONDS-1
         with pytest.raises(ActionError):bridge.get(key,'local')
     finally:await bridge.close()
+
+
+@pytest.mark.asyncio
+async def test_non_waiting_read_returns_empty_output_with_current_sequence():
+    from server.terminal_bridge import TerminalBridge
+    socket=FakeSocket();bridge=TerminalBridge(MAOSHANWANG,resolver('CCI'),resolver('ACP'),session_loader=lambda:{'headers':{'authorization':'Bearer private'}},dial=AsyncMock(return_value=socket))
+    try:
+        key=(await bridge.open({'task_id':'ACP:job','instance':'worker-0','container':'','cols':80,'rows':24},'phone-a'))['session_id']
+        await bridge.write(key,1,'one',None,'phone-a')
+        output=await asyncio.wait_for(bridge.read(key,0,'phone-a',wait=False),.1)
+        assert output=={'type':'output','cursor':0,'chunks':[],'closed':False,'error':None,'sequence':1}
+    finally:await bridge.close()
+
+
+@pytest.mark.asyncio
+async def test_read_wait_must_be_keyword_only_boolean_and_preserves_ownership():
+    from server.terminal_bridge import TerminalBridge
+    socket=FakeSocket();bridge=TerminalBridge(MAOSHANWANG,resolver('CCI'),resolver('ACP'),session_loader=lambda:{'headers':{'authorization':'Bearer private'}},dial=AsyncMock(return_value=socket))
+    try:
+        key=(await bridge.open({'task_id':'ACP:job','instance':'worker-0','container':'','cols':80,'rows':24},'phone-a'))['session_id']
+        for invalid in (None,0,1,'false'):
+            with pytest.raises(ActionError):await bridge.read(key,0,'phone-a',wait=invalid)
+        with pytest.raises(TypeError):await bridge.read(key,0,'phone-a',False)
+        with pytest.raises(ActionError):await bridge.read(key,0,'phone-b',wait=False)
+    finally:await bridge.close()
+
+
+@pytest.mark.asyncio
+async def test_read_without_wait_argument_keeps_long_polling():
+    from server.terminal_bridge import TerminalBridge
+    socket=FakeSocket();bridge=TerminalBridge(MAOSHANWANG,resolver('CCI'),resolver('ACP'),session_loader=lambda:{'headers':{'authorization':'Bearer private'}},dial=AsyncMock(return_value=socket))
+    try:
+        key=(await bridge.open({'task_id':'ACP:job','instance':'worker-0','container':'','cols':80,'rows':24},'phone-a'))['session_id']
+        pending=asyncio.create_task(bridge.read(key,0,'phone-a'))
+        await asyncio.sleep(0)
+        assert not pending.done()
+        await socket.messages.put(b'\1ready')
+        output=await asyncio.wait_for(pending,.1)
+        assert output['chunks']==['cmVhZHk='] and output['cursor']==1
+    finally:await bridge.close()

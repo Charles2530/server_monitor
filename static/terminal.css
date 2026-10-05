@@ -122,23 +122,23 @@ body:has(#terminal-picker[hidden]) #terminal-status[data-state=loading]::before 
 
 /* Keep the connected desktop shell spacious without removing session controls. */
 @media (min-width: 761px) {
-  body:has(#terminal-workspace:not([hidden])) { padding: 0; gap: 0; }
-  body:has(#terminal-workspace:not([hidden])) .terminal-header { gap: 10px; padding: 5px 10px; border: 0; border-bottom: 1px solid #dce6df; border-radius: 0; box-shadow: none; }
-  body:has(#terminal-workspace:not([hidden])) .terminal-logo { width: 26px; height: 26px; }
-  body:has(#terminal-workspace:not([hidden])) .terminal-context { display: flex; align-items: baseline; gap: 10px; }
-  body:has(#terminal-workspace:not([hidden])) .terminal-context h1 { flex-shrink: 0; font-size: 14px; line-height: 1.5; }
-  body:has(#terminal-workspace:not([hidden])) #terminal-task { margin: 0; font-size: 12px; line-height: 1.5; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
-  body:has(#terminal-workspace:not([hidden])) .site-badge { padding: 2px 7px; font-size: 12px; flex-shrink: 0; }
-  body:has(#terminal-workspace:not([hidden])) .terminal-header .button { min-height: 30px; width: 30px; }
-  body:has(#terminal-workspace:not([hidden])) .terminal-setup { padding: 3px 10px; border-bottom: 1px solid #dce6df; }
-  body:has(#terminal-workspace:not([hidden])) .connection-bar { align-items: center; }
-  body:has(#terminal-workspace:not([hidden])) #terminal-status { padding: 0; font-size: 12px; line-height: 1.5; }
-  body:has(#terminal-workspace:not([hidden])) #terminal-retry { min-height: 26px; padding: 3px 8px; font-size: 12px; }
-  body:has(#terminal-workspace:not([hidden])) #terminal-workspace { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; border: 0; border-radius: 0; box-shadow: none; }
-  body:has(#terminal-workspace:not([hidden])) .terminal-toolbar { grid-column: 1 / -1; padding: 5px 10px; gap: 8px; }
-  body:has(#terminal-workspace:not([hidden])) .terminal-tools button { min-height: 28px; padding: 3px 8px; }
-  body:has(#terminal-workspace:not([hidden])) #terminal-screen { grid-column: 1 / -1; grid-row: 2; padding: 6px 10px; }
-  body:has(#terminal-workspace:not([hidden])) .terminal-keyboard { grid-column: 1; grid-row: 3; padding: 4px 10px; align-items: center; }
-  body:has(#terminal-workspace:not([hidden])) .terminal-keyboard button { min-height: 26px; padding: 3px 8px; }
-  body:has(#terminal-workspace:not([hidden])) .terminal-hint { grid-column: 2; grid-row: 3; display: flex; align-items: center; padding: 4px 10px; border-top: 1px solid #2a3c37; overflow-wrap: anywhere; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) { padding: 0; gap: 0; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-header { gap: 10px; padding: 5px 10px; border: 0; border-bottom: 1px solid #dce6df; border-radius: 0; box-shadow: none; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-logo { width: 26px; height: 26px; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-context { display: flex; align-items: baseline; gap: 10px; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-context h1 { flex-shrink: 0; font-size: 14px; line-height: 1.5; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) #terminal-task { margin: 0; font-size: 12px; line-height: 1.5; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .site-badge { padding: 2px 7px; font-size: 12px; flex-shrink: 0; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-header .button { min-height: 30px; width: 30px; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-setup { padding: 3px 10px; border-bottom: 1px solid #dce6df; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .connection-bar { align-items: center; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) #terminal-status { padding: 0; font-size: 12px; line-height: 1.5; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) #terminal-retry { min-height: 26px; padding: 3px 8px; font-size: 12px; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) #terminal-workspace { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; border: 0; border-radius: 0; box-shadow: none; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-toolbar { grid-column: 1 / -1; padding: 5px 10px; gap: 8px; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-tools button { min-height: 28px; padding: 3px 8px; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) #terminal-screen { grid-column: 1 / -1; grid-row: 2; padding: 6px 10px; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-keyboard { grid-column: 1; grid-row: 3; padding: 4px 10px; align-items: center; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-keyboard button { min-height: 26px; padding: 3px 8px; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-hint { grid-column: 2; grid-row: 3; display: flex; align-items: center; padding: 4px 10px; border-top: 1px solid #2a3c37; overflow-wrap: anywhere; }
 }

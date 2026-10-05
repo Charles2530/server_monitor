@@ -5,8 +5,10 @@
   const consoleBase = site.id === "sensecore" ? "https://console.sensecore.cn/cn-sh-01" : "https://console.ms-sc-01.maoshanwangtech.com";
   let targets = [], loading = false, term, fit, session = null, socket = null, alive = false, sequence = 0, cursor = 0;
   let inputQueue = [], sendingInput = false, inputTimer = null, outputQueue = Promise.resolve(), pending = null, ping = null, polling = null, generation = 0;
-  let recovery = null, probeTimer = null;
+  let recovery = null, probeTimer = null, httpTransport = false;
+  const mobile = new TerminalMobile({ getTerm: () => term, isAlive: () => alive, refit: () => scheduleFit() });
   $("terminal-back").href = `/?site=${encodeURIComponent(site.id)}#tasks`;
+  $("terminal-mobile-back").href = $("terminal-back").href;
   $("terminal-title").textContent = `${kind} Web Terminal`;
   document.title = `${kind} Web Terminal · iLab Server Monitor`;
   $("terminal-instance-label").textContent = isACP ? "Worker" : "实例";
@@ -55,7 +57,7 @@
   }
   function selectInstance() { if (!isACP) $("terminal-container").replaceChildren(...targets.filter(t => t.instance === $("terminal-instance").value).map(t => option(t.container))); official(); }
   function fitScreen() {
-    document.documentElement.style.setProperty("--terminal-viewport-height", `${window.visualViewport?.height || innerHeight}px`);
+    mobile.updateViewport();
     if (term && !$("terminal-workspace").hidden) {
       const size = fit.proposeDimensions();
       // Keep the rendered grid and cloud PTY within the same supported bounds,
@@ -74,11 +76,13 @@
   }
   function initialize() {
     if (term) { term.reset(); return; }
-    term = new Terminal({ cursorBlink: true, fontSize: matchMedia("(max-width:620px)").matches ? 12 : 14, lineHeight: 1.22, scrollback: 5000,
+    term = new Terminal({ cursorBlink: true, fontSize: mobile.query.matches ? 12 : 14, lineHeight: 1.22, scrollback: 5000,
       fontFamily: '"SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace', allowProposedApi: false, disableStdin: true,
       theme: { background: "#101b19", foreground: "#dfebe4", cursor: "#97e9b6", selectionBackground: "#47695b99", black: "#182722", red: "#f28585", green: "#89d4a4", yellow: "#e4ce89", blue: "#89b7ec", magenta: "#c5a4e4", cyan: "#82d1cf", white: "#dfebe4", brightBlack: "#7c9588", brightRed: "#ffa3a3", brightGreen: "#aaf0bf", brightYellow: "#f8e5ae", brightBlue: "#b2d4ff", brightMagenta: "#e0c0ff", brightCyan: "#a8f0ed", brightWhite: "#ffffff" } });
     fit = new FitAddon.FitAddon(); term.loadAddon(fit); term.open($("terminal-mount"));
+    mobile.bind(term);
     term.onData(data => {
+      data = mobile.input(data);
       // Preserve unicode codepoints while bounding each input frame, including long pastes.
       if (new TextEncoder().encode(data).length > 65536) { $("terminal-hint").textContent = "一次粘贴最多 64 KiB，请分段粘贴。"; return; }
       let chunk = "";
@@ -88,6 +92,7 @@
     term.onResize(size => { if (alive) enqueue("", size); });
     new ResizeObserver(scheduleFit).observe($("terminal-screen"));
     window.visualViewport?.addEventListener("resize", scheduleFit);
+    window.visualViewport?.addEventListener("scroll", scheduleFit);
     window.addEventListener("resize", scheduleFit);
     document.fonts.ready.then(scheduleFit);
   }
@@ -122,7 +127,10 @@
             pending = { sequence, resolve: () => { clearTimeout(timer); pending = null; resolve(); }, reject: () => { clearTimeout(timer); pending = null; reject(new Error("连接中断，输入不会自动重发。")); } };
             socket.send(JSON.stringify(input));
           });
-        } else await api("/api/terminal/write", { session_id: session, ...input });
+        } else {
+          const ack = await api("/api/terminal/write", { session_id: session, ...input });
+          if (ack.sequence !== input.sequence) throw new Error("输入确认不匹配，已暂停发送；不会自动重发。 ");
+        }
       }
     } catch (error) { if (gen === generation) recover(error.message); }
     finally { if (gen === generation) sendingInput = false; }
@@ -180,7 +188,7 @@
     const ws = socket; socket = null; ws?.close();
     pending?.reject(); pending = null;
     if (term) term.options.disableStdin = true;
-    $("terminal-led").classList.remove("connected");
+    $("terminal-led").classList.remove("connected"); mobile.updateControls();
   }
   function recover(message = "正在恢复原 Shell 连接…") {
     if (!session || recovery) return recovery;
@@ -196,17 +204,17 @@
       for (let attempt = 0; attempt < 3 && gen === generation && session; attempt++) {
         if (attempt) await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
         try {
-          const realtime = await useSocket(gen);
+          const realtime = !httpTransport && await useSocket(gen);
           if (gen !== generation || !session) return;
           if (realtime && socket?.readyState !== WebSocket.OPEN) throw new Error("连接尚未恢复。");
           if (!realtime) {
-            const data = await api("/api/terminal/read", { session_id: session, cursor });
+            const data = await api("/api/terminal/read", { session_id: session, cursor, wait: false });
             if (gen !== generation) return;
             sequence = data.sequence;
             await renderOutput(data, gen);
             if (gen !== generation || !session) return;
           }
-          alive = true; fitScreen(); enqueue("", { cols: term.cols, rows: term.rows });
+          alive = true; httpTransport = !realtime; mobile.updateControls(); fitScreen(); enqueue("", { cols: term.cols, rows: term.rows });
           if (!realtime) poll(gen);
           term.options.disableStdin = false;
           $("terminal-led").classList.add("connected");
@@ -243,6 +251,7 @@
   async function openTerminal() {
     if (session) { recover(); return; }
     const target = selected(); if (!target || loading || alive) return;
+    httpTransport = false;
     loading = true; official(); status("正在建立终端连接；会话过期时会自动续登…");
     $("terminal-workspace").hidden = false; document.body.classList.add("terminal-active");
     initialize(); fitScreen();
@@ -252,9 +261,9 @@
       if (gen !== generation) { api("/api/terminal/close", { session_id: result.session_id }).catch(() => {}); return; }
       session = result.session_id;
       if (typeof session !== "string" || result.site !== site.id || result.task_id !== taskId) throw new Error("终端会话与所选任务不一致。");
-      const realtime = await useSocket(gen);
+      const realtime = !httpTransport && await useSocket(gen);
       if (gen !== generation) return;
-      alive = true;
+      alive = true; httpTransport = !realtime; mobile.updateControls();
       // The viewport can change during authentication/handshake. Send the latest
       // size even when fit emits no event, before accepting keyboard input.
       $("terminal-connection").open = false;
@@ -262,7 +271,7 @@
       enqueue("", { cols: term.cols, rows: term.rows });
       $("terminal-transport").textContent = realtime ? "实时连接" : "兼容连接";
       if (!realtime) poll(gen);
-      term.options.disableStdin = false; term.focus();
+      term.options.disableStdin = false; if (!mobile.compact) term.focus();
       $("terminal-target-name").textContent = target.instance + (target.container ? ` / ${target.container}` : "");
       $("terminal-target-name").title = $("terminal-target-name").textContent;
       $("terminal-led").classList.add("connected");
@@ -312,8 +321,15 @@
     $("terminal-fullscreen").textContent = document.fullscreenElement ? "退出全屏" : "全屏";
     scheduleFit();
   });
-  const keys = { interrupt: "\x03", tab: "\t", escape: "\x1b", up: "\x1b[A", down: "\x1b[B", left: "\x1b[D", right: "\x1b[C", enter: "\r" };
-  document.querySelectorAll("[data-terminal-key]").forEach(button => button.addEventListener("click", () => { enqueue(keys[button.dataset.terminalKey]); term?.focus(); }));
+  const keys = { backspace: "\x7f", interrupt: "\x03", tab: "\t", escape: "\x1b", up: "\x1b[A", down: "\x1b[B", left: "\x1b[D", right: "\x1b[C", enter: "\r" };
+  document.querySelectorAll("[data-terminal-key]").forEach(button => button.addEventListener("click", () => {
+    const key = button.dataset.terminalKey;
+    if (key === "ctrl" || !mobile.allowShortcut()) return;
+    const arrows = { up: "A", down: "B", left: "D", right: "C" };
+    const data = arrows[key] ? `\x1b${term.modes.applicationCursorKeysMode ? "O" : "["}${arrows[key]}` : keys[key];
+    if (data) enqueue(data);
+    if (!mobile.compact) term.focus();
+  }));
   window.addEventListener("pageshow", event => { if (event.persisted) recover(); });
   window.addEventListener("pagehide", event => {
     if (event.persisted) { pauseTransport(); return; }

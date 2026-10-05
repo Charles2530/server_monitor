@@ -180,7 +180,9 @@ async def main():
                         await expect(page.locator(f'[data-terminal-key={key}]')).to_be_visible()
                     assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 # Manual recovery keeps the shell while latest dimensions win.
+                await page.locator('#terminal-more').click()
                 await page.locator('#terminal-retry').click()
+                await page.locator('#terminal-menu-close').click()
                 await page.set_viewport_size({'width':1250,'height':800})
                 await expect(page.locator('#terminal-led')).to_have_class('terminal-led connected')
                 await until(same_size)
@@ -209,6 +211,7 @@ async def main():
                 await mobile.locator('.xterm-helper-textarea').press('Enter')
                 await expect(mobile.locator('.xterm-rows')).to_contain_text('HTTP_retained')
                 assert len(shells)==shell_count and not mobile_shell.closed
+                await mobile.locator('#terminal-more').click()
                 await mobile.locator('#terminal-disconnect').click()
                 assert not errors,errors
                 await browser.close()
