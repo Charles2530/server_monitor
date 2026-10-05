@@ -13,6 +13,7 @@ window.TerminalMobile = class {
     this.query.addEventListener("change", refit);
     document.getElementById("terminal-more").addEventListener("click", () => {
       if (this.composing) { this.compositionNotice(); return; }
+      document.getElementById("terminal-menu-target").textContent = document.getElementById("terminal-target-name").textContent;
       this.menu.showModal();
     });
     document.getElementById("terminal-menu-close").addEventListener("click", () => this.menu.close());
@@ -48,6 +49,9 @@ window.TerminalMobile = class {
   }
   updateControls() {
     const enabled = this.isAlive();
+    const indicator = document.getElementById("terminal-mobile-status");
+    indicator.setAttribute("aria-label", enabled ? "已连接" : "未连接");
+    indicator.title = enabled ? "已连接" : "未连接";
     document.querySelectorAll("[data-terminal-key]").forEach(button => { button.disabled = !enabled; });
     document.getElementById("terminal-mobile-keyboard").disabled = !enabled;
     if (!enabled) { this.ctrl = false; this.ctrlButton.setAttribute("aria-pressed", "false"); }
@@ -87,7 +91,9 @@ window.TerminalMobile = class {
     const viewport = window.visualViewport;
     // Pinch zoom should magnify the existing terminal, not resize the remote PTY.
     if (!viewport || Math.abs(viewport.scale - 1) < .05) {
-      document.documentElement.style.setProperty("--terminal-viewport-height", `${viewport?.height || innerHeight}px`);
+      const height = viewport?.height || innerHeight;
+      document.body.classList.toggle("terminal-space-saving", compact && height <= 500);
+      document.documentElement.style.setProperty("--terminal-viewport-height", `${height}px`);
       document.documentElement.style.setProperty("--terminal-viewport-top", `${viewport?.offsetTop || 0}px`);
     }
   }

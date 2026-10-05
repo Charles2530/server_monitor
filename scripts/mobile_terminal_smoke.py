@@ -70,13 +70,21 @@ async def main():
             await expect(page.locator('#terminal-transport')).to_have_text('兼容连接')
             await expect(page.locator('.xterm-rows')).to_contain_text('Touch terminal ready')
             # Layout assertions use actual xterm dimensions, not just hidden overflow.
-            for width, height, min_rows in ((393,780,25),(393,350,12),(844,390,15),(844,180,5)):
+            for width, height, min_rows in ((393,780,25),(393,350,18),(844,390,20),(844,180,8)):
                 await page.set_viewport_size({'width':width,'height':height})
                 await page.wait_for_timeout(120)
                 dimensions = await page.evaluate('({rows:testTerm.rows,height:document.querySelector("#terminal-screen").getBoundingClientRect().height,width:document.documentElement.scrollWidth})')
                 print('mobile layout',width,height,dimensions,flush=True)
                 assert dimensions['rows'] >= min_rows, (width,height,dimensions)
                 assert dimensions['width'] <= width
+                if height <= 500:
+                    boxes = await page.evaluate("""() => {
+                        const box = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return {top:r.top,bottom:r.bottom,left:r.left,right:r.right}; };
+                        return {screen:box('#terminal-screen'),keys:box('.terminal-keyboard'),controls:box('.terminal-mobile-controls')};
+                    }""")
+                    assert boxes['screen']['top'] <= 1, boxes
+                    assert boxes['screen']['bottom'] <= boxes['keys']['top'] + 1, boxes
+                    assert boxes['keys']['right'] <= boxes['controls']['left'], boxes
                 for button in ('#terminal-mobile-keyboard','#terminal-more'):
                     await expect(page.locator(button)).to_be_in_viewport()
                 if height == 180: await page.screenshot(path=str(ROOT/'data/terminal-mobile-landscape.png'))
@@ -88,10 +96,12 @@ async def main():
             }""")
             await page.wait_for_timeout(120)
             visible = await page.evaluate("({rows:testTerm.rows, top:document.body.getBoundingClientRect().top, bottom:document.body.getBoundingClientRect().bottom, inner:innerHeight})")
-            assert visible['inner'] == 780 and visible['rows'] >= 5 and visible['top'] == 10 and visible['bottom'] <= 190, visible
+            assert visible['inner'] == 780 and visible['rows'] >= 8 and visible['top'] == 10 and visible['bottom'] <= 190, visible
             await page.evaluate("delete visualViewport.height;delete visualViewport.offsetTop;visualViewport.dispatchEvent(new Event('resize'))")
             await page.locator('#terminal-more').tap()
             await expect(page.locator('#terminal-menu')).to_be_visible()
+            await expect(page.locator('#terminal-menu-target')).to_have_text('pod / main')
+            await expect(page.locator('#terminal-menu-back')).to_have_attribute('href', await page.locator('#terminal-mobile-back').get_attribute('href'))
             for selector in ('#terminal-paste','#terminal-copy','#terminal-disconnect','#terminal-retry','#terminal-official'):
                 await expect(page.locator(selector)).to_be_visible()
             await page.locator('#terminal-menu-close').tap()
@@ -161,8 +171,10 @@ async def main():
                 document.querySelector('.terminal-keyboard').scrollLeft = 0;
                 testTerm.write('\\x1b[38;2;160;219;194mcharles@worker-0\\x1b[0m \\x1b[38;2;145;160;181m~/workspace\\x1b[0m\\r\\n$ ls -lh\\r\\n\\x1b[38;2;137;183;236mcheckpoints/  configs/  datasets/\\x1b[0m\\r\\ntrain.py      README.md\\r\\n\\r\\n$ python --version\\r\\nPython 3.11.9\\r\\n\\r\\n$ ', resolve);
             })""")
+            await page.screenshot(path=str(ROOT/'data/terminal-space-keyboard.png'))
             await page.set_viewport_size({'width':393,'height':780})
             await page.wait_for_timeout(150)
+            assert await page.locator('#terminal-target-name').is_visible(), 'Tall viewport must restore the session header'
             await page.screenshot(path=str(ROOT/'data/terminal-polish-portrait.png'))
             await page.locator('#terminal-more').tap()
             await page.screenshot(path=str(ROOT/'data/terminal-polish-tools.png'))

@@ -8,7 +8,7 @@
   let recovery = null, probeTimer = null, httpTransport = false;
   const mobile = new TerminalMobile({ getTerm: () => term, isAlive: () => alive, refit: () => scheduleFit() });
   $("terminal-back").href = `/?site=${encodeURIComponent(site.id)}#tasks`;
-  $("terminal-mobile-back").href = $("terminal-back").href;
+  $("terminal-mobile-back").href = $("terminal-menu-back").href = $("terminal-back").href;
   $("terminal-title").textContent = `${kind} Web Terminal`;
   document.title = `${kind} Web Terminal · iLab Server Monitor`;
   $("terminal-instance-label").textContent = isACP ? "Worker" : "实例";

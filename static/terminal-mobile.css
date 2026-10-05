@@ -81,3 +81,21 @@ body.terminal-compact .terminal-mobile-back, body.terminal-compact .terminal-mob
 body.terminal-compact #terminal-screen { padding-block: clamp(3px, calc(3px + (var(--terminal-viewport-height, 100dvh) - 500px) * .025), 8px); }
 body.terminal-compact .terminal-keyboard button { min-height: clamp(36px, calc(36px + (var(--terminal-viewport-height, 100dvh) - 500px) * .01), 38px); }
 body.terminal-compact .terminal-keyboard button:nth-child(n+5):nth-child(-n+9) { font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-size: 16px; }
+
+/* At keyboard/landscape heights, share one dock rather than two full-width bars. */
+#terminal-mobile-status { display: none; }
+#terminal-menu-target { margin: 4px 0 0; max-width: 280px; color: var(--terminal-muted); font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+body.terminal-compact.terminal-space-saving #terminal-workspace { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr) auto; }
+body.terminal-compact.terminal-space-saving #terminal-screen { grid-column: 1 / -1; grid-row: 1; padding: max(2px, env(safe-area-inset-top)) 6px 2px; }
+body.terminal-compact.terminal-space-saving .terminal-toolbar { grid-column: 2; grid-row: 2; gap: 0; padding: 0 4px max(0px, env(safe-area-inset-bottom)); border-top: 1px solid var(--terminal-line); border-bottom: 0; }
+body.terminal-compact.terminal-space-saving .terminal-session,
+body.terminal-compact.terminal-space-saving .terminal-mobile-back { display: none; }
+body.terminal-compact.terminal-space-saving .terminal-keyboard { grid-column: 1; grid-row: 2; min-width: 0; gap: 4px; padding: 0 4px max(0px, env(safe-area-inset-bottom)); }
+body.terminal-compact.terminal-space-saving .terminal-keyboard button { min-height: 36px; border-radius: 6px; padding-inline: 8px; }
+body.terminal-compact.terminal-space-saving .terminal-mobile-controls { align-items: center; gap: 2px; padding-left: 5px; }
+body.terminal-compact.terminal-space-saving .terminal-mobile-controls button { min-height: 36px; height: 36px; }
+body.terminal-compact.terminal-space-saving #terminal-mobile-status { display: block; width: 5px; height: 5px; margin-right: 3px; border-radius: 50%; background: #d9a180; }
+body.terminal-compact.terminal-space-saving #terminal-mobile-status[aria-label="已连接"] { background: var(--terminal-accent); }
+body.terminal-compact.terminal-space-saving #terminal-input-notice { bottom: calc(42px + env(safe-area-inset-bottom)); }
+
+#terminal-menu .terminal-menu-back { display: block; padding: 12px 18px; border-top: 1px solid var(--terminal-line); color: var(--terminal-muted); font-size: 12px; text-decoration: none; }
