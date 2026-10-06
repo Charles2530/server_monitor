@@ -335,7 +335,10 @@
     const names = selectedSeries.map((item) => item.label ? item.label.replace(/^GPU(?= ·|$)/, "GPU 利用率").replace(/^显存(?= ·|$)/, "显存占用") : METRICS.find((metric) => metric.key === item.metric).label);
     const shortNames = names.map((name) => name.replace(/^(.*?) · .+-(master|worker)-(\d+)$/, "$1 · $2-$3"));
     // Keep ambiguous labels intact. Shortening never changes a series' source identity.
-    const legendNames = new Map(names.map((name, index) => [name, shortNames.filter((short) => short === shortNames[index]).length === 1 ? shortNames[index] : name]));
+    const shortNameCounts = new Map();
+    for (const name of shortNames) shortNameCounts.set(name, (shortNameCounts.get(name) || 0) + 1);
+    const legendNames = new Map(names.map((name, index) => [name, shortNameCounts.get(shortNames[index]) === 1 ? shortNames[index] : name]));
+    const workerCounts = new Map();
     const columns = model.chart.getWidth() < 420 || window.matchMedia("(max-width: 620px)").matches ? 1 : 2;
     const rows = 4 / columns;
     const rowGap = model.hours > 1 ? 64 : 54;
@@ -373,7 +376,8 @@
       })),
       series: selectedSeries.map((item, index) => {
         const metricIndex = METRICS.findIndex((metric) => metric.key === item.metric);
-        const workerIndex = selectedSeries.slice(0, index).filter((other) => other.metric === item.metric).length;
+        const workerIndex = workerCounts.get(item.metric) || 0;
+        workerCounts.set(item.metric, workerIndex + 1);
         return {
           id: `${item.metric}-${index}`,
           name: names[index],
@@ -501,9 +505,15 @@
   document.addEventListener("monitor-detail-visibility", () => {
     if (historyVisible()) { renderDetail(); loadHistory(); } else cancelHistory();
   });
+  let resizePending = false;
   window.addEventListener("resize", () => {
-    model.chart?.resize();
-    if (model.chartSeries && model.chartTaskId === model.selected) renderChart(model.chartSeries);
+    if (resizePending) return;
+    resizePending = true;
+    requestAnimationFrame(() => {
+      resizePending = false;
+      model.chart?.resize();
+      if (model.chartSeries && model.chartTaskId === model.selected) renderChart(model.chartSeries);
+    });
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) cancelHistory();

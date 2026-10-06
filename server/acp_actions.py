@@ -209,7 +209,7 @@ class ACPManager:
     async def catalog(self,client,include_all=False,template=None,cluster_id=None):
         if template is None:template,_=await self.template_context(client)
         bindings=await self.reader.paginate(client,'AEC2','/compute/workspace/data/v1'+self.workspace+'/workspaceAEC2Bindings','aec2s')
-        selected=[];mount_zones={}
+        eligible=[];mount_zones={}
         priority=self.site.cluster_priority if self.site else PRIORITY
         if priority is None:
             template_cluster=(template.get('resource_pool') or {}).get('name')
@@ -229,7 +229,11 @@ class ACPManager:
             # Mounts must remain valid when choosing a different cluster.
             zone=rid.split('/zones/')[1].split('/')[0]
             if not await self.mounts_compatible(client,template,zone,mount_zones):continue
-            payload=await self.reader.request(client,'AEC2','/compute/aec2/data/v1'+rid+'/resourceSpecs')
+            eligible.append(b)
+        semaphore=asyncio.Semaphore(3)
+        async def read_specs(binding):
+            async with semaphore:
+                payload=await self.reader.request(client,'AEC2','/compute/aec2/data/v1'+binding['id']+'/resourceSpecs')
             if not isinstance(payload.get('resource_specs'),list):raise ActionError('资源规格暂不可用。','resources_unavailable',503)
             specs=[]
             for spec in payload['resource_specs']:
@@ -238,7 +242,16 @@ class ACPManager:
                 mem=finite_number(spec.get('memory',{}).get('allocatable'))
                 if g is not None and g>0 and g.is_integer() and cpu is not None and cpu>0 and mem is not None and mem>0 and spec.get('name'):
                     specs.append(spec)
-            if specs:selected.append((b,specs))
+            return binding,specs
+        reads=[asyncio.create_task(read_specs(binding)) for binding in eligible]
+        try:
+            results=await asyncio.gather(*reads)
+        finally:
+            # Finish every read before the caller closes its HTTP client.
+            for read in reads:
+                if not read.done():read.cancel()
+            await asyncio.gather(*reads,return_exceptions=True)
+        selected=[(binding,specs) for binding,specs in results if specs]
         if not selected:raise ActionError('优先集群中没有可继承当前挂载的资源。','resources_unavailable',409)
         return template,selected
 

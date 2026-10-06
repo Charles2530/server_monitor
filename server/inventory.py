@@ -113,18 +113,27 @@ def allocation_fit(allocation, spec, replicas):
 
 async def read_allocation(request, client, cluster, nodes, now):
     async def read():
-        observations=[]
-        # The console requests observations for one 20-node page at a time.
-        for start in range(0,len(nodes),20):
-            batch=nodes[start:start+20]
-            payload=await request(client,'AEC2','/compute/aec2/data/v1'+cluster['id']+'/observe',
-                                  params=[('acn_uid',n['uid']) for n in batch])
+        semaphore=asyncio.Semaphore(3)
+        async def read_batch(batch):
+            # Keep the console's 20-node request size and bound this operation.
+            async with semaphore:
+                payload=await request(client,'AEC2','/compute/aec2/data/v1'+cluster['id']+'/observe',
+                                      params=[('acn_uid',n['uid']) for n in batch])
             rows=(payload.get('observations') or {}).get('acns')
             if not isinstance(rows,list) or payload.get('next_page_token') or nonnegative_integer(payload.get('total_size'))!=len(batch):
                 raise ValueError('Incomplete node observations')
             if {o.get('uid') for o in rows}!={n['uid'] for n in batch} or len(rows)!=len(batch):
                 raise ValueError('Mismatched node observations')
-            observations.extend(rows)
+            return rows
+        reads=[asyncio.create_task(read_batch(nodes[start:start+20])) for start in range(0,len(nodes),20)]
+        try:
+            batches=await asyncio.gather(*reads)
+        finally:
+            # Errors and the overall deadline must not leave client users alive.
+            for task in reads:
+                if not task.done():task.cancel()
+            await asyncio.gather(*reads,return_exceptions=True)
+        observations=[row for batch in batches for row in batch]
         return summarize_allocation(nodes,observations,now)
     try:
         return await asyncio.wait_for(read(),timeout=ALLOCATION_TIMEOUT_SECONDS)

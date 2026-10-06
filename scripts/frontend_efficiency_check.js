@@ -247,3 +247,56 @@ test("waiting table renders only visible changes and still invalidates expired a
   assert.equal(table.replacements, 3);
   b.hide(false); assert.equal(table.replacements, 4, "visible queue must catch up immediately");
 });
+
+test("chart preparation scales linearly with worker series and preserves labels/styles", t => {
+  const b = browser({ route: "tasks" }); const app = b.load("app.js", "model, renderChart");
+  app.model.selected = "ACP:one"; app.model.chart = b.window.echarts.init();
+  let reads = 0;
+  const metrics = ["cpu", "gpu", "memory", "gpu_memory"];
+  const series = Array.from({ length: 400 }, (_, index) => ({
+    get metric() { reads++; return metrics[index % 4]; },
+    label: `${metrics[index % 4]} · job-worker-${Math.floor(index / 4)}`,
+    points: [[60, 10], [120, null], [180, 30]],
+  }));
+  app.renderChart(series);
+  t.diagnostic(`${series.length} series required ${reads} metric reads`);
+  assert.ok(reads <= series.length * 16, "chart setup must avoid scanning earlier series for every worker");
+  const option = app.model.chart.options.at(-1);
+  assert.equal(option.series.length, 400);
+  assert.equal(option.series[0].lineStyle.type, "solid");
+  assert.equal(option.series[4].lineStyle.type, "dashed");
+  assert.equal(option.series[8].lineStyle.type, "dotted");
+  assert.equal(option.series[12].lineStyle.type, "solid");
+  assert.deepEqual(Array.from(option.series[0].data, point => Array.from(point)), [[60000,10],[120000,null],[180000,30]]);
+  assert.equal(option.series[0].connectNulls, false);
+  app.renderChart([
+    { metric: "gpu", label: "GPU · first-worker-0", points: [[60, 1]] },
+    { metric: "gpu", label: "GPU · second-worker-0", points: [[60, 2]] },
+    { metric: "cpu", label: "CPU · unique-worker-1", points: [[60, 3]] },
+  ]);
+  const labels = app.model.chart.options.at(-1).legend.formatter;
+  assert.equal(labels("GPU 利用率 · first-worker-0"), "GPU 利用率 · first-worker-0");
+  assert.equal(labels("GPU 利用率 · second-worker-0"), "GPU 利用率 · second-worker-0");
+  assert.equal(labels("CPU · unique-worker-1"), "CPU · worker-1");
+});
+
+test("a resize burst redraws the chart once per animation frame using the current selection", () => {
+  const b = browser({ route: "tasks" }); const app = b.load("app.js", "model, renderChart");
+  const frames = []; b.context.requestAnimationFrame = fn => { frames.push(fn); return frames.length; };
+  app.model.selected = "ACP:one"; app.model.chart = b.window.echarts.init();
+  app.renderChart(curve(10).series);
+  let resizes = 0; app.model.chart.resize = () => resizes++;
+  for (let i = 0; i < 100; i++) b.window.dispatchEvent({ type: "resize" });
+  assert.equal(app.model.chart.options.length, 1, "resize events must not each rebuild the series synchronously");
+  assert.equal(frames.length, 1);
+  frames.shift()();
+  assert.equal(resizes, 1); assert.equal(app.model.chart.options.length, 2);
+  b.window.dispatchEvent({ type: "resize" });
+  app.model.selected = "ACP:two";
+  frames.shift()();
+  assert.equal(resizes, 2); assert.equal(app.model.chart.options.length, 2, "old task curves must not redraw after selection changes");
+  b.window.dispatchEvent({ type: "resize" });
+  app.model.chart = null;
+  frames.shift()();
+  assert.equal(resizes, 2);
+});

@@ -69,9 +69,10 @@
       if (data.task_id !== taskId || data.worker !== worker || data.container !== container || typeof data.text !== "string") throw new Error("日志目标返回不一致，未显示此次响应。");
       // A bounded snapshot only; never interpret remote log text as HTML.
       const bounded = data.text.length > 1024 * 1024;
-      output.textContent = data.text.slice(-1024 * 1024);
+      const text = data.text.slice(-1024 * 1024), changed = output.textContent !== text;
+      if (changed) output.textContent = text;
       state.updated = data.updated_at; state.entries = data.entries; state.dataTarget = target;
-      if (byId("logs-follow").checked) output.scrollTop = output.scrollHeight;
+      if (changed && byId("logs-follow").checked) output.scrollTop = output.scrollHeight;
       message(typeof data.warning === "string" ? data.warning : "");
       status(`${data.text ? `最新 ${Math.min(Number(data.entries) || 0, 1000)} 条` : "暂无日志"} · 更新 ${timestamp()}${data.truncated || bounded ? " · 已截断" : ""} · 最多 1000 条快照`);
     } catch (error) {
@@ -85,6 +86,7 @@
     }
   }
   function selectTab(tab) {
+    if (state.tab === tab) return;
     invalidate(); state.tab = tab;
     byId("detail-panel").classList.toggle("showing-logs", tab === "logs");
     for (const name of ["monitor", "logs"]) {
