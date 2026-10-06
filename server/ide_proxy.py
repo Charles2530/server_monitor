@@ -64,16 +64,19 @@ class LocalProxyServer(uvicorn.Server):
 
 
 class EditorProxy:
-    def __init__(self, upstream_port, cookie, parent_origin, *, transport=None, cache_dir=None, repair=None):
+    def __init__(self, upstream_port, cookie, parent_origin, *, transport=None, cache_dir=None, repair=None, origin_registry=None, origin_identity=None):
         self.upstream = 'http://127.0.0.1:' + str(upstream_port)
         self.cookie = cookie
         self.parent_origin = parent_origin
         self.host = urlsplit(parent_origin).hostname
         self.port = None
+        self.origin_registry, self.origin_identity = origin_registry, origin_identity
+        self.listener = None
         self.cookie_name = 'ilab_editor_' + secrets.token_hex(12)
         self.browser_keys = {}
         self.tickets = {}
         self.touched = time.monotonic()
+        self.upstream_activity = (None, float('-inf'))
         self.active_sockets = 0
         self.assets = EditorAssetCache(cache_dir) if cache_dir is not None else None
         self.repair = repair
@@ -232,6 +235,15 @@ class EditorProxy:
         job = self.start_repair(failed_upstream)
         return await asyncio.shield(job) if job is not None else False
 
+    def note_upstream_activity(self, upstream):
+        if upstream == self.upstream:
+            self.upstream_activity = (upstream, time.monotonic())
+
+    def has_upstream_activity(self, upstream):
+        observed_upstream, observed_at = self.upstream_activity
+        return (upstream == self.upstream == observed_upstream
+                and time.monotonic() - observed_at < TRANSPORT_PING_TIMEOUT)
+
     async def watch_transport(self, remote, upstream):
         # Suspect a silent tunnel before VS Code's own reconnect timer fires.
         # A missed pong alone never closes a stream: repair first confirms HTTP
@@ -240,6 +252,7 @@ class EditorProxy:
         async def ping():
             pong = await remote.ping()
             await pong
+            self.note_upstream_activity(upstream)
         try:
             while upstream == self.upstream:
                 await asyncio.sleep(TRANSPORT_PING_INTERVAL)
@@ -251,7 +264,9 @@ class EditorProxy:
                 except asyncio.TimeoutError:
                     # Retain at most one pending ping; a slow healthy connection
                     # can acknowledge it later without reconnecting the browser.
-                    await self.repair_connection(upstream)
+                    if upstream != self.upstream: return
+                    if not self.has_upstream_activity(upstream):
+                        await self.repair_connection(upstream)
         finally:
             if probe is not None:
                 probe.cancel()
@@ -290,6 +305,7 @@ class EditorProxy:
                         await remote.send(msg.get('bytes') if msg.get('bytes') is not None else msg['text'])
                 async def outgoing():
                     async for msg in remote:
+                        self.note_upstream_activity(failed_upstream)
                         self.touched = time.monotonic()
                         if isinstance(msg, bytes): await ws.send_bytes(msg)
                         else: await ws.send_text(msg)
@@ -312,35 +328,54 @@ class EditorProxy:
             except Exception: pass
 
     async def healthy(self):
+        upstream = self.upstream
+        healthy = None
         try:
-            response = await self.client.get(self.upstream + '/', headers={'cookie': self.cookie}, timeout=8)
-            return response.status_code in (200, 302, 303) and urlsplit(response.headers.get('location', '')).path.rstrip('/') != '/login'
+            async with self.client.stream('GET', upstream + '/', headers={'cookie': self.cookie}, timeout=8) as response:
+                healthy = response.status_code in (200, 302, 303) and urlsplit(response.headers.get('location', '')).path.rstrip('/') != '/login'
+                return healthy
         except (httpx.HTTPError, OSError):
-            return False
+            # A close failure must not override a status already received.
+            if healthy is not None: return healthy
+            return self.has_upstream_activity(upstream)
 
     async def start(self):
-        sock = socket.socket()
-        sock.bind(('127.0.0.1', 0))
-        self.port = sock.getsockname()[1]
-        self.server = LocalProxyServer(uvicorn.Config(self.app, log_level='critical', access_log=False, lifespan='off', ws_max_size=16 * 1024 * 1024, ws_ping_interval=20, ws_ping_timeout=120))
-        self.server_task = asyncio.create_task(self.server.serve(sockets=[sock]))
-        for _ in range(100):
-            if self.server.started: return
-            if self.server_task.done(): self.server_task.result()
-            await asyncio.sleep(.02)
-        await self.close()
-        raise RuntimeError('editor proxy failed to start')
+        try:
+            if self.origin_identity is not None:
+                if self.origin_registry is None: raise ValueError('editor origin registry missing')
+                self.listener = await self.origin_registry.bind(self.origin_identity)
+            else:
+                self.listener = socket.socket()
+                self.listener.bind(('127.0.0.1', 0))
+            self.port = self.listener.getsockname()[1]
+            self.server = LocalProxyServer(uvicorn.Config(self.app, log_level='critical', access_log=False, lifespan='off', ws_max_size=16 * 1024 * 1024, ws_ping_interval=20, ws_ping_timeout=120))
+            self.server_task = asyncio.create_task(self.server.serve(sockets=[self.listener]))
+            for _ in range(100):
+                if self.server.started: return
+                if self.server_task.done():
+                    self.server_task.result()
+                    break
+                await asyncio.sleep(.02)
+            raise RuntimeError('editor proxy failed to start')
+        except BaseException:
+            await self.close()
+            raise
 
     async def close(self):
-        if self.repair_task:
-            self.repair_task.cancel()
-            await asyncio.gather(self.repair_task, return_exceptions=True)
-        if self.server:
-            self.server.should_exit = True
-        if self.server_task:
-            try: await asyncio.wait_for(asyncio.shield(self.server_task), 3)
-            except asyncio.TimeoutError:
-                self.server.force_exit = True
-                self.server_task.cancel()
+        try:
+            if self.repair_task:
+                self.repair_task.cancel()
+                await asyncio.gather(self.repair_task, return_exceptions=True)
+            if self.server:
+                self.server.should_exit = True
+            if self.server_task:
+                done, _ = await asyncio.wait({self.server_task}, timeout=3)
+                if not done:
+                    self.server.force_exit = True
+                    self.server_task.cancel()
                 await asyncio.gather(self.server_task, return_exceptions=True)
-        await self.client.aclose()
+        finally:
+            if self.listener is not None:
+                self.listener.close()
+                self.listener = None
+            await self.client.aclose()

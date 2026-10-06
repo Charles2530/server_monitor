@@ -18,6 +18,8 @@ from .auth import AuthRequired
 from .ide_bootstrap import bootstrap_script
 from .ide_appearance import APPEARANCE_VERSION
 from .ide_proxy import EditorProxy
+from .ide_origins import EditorOriginRegistry
+from .sites import MAOSHANWANG
 from .cci_terminal import VerifiedCCITargets
 
 
@@ -189,8 +191,9 @@ class SSHForward:
 
 
 class CCIEditor:
-    def __init__(self, site, bridge, resolver):
+    def __init__(self, site, bridge, resolver, *, origin_registry=None):
         self.site, self.bridge, self.resolver = site, bridge, resolver
+        self.origin_registry = origin_registry if origin_registry is not None else EditorOriginRegistry(MAOSHANWANG.data / 'ide-origins.json')
         self.requests = {}
         self.sessions = {}
         self.optional_jobs = {}
@@ -316,7 +319,7 @@ class CCIEditor:
         alias = session['forward'].alias if session else os.environ.get(env_key, 'sensecore' if self.site.id == 'sensecore' else 'maoshanwangtech')
         return SSHForward(alias, address, port)
 
-    async def connect(self, address, port, password, origin, notify, session=None, *, prepared_forward=None):
+    async def connect(self, address, port, password, origin, notify, session=None, *, prepared_forward=None, target=None):
         forward = prepared_forward or self.make_forward(address, port, session)
         forward.remote_port = port
         proxy = None
@@ -341,7 +344,9 @@ class CCIEditor:
                 session['proxy'].cookie = cookie
                 session.update(forward=forward, password=password, address=address)
                 return session
-            proxy = EditorProxy(forward.port, cookie, origin, cache_dir=self.site.data / 'ide-assets')
+            origin_identity = (self.site.id, target['task_id'], target['instance'], target['container'], origin, address) if target else None
+            proxy = EditorProxy(forward.port, cookie, origin, cache_dir=self.site.data / 'ide-assets',
+                                origin_registry=self.origin_registry, origin_identity=origin_identity)
             await proxy.start()
             return {'forward': forward, 'proxy': proxy, 'address': address, 'password': password}
         except BaseException:
@@ -446,10 +451,10 @@ class CCIEditor:
                             await warmed.close(); warmed = None
                         warming = None
                     if warmed:
-                        session = await self.connect(address, port, password, origin, notify, session, prepared_forward=warmed)
+                        session = await self.connect(address, port, password, origin, notify, session, prepared_forward=warmed, target=data)
                         warmed = None  # The returned session owns its master.
                     else:
-                        session = await self.connect(address, port, password, origin, notify, session)
+                        session = await self.connect(address, port, password, origin, notify, session, target=data)
                 finally:
                     if warming:
                         warming.cancel()

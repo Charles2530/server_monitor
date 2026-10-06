@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -7,6 +8,193 @@ import pytest
 from starlette.websockets import WebSocket
 
 from server.ide_proxy import EditorProxy
+
+
+class ProbeClock:
+    """Drive real relay/probe tasks without depending on wall-clock scheduling."""
+    def __init__(self):
+        self.now = 100.0
+        self.waiting = asyncio.Queue()
+        self.expire = asyncio.Queue()
+
+    def __getattr__(self, name): return getattr(asyncio, name)
+
+    async def sleep(self, delay):
+        await asyncio.sleep(0 if delay == 10 else delay)
+
+    async def wait_for(self, future, timeout):
+        if timeout != 8: return await asyncio.wait_for(future, timeout)
+        self.waiting.put_nowait(None)
+        try: await self.expire.get()
+        finally: future.cancel()  # Cancel only the shield, as wait_for does.
+        raise asyncio.TimeoutError
+
+
+@asynccontextmanager
+async def live_relay(monkeypatch, *, repair=None, transport=None):
+    import server.ide_proxy as module
+    received = asyncio.Queue(); forwarded = asyncio.Queue(); upstream = asyncio.Queue()
+    pong = asyncio.Future(); probes = []; sent_to_remote = []
+    await received.put({'type': 'websocket.connect'})
+    class Remote:
+        subprotocol = None
+        async def ping(self): probes.append(1); return pong
+        def __aiter__(self): return self
+        async def __anext__(self): return await upstream.get()
+        async def send(self, data): sent_to_remote.append(data)
+    class Dial:
+        async def __aenter__(self): return Remote()
+        async def __aexit__(self, *args): pass
+    monkeypatch.setattr(module, 'connect', lambda *args, **kwargs: Dial())
+    proxy = EditorProxy(12345, 'private', 'http://localhost:8766', repair=repair, transport=transport)
+    proxy.port = 23456; proxy.browser_keys['browser'] = 1
+    async def send(message): await forwarded.put(message)
+    ws = WebSocket({'type': 'websocket', 'scheme': 'ws', 'path': '/socket', 'raw_path': b'/socket',
+                    'query_string': b'', 'headers': [(b'host', b'localhost:23456'),
+                    (b'origin', b'http://localhost:23456'), (b'cookie', (proxy.cookie_name + '=browser').encode())]}, received.get, send)
+    relay = asyncio.create_task(proxy.websocket(ws))
+    try:
+        assert (await asyncio.wait_for(forwarded.get(), .3))['type'] == 'websocket.accept'
+        yield SimpleNamespace(proxy=proxy, upstream=upstream, forwarded=forwarded, received=received,
+                              pong=pong, probes=probes, relay=relay, sent_to_remote=sent_to_remote)
+    finally:
+        relay.cancel(); await asyncio.gather(relay, return_exceptions=True)
+        await proxy.close()
+
+
+@pytest.mark.asyncio
+async def test_upstream_messages_keep_pending_probe_alive_but_silence_still_repairs(monkeypatch):
+    import server.ide_proxy as module
+    clock = ProbeClock(); repairs = []
+    monkeypatch.setattr(module, 'asyncio', clock)
+    monkeypatch.setattr(module, 'time', SimpleNamespace(monotonic=lambda: clock.now))
+    async def repair(upstream): repairs.append(upstream)
+    async with live_relay(monkeypatch, repair=repair) as live:
+        await asyncio.wait_for(clock.waiting.get(), .3)
+        for message in (b'first output', 'text output', b'more output'):
+            clock.now += 7
+            await live.upstream.put(message)
+            assert (await asyncio.wait_for(live.forwarded.get(), .3))['type'] == 'websocket.send'
+            clock.now += 1
+            clock.expire.put_nowait(None)
+            await asyncio.wait_for(clock.waiting.get(), .3)
+            assert repairs == [], 'received upstream data must prevent a false repair while pong is delayed'
+            assert live.probes == [1] and not live.pong.done()
+        clock.now += 8
+        clock.expire.put_nowait(None)
+        await asyncio.wait_for(clock.waiting.get(), .3)
+        assert repairs == [live.proxy.upstream]
+        assert live.probes == [1] and not live.pong.done()
+    assert live.pong.cancelled()
+
+
+@pytest.mark.asyncio
+async def test_old_upstream_messages_do_not_keep_replacement_transport_alive(monkeypatch):
+    import server.ide_proxy as module
+    clock = ProbeClock(); repairs = []
+    monkeypatch.setattr(module, 'asyncio', clock)
+    monkeypatch.setattr(module, 'time', SimpleNamespace(monotonic=lambda: clock.now))
+    async def repair(upstream): repairs.append(upstream)
+    async with live_relay(monkeypatch) as live:
+        old_upstream = live.proxy.upstream
+        live.proxy.upstream = 'http://127.0.0.1:34567'; live.proxy.repair = repair
+        pong = asyncio.Future()
+        async def ping(): return pong
+        watcher = asyncio.create_task(live.proxy.watch_transport(SimpleNamespace(ping=ping), live.proxy.upstream))
+        try:
+            await asyncio.wait_for(clock.waiting.get(), .3)
+            clock.now += 7
+            await live.upstream.put(b'late old-generation output')
+            await asyncio.wait_for(live.forwarded.get(), .3)
+            clock.now += 1; clock.expire.put_nowait(None)
+            await asyncio.wait_for(clock.waiting.get(), .3)
+            assert repairs == [live.proxy.upstream] and repairs != [old_upstream]
+        finally:
+            watcher.cancel(); await asyncio.gather(watcher, return_exceptions=True)
+        assert pong.cancelled()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure', [httpx.ReadTimeout, httpx.ConnectError, OSError])
+async def test_http_health_exception_uses_only_recent_current_upstream_data(monkeypatch, failure):
+    import server.ide_proxy as module
+    now = [100.0]; requests = []
+    monkeypatch.setattr(module, 'time', SimpleNamespace(monotonic=lambda: now[0]))
+    async def unavailable(request): requests.append(request); raise failure('private')
+    async with live_relay(monkeypatch, transport=httpx.MockTransport(unavailable)) as live:
+        assert await live.proxy.healthy() is False
+        await live.upstream.put(b'confirmed output'); await asyncio.wait_for(live.forwarded.get(), .3)
+        assert await live.proxy.healthy() is True
+        assert len(requests) == 2, 'fresh websocket activity must not bypass the HTTP health check'
+        now[0] += 8
+        assert await live.proxy.healthy() is False
+        await live.upstream.put(b'new output'); await asyncio.wait_for(live.forwarded.get(), .3)
+        assert await live.proxy.healthy() is True
+        live.proxy.upstream = 'http://127.0.0.1:34567'
+        await live.upstream.put(b'late old output'); await asyncio.wait_for(live.forwarded.get(), .3)
+        assert await live.proxy.healthy() is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('status', [401, 403, 500, 302])
+async def test_fresh_upstream_data_never_overrides_http_health_rejection(monkeypatch, status):
+    async def rejected(request): return httpx.Response(status, headers={'location': '/login'} if status == 302 else {})
+    async with live_relay(monkeypatch, transport=httpx.MockTransport(rejected)) as live:
+        await live.upstream.put(b'confirmed output'); await asyncio.wait_for(live.forwarded.get(), .3)
+        assert await live.proxy.healthy() is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('status,expected', [(200, True), (401, False), (403, False), (500, False), (302, False)])
+@pytest.mark.parametrize('broken_close', [False, True])
+async def test_health_uses_headers_without_reading_body_and_closes_response(monkeypatch, status, expected, broken_close):
+    class BrokenBody(httpx.AsyncByteStream):
+        reads = 0
+        closes = 0
+        async def __aiter__(self):
+            self.reads += 1
+            raise httpx.ReadError('body failed after response headers')
+            yield b''
+        async def aclose(self):
+            self.closes += 1
+            if broken_close: raise httpx.ReadError('close failed after response headers')
+    body = BrokenBody()
+    async def response(request):
+        return httpx.Response(status, stream=body, headers={'location': '/login'} if status == 302 else {})
+    async with live_relay(monkeypatch, transport=httpx.MockTransport(response)) as live:
+        await live.upstream.put(b'confirmed output'); await asyncio.wait_for(live.forwarded.get(), .3)
+        assert await live.proxy.healthy() is expected
+        assert body.reads == 0, 'HTTP status is enough; probing must not download the editor HTML body'
+        assert body.closes == 1, 'the response must be released even though its body was not consumed'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('replace_before_pong', [False, True])
+async def test_only_confirmed_current_upstream_pong_counts_as_health(monkeypatch, replace_before_pong):
+    import server.ide_proxy as module
+    clock = ProbeClock()
+    monkeypatch.setattr(module, 'asyncio', clock)
+    monkeypatch.setattr(module, 'time', SimpleNamespace(monotonic=lambda: clock.now))
+    async def unavailable(request): raise httpx.ReadTimeout('private')
+    async with live_relay(monkeypatch, repair=AsyncMock(), transport=httpx.MockTransport(unavailable)) as live:
+        await asyncio.wait_for(clock.waiting.get(), .3)
+        assert await live.proxy.healthy() is False, 'sending a ping is not confirmed upstream activity'
+        if replace_before_pong: live.proxy.upstream = 'http://127.0.0.1:34567'
+        live.pong.set_result(.01)
+        for _ in range(5): await asyncio.sleep(0)
+        assert await live.proxy.healthy() is (not replace_before_pong)
+        clock.now += 8
+        assert await live.proxy.healthy() is False
+
+
+@pytest.mark.asyncio
+async def test_client_output_alone_does_not_mask_http_health_failure(monkeypatch):
+    async def unavailable(request): raise httpx.ReadTimeout('private')
+    async with live_relay(monkeypatch, transport=httpx.MockTransport(unavailable)) as live:
+        await live.received.put({'type': 'websocket.receive', 'bytes': b'client activity'})
+        for _ in range(5): await asyncio.sleep(0)
+        assert live.sent_to_remote == [b'client activity']
+        assert await live.proxy.healthy() is False
 
 
 @pytest.mark.asyncio

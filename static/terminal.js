@@ -98,11 +98,25 @@
   }
   async function renderOutput(data, gen) {
     if (gen !== generation) return;
-    for (const chunk of data.chunks || []) {
+    const chunks = data.chunks || [];
+    // Base64 length bounds decoded bytes; keep small replies small and writes <= 64 KiB.
+    const batchSize = Math.min(65536, chunks.reduce((size, chunk) => size + chunk.length, 0));
+    let batch = null, used = 0;
+    for (const chunk of chunks) {
       if (gen !== generation) return;
-      const bytes = Uint8Array.from(atob(chunk), c => c.charCodeAt(0));
-      await new Promise(resolve => term.write(bytes, resolve));
+      const decoded = atob(chunk);
+      for (let offset = 0; offset < decoded.length;) {
+        if (!batch) batch = new Uint8Array(batchSize);
+        const end = Math.min(decoded.length, offset + batchSize - used);
+        while (offset < end) batch[used++] = decoded.charCodeAt(offset++);
+        if (used === batchSize) {
+          await new Promise(resolve => term.write(batch, resolve));
+          if (gen !== generation) return;
+          batch = null; used = 0;
+        }
+      }
     }
+    if (used) await new Promise(resolve => term.write(batch.subarray(0, used), resolve));
     if (gen !== generation) return;
     cursor = data.cursor;
     if (data.closed) await disconnect(data.error || "终端会话已结束。", gen);
