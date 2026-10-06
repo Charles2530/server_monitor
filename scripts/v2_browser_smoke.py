@@ -56,6 +56,8 @@ async def main():
             data = copy.deepcopy(snapshot)
         elif path == "history":
             data = {"series": []}
+        elif path == "utilization-queue":
+            data = {"site": request.headers.get("x-monitor-site", "maoshanwang"), "tasks": [], "loading": False, "status": "ok", "updated_at": now, "warnings": []}
         elif path == "acp/options":
             if slow_options:
                 slow_options = False

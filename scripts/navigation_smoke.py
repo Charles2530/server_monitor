@@ -24,6 +24,7 @@ async def main():
         if path=='state':data=state
         elif path=='tokenhub/state':data={'status':'disconnected','connected':False,'sections':{}}
         elif path=='task-history':data={'site':'maoshanwang','tasks':[],'loading':False,'source_status':{},'filtered_stopped':{},'warnings':[]}
+        elif path=='utilization-queue':data={'site':route.request.headers.get('x-monitor-site','maoshanwang'),'tasks':[],'loading':False,'status':'ok','updated_at':now,'warnings':[]}
         elif path=='storage':data={'site':'maoshanwang','volumes':[],'warnings':[],'mount_status':{},'updated_at':now,'status':'ok'}
         elif path=='history':data={'series':[{'metric':'gpu','label':'GPU','points':[[datetime.now(timezone.utc).timestamp(),50]]}]}
         elif path=='acp/options':data={'template':{'id':'ACP:test','name':'charles test'},'gpu_options':[1,2,4,8],'default_gpus_per_replica':1}
@@ -45,7 +46,7 @@ async def main():
             await expect(page.locator('#cluster-body')).not_to_contain_text('Public AEC2')
             await expect(page.locator('#cluster-body')).to_contain_text('Private GPU')
             await expect(page.locator('#summary-available')).to_have_text('2')
-            for route,title in [('tokenhub','TokenHub'),('history','任务历史'),('storage','存储管理'),('acp','ACP 任务'),('waiting','等待队列'),('tasks','运行任务'),('overview','资源总览')]:
+            for route,title in [('tokenhub','TokenHub'),('history','任务历史'),('storage','存储管理'),('acp','ACP 任务'),('waiting','队列管理'),('tasks','运行任务'),('overview','资源总览')]:
                 await page.locator(f'.nav-item[href="#{route}"]').click()
                 await expect(page.locator('#page-title')).to_have_text(title)
                 await expect(page.locator('.workspace-view:visible')).to_have_count(1)

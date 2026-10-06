@@ -30,6 +30,8 @@
     <link rel="stylesheet" href="/static/task-config.css">
     <script src="/static/storage.js" defer></script>
     <script src="/static/task-history.js" defer></script>
+    <script src="/static/utilization-queue.js" defer></script>
+    <link rel="stylesheet" href="/static/utilization-queue.css">
     <link rel="stylesheet" href="/static/task-history.css">
     <link rel="stylesheet" href="/static/mobile.css">
     <script src="/static/mobile.js" defer></script>
@@ -49,7 +51,7 @@
         <a class="nav-item" href="#tokenhub"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6v5l5 11a1.5 1.5 0 0 1-1.4 2H5.4A1.5 1.5 0 0 1 4 19L9 8V3M8 3h8M7 15h10"/></svg>TokenHub</a>
         <a class="nav-item" href="#tasks"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>运行任务</a>
         <a class="nav-item" href="#acp"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>ACP 任务</a>
-        <a class="nav-item" href="#waiting"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>等待队列</a>
+        <a class="nav-item" href="#waiting"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>队列管理</a>
         <a class="nav-item" href="#storage"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/></svg>存储管理</a>
         <a class="nav-item" href="#history"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v5l3 2"/></svg>任务历史</a>
       </nav>
@@ -115,7 +117,15 @@
         <div data-tokenhub-panel="dashboard">
           <div id="tokenhub-metrics" class="th-metrics th-detail-metrics"></div>
           <div class="th-dashboard-grid">
+            <div class="th-trends-stack">
             <section class="dashboard-panel th-section th-trend-panel"><div class="panel-heading"><div><h2>花费趋势</h2><p>实际扣费 · USD · 北京时间</p></div><div class="th-range" role="group" aria-label="趋势时间范围"><button type="button" data-tokenhub-days="7" aria-pressed="true">7 天</button><button type="button" data-tokenhub-days="30" aria-pressed="false">30 天</button></div></div><div id="tokenhub-trend-summary" class="th-trend-summary">连接后查看每日花费趋势</div><div id="tokenhub-trend-chart" class="th-trend-chart" role="img" aria-label="每日实际花费趋势，单位 USD"></div><p id="tokenhub-trend-status" class="th-section-status" role="status"></p></section>
+              <section class="dashboard-panel th-section th-hourly-panel">
+                <div class="panel-heading"><div><h2>近 24 小时费用</h2><p>逐小时实际扣费 · USD · 北京时间</p></div><span class="heading-tag">每小时</span></div>
+                <div id="tokenhub-hourly-summary" class="th-hourly-summary">连接后查看逐小时费用</div>
+                <div id="tokenhub-hourly-chart" class="th-hourly-chart" role="img" aria-label="近 24 小时逐小时实际费用，单位 USD"></div>
+                <p id="tokenhub-hourly-status" class="th-section-status" role="status"></p>
+              </section>
+            </div>
             <section class="dashboard-panel th-section th-quota-preview-panel"><div class="panel-heading"><div><h2>账号额度速览</h2><p>各账号独立计算</p></div><button class="panel-link" type="button" id="tokenhub-all-quotas">查看全部 →</button></div><div id="tokenhub-quota-preview" class="th-quota-grid"></div></section>
           </div>
         <details id="tokenhub-usage-details" class="dashboard-panel th-section th-usage-details"><summary><span class="th-disclosure-label">查看用量明细</span><span class="th-disclosure-hint">按日期查询</span><svg class="th-disclosure-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></summary>
@@ -188,12 +198,21 @@
         <div class="chart-footer"><p id="history-note">单位 % · 四类指标独立展示，保留各 Worker 来源；虚线区分同一指标的不同 Worker。</p></div>
       </section>
       </div>
-      <section id="waiting-section" class="section-block cluster-panel waiting-panel workspace-view" data-page="waiting" hidden>
-        <div class="section-heading"><div><h2>CCI / ACP 等待与启动队列<span class="count-badge" id="waiting-count">—</span></h2><p id="waiting-summary">CCI 未知 · ACP 未知</p></div></div>
+      <div id="queue-view" class="workspace-view" data-page="waiting" hidden>
+      <section id="waiting-section" class="section-block cluster-panel waiting-panel">
+        <div class="section-heading"><div><h2>等待队列<span class="count-badge" id="waiting-count">—</span></h2><p id="waiting-summary">CCI 未知 · ACP 未知</p></div></div>
         <div id="waiting-notice" class="inventory-notice" role="status" hidden></div>
         <div class="table-scroll" role="region" aria-label="等待任务，可滚动查看" tabindex="0"><table class="resource-table waiting-table"><thead><tr><th scope="col">任务 / ID</th><th scope="col">类型</th><th scope="col">提交者</th><th scope="col">集群</th><th scope="col">状态</th><th scope="col">GPU / 副本</th><th scope="col">创建 / 观测时间</th><th scope="col">操作</th></tr></thead><tbody id="waiting-body"><tr><td colspan="8" class="table-empty">正在读取等待任务…</td></tr></tbody></table></div>
         <div class="table-note">任务运行或结束后退出队列；只有 charles 的运行任务进入监控区。其他用户及 CCI 队列仅供查看，此处不采集监控曲线。</div>
       </section>
+      <section id="utilization-section" class="section-block cluster-panel waiting-panel" aria-labelledby="utilization-title">
+        <div class="section-heading"><div><h2 id="utilization-title">运行队列<span class="count-badge" id="utilization-count">—</span></h2><p>全部创建时间 · 运行中的 ACP</p></div><div class="utilization-actions"><label class="utilization-mine" title="沿用运行监控规则：任务名称包含 charles，不区分大小写"><input id="utilization-mine" type="checkbox">仅看我的任务</label><span class="subtle-badge">实时 GPU 升序 ↑</span></div></div>
+        <p id="utilization-status" class="utilization-status" role="status" aria-live="polite">进入页面后读取 GPU 利用率</p>
+        <div id="utilization-warning" class="inventory-notice" role="status" hidden></div>
+        <div class="table-scroll" role="region" aria-label="ACP 运行队列，可滚动查看" tabindex="0"><table class="resource-table waiting-table utilization-table"><thead><tr><th scope="col">任务 / ID</th><th scope="col">提交者</th><th scope="col">集群</th><th scope="col" aria-sort="ascending">实时 GPU 利用率 ↑</th><th scope="col">GPU / 副本</th><th scope="col">创建时间 / 已运行</th><th scope="col">操作</th></tr></thead><tbody id="utilization-body"><tr><td colspan="7" class="table-empty">正在读取运行中的 ACP 任务…</td></tr></tbody></table></div>
+        <div class="table-note">默认展示所有用户，创建时间不限；“仅看我的任务”按名称包含 charles 筛选。运行时长从平台启动时间计算，不含排队时间；缺少启动时间显示“未知”。按实时 GPU 利用率升序，停留时每 60 秒更新；缺失或过期指标排在末尾，0% 为有效值。只读查看。</div>
+      </section>
+      </div>
       <section id="storage-section" class="section-block cluster-panel workspace-view" data-page="storage" hidden>
         <div class="section-heading"><div><h2>AFS 存储管理 <span class="count-badge" id="storage-count">—</span></h2></div><div class="storage-actions"><a id="storage-console" class="button button-secondary" target="_blank" rel="noopener noreferrer">云控制台 ↗</a><button id="storage-refresh" class="button button-secondary" type="button">刷新存储</button></div></div>
         <div class="storage-filters"><label>分区<select id="storage-zone"><option value="">全部分区</option></select></label><label class="storage-search">搜索<input id="storage-search" type="search" placeholder="名称、卷 ID、任务或挂载路径" autocomplete="off"></label><label class="storage-related"><input id="storage-related" type="checkbox"> 仅 charles 有挂载记录</label></div>

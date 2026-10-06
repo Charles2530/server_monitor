@@ -43,7 +43,7 @@
 .th-summary-quotas { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 22px 14px; }
 .th-summary-quotas:empty { display: none; }
 .th-summary-quotas span { padding: 7px 10px; border: 1px solid #e1eae4; border-radius: 7px; background: #f6faf7; color: #397254; font-size: 11px; line-height: 1.6; }
-.th-dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(300px, 1fr); gap: 16px; align-items: stretch; }
+.th-dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(300px, 1fr); gap: 16px; align-items: start; margin-bottom: 16px; }
 .th-page .th-section { min-width: 0; margin-bottom: 16px; overflow: hidden; border: 1px solid var(--th-line); border-radius: 12px; box-shadow: 0 3px 12px #173d2303; background: #fff; }
 .th-section .panel-heading { padding: 18px 20px 0; margin: 0; border: 0; gap: 12px; }
 .th-section .panel-heading h2 { font-size: 16px; font-weight: 650; color: #2b4537; }
@@ -89,7 +89,7 @@
 .th-quota-preview-panel .th-quota-grid { grid-template-columns: minmax(0, 1fr); padding: 14px 20px 18px; }
 .th-quota-preview-panel .th-quota { background: transparent; border: 0; padding: 0; }
 .th-quota-preview-panel .th-quota + .th-quota { border-top: 1px solid var(--th-line); padding-top: 20px; }
-/* Match the chart height while letting each quota window use the available space. */
+/* Quota content keeps its natural height independently of the two plots. */
 .th-quota-preview-panel { display: flex; flex-direction: column; }
 .th-quota-preview-panel .th-quota-grid { flex: 1; }
 .th-quota-preview-panel .th-quota { display: flex; flex-direction: column; min-width: 0; }
@@ -318,7 +318,7 @@ body:has(#tokenhub-view:not([hidden])) .page-description { display: none; }
 .th-trend-summary .th-spend-range { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #39795a; }
 .th-spend-range::before { content: ""; width: 6px; height: 6px; background: #159a76; border-radius: 50%; }
 .th-spend-period small { color: #75867c; font-size: 11px; font-variant-numeric: tabular-nums; }
-.th-trend-panel .th-trend-chart { flex: 1; min-height: 270px; height: 270px; }
+.th-trend-panel .th-trend-chart { flex: none; min-height: 270px; height: clamp(270px, 22vw, 320px); }
 .th-trend-panel .th-range button { min-height: 32px; padding-inline: 14px; font-size: 12px; }
 .th-trend-panel .th-range button:focus-visible { outline: 2px solid #159a76; outline-offset: 2px; }
 .th-trend-panel .th-section-status { background: #fcfdfc; color: #77897d; font-size: 11px; }
@@ -333,4 +333,49 @@ body:has(#tokenhub-view:not([hidden])) .page-description { display: none; }
   .th-trend-summary .th-spend-range { flex-basis: auto; }
   .th-trend-panel .th-trend-chart { min-height: 240px; height: 240px; }
   .th-trend-panel .th-range button { padding-inline: 11px; }
+}
+
+/* Two bounded plots keep multi-account quota cards from stretching either chart. */
+.th-trends-stack { display: grid; align-content: start; gap: 16px; min-width: 0; }
+.th-trend-panel { --th-chart-color: #4f7ceb; }
+.th-hourly-panel { --th-chart-color: #089fb3; }
+:root[data-theme="dark"] .th-trend-panel { --th-chart-color: #8aa9ff; }
+:root[data-theme="dark"] .th-hourly-panel { --th-chart-color: #57d1dd; }
+.th-dashboard-grid .th-section { margin-bottom: 0; }
+.th-hourly-chart { width: 100%; height: 270px; }
+.th-hourly-summary { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; margin: 18px 20px 0; padding: 16px 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-raised, #f8fafb); color: var(--muted); font-size: 12px; }
+.th-hourly-summary > div { display: grid; align-content: start; gap: 7px; min-width: 0; }
+.th-hourly-summary > div + div { border-left: 1px solid var(--line); padding-left: 18px; }
+.th-hourly-summary strong { color: var(--ink); font-size: 28px; font-weight: 650; line-height: 1.25; letter-spacing: -.025em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.th-hourly-summary .th-spend-currency { font-size: .68em; color: var(--muted); margin-right: 2px; }
+.th-hourly-summary .th-spend-decimals { font-size: .72em; color: var(--muted); }
+.th-hourly-summary small { color: var(--muted); font-size: 11px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.th-hourly-panel .th-section-status { margin: 0; padding: 10px 20px; border-top: 1px solid var(--line); background: var(--surface-raised, #f8fafb); color: var(--muted); }
+/* Keep the plot and its headline on one quiet surface, as on the source dashboard. */
+#tokenhub-view .th-trend-panel .th-trend-summary,
+#tokenhub-view .th-hourly-summary { margin: 0; padding: 20px 24px 6px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+#tokenhub-view .th-trend-panel .th-spend-main > strong { color: var(--ink); font-size: 34px; letter-spacing: -.035em; }
+#tokenhub-view .th-hourly-summary strong { font-size: 30px; }
+#tokenhub-view .th-hourly-summary > div + div strong { font-size: 25px; }
+#tokenhub-view .th-hourly-summary > div + div { align-content: center; }
+#tokenhub-view .th-trend-panel .th-spend-range { color: var(--muted); }
+#tokenhub-view .th-trend-panel .th-spend-range::before { background: var(--th-chart-color); }
+#tokenhub-view .th-hourly-panel .heading-tag { color: var(--muted); background: transparent; border-color: var(--line); }
+#tokenhub-view .th-hourly-panel .heading-tag::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--th-chart-color); margin-right: 6px; vertical-align: 1px; }
+#tokenhub-view :is(.th-trend-panel, .th-hourly-panel) .th-section-status { background: transparent; border-color: var(--line); font-size: 11px; padding: 10px 24px; }
+@media (min-width: 1101px) {
+  .th-quota-preview-panel:has(.th-quota + .th-quota) { align-self: stretch; }
+}
+@media (max-width: 760px) {
+  .th-dashboard-grid { gap: 16px; }
+  .th-hourly-summary { margin-inline: 16px; padding: 12px; gap: 12px; }
+  .th-hourly-summary > div + div { padding-left: 12px; }
+  .th-hourly-summary strong { font-size: 22px; }
+  .th-hourly-chart { height: 240px; }
+  .th-hourly-panel .th-section-status { padding-inline: 16px; font-size: 11px; }
+  #tokenhub-view .th-trend-panel .th-trend-summary,
+  #tokenhub-view .th-hourly-summary { padding: 18px 16px 4px; }
+  #tokenhub-view .th-hourly-summary strong { font-size: 25px; }
+  #tokenhub-view .th-hourly-summary > div + div strong { font-size: 22px; }
+  #tokenhub-view :is(.th-trend-panel, .th-hourly-panel) .th-section-status { padding-inline: 16px; }
 }

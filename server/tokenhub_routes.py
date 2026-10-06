@@ -61,7 +61,10 @@ def register_tokenhub_routes(app, hub):
         return await perform(lambda: hub.update_key_group(**body.model_dump()))
 
     @app.get('/api/tokenhub/trend')
-    async def trend(days: int = Query(default=7, ge=7, le=30)):
+    async def trend(days: int = Query(default=7, ge=7, le=30),
+                    granularity: str = Query(default='day', pattern='^(day|hour)$')):
+        if granularity == 'hour':
+            return await perform(hub.hourly_trend)
         if days not in (7, 30):
             return JSONResponse({'error': '请选择 7 天或 30 天。'}, status_code=422)
         return await perform(lambda: hub.trend(days=days))

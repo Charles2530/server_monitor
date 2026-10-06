@@ -11,6 +11,14 @@
   const known = (value) => typeof value === "number" && Number.isFinite(value);
   const count = (value) => known(value) ? value.toLocaleString("zh-CN") : "—";
   const money = (value) => known(value) ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : "—";
+  const amountLabel = (formatted) => {
+    const amount = node("strong");
+    if (formatted.startsWith("$")) {
+      const [integer, fraction] = formatted.slice(1).split(".");
+      amount.append(node("span", "$", "th-spend-currency"), document.createTextNode(integer), node("span", "." + fraction, "th-spend-decimals"));
+    } else amount.textContent = formatted;
+    return amount;
+  };
   const date = (value) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false }) : "—";
   const platformName = (value) => ({ openai: "OpenAI", anthropic: "Claude", gemini: "Gemini", antigravity: "Antigravity", grok: "Grok", kimi: "Kimi", deepseek: "DeepSeek", zhipu: "智谱", minimax: "MiniMax" })[value] || value || "未知平台";
   const statusName = (value) => ({ active: "启用", inactive: "停用", expired: "已到期", quota_exhausted: "额度耗尽" })[value] || value || "未知";
@@ -21,6 +29,7 @@
   };
   let snapshot = null, route = "", selectedTab = "dashboard", timer = null, stateController = null, stateSerial = 0;
   let trendDays = 7, trendData = null, trendSerial = 0, trendController = null, chart = null;
+  let hourlyData = null, hourlySerial = 0, hourlyController = null, hourlyChart = null;
   const lists = { keys: { data: null, controller: null, serial: 0 }, usage: { data: null, controller: null, serial: 0 } };
   let keyCopy = null;
   $("tokenhub-start").value = today(-6);
@@ -117,11 +126,7 @@
     const complete = rows.length === trendData.days && rows.every((row) => known(row.actual_cost));
     const sum = rows.reduce((value, row) => value + (known(row.actual_cost) ? row.actual_cost : 0), 0);
     const total = rows.some((row) => known(row.actual_cost)) ? money(sum) : "—";
-    const main = node("div", undefined, "th-spend-main"), amount = node("strong");
-    if (total.startsWith("$")) {
-      const [integer, fraction] = total.slice(1).split(".");
-      amount.append(node("span", "$", "th-spend-currency"), document.createTextNode(integer), node("span", "." + fraction, "th-spend-decimals"));
-    } else amount.textContent = total;
+    const main = node("div", undefined, "th-spend-main"), amount = amountLabel(total);
     main.append(node("span", complete ? "区间实际花费" : "已返回记录花费", "th-spend-label"), amount);
     const period = node("div", undefined, "th-spend-period");
     period.append(node("span", `${trendData.days} 天 · USD`, "th-spend-range"), node("small", `${trendData.start_date} 至 ${trendData.end_date}`));
@@ -130,25 +135,70 @@
     const dates = Array.from({ length: trendData.days }, (_, index) => new Date(Date.parse(trendData.start_date + "T00:00:00Z") + index * 86400000).toISOString().slice(0, 10));
     if (!window.echarts) { $("tokenhub-trend-status").textContent = "图表组件不可用，请刷新页面。"; return; }
     chart = chart || echarts.init($("tokenhub-trend-chart"));
+    chart.setOption(costChartOptions(dates, dates.map((day) => known(byDate.get(day)?.actual_cost) ? byDate.get(day).actual_cost : null)), true);
+    chart.resize();
+    $("tokenhub-trend-chart").setAttribute("aria-label", `每日实际花费趋势，单位 USD，${trendData.start_date} 至 ${trendData.end_date}，已返回记录花费合计 ${rows.some((row) => known(row.actual_cost)) ? money(sum) : "未知"}，${rows.length} 天有记录`);
+  }
+
+  function costChartOptions(dates, values, hourly = false) {
     const theme = getComputedStyle(document.documentElement);
     const chartInk = theme.getPropertyValue("--ink").trim(), chartMuted = theme.getPropertyValue("--muted").trim();
     const chartLine = theme.getPropertyValue("--line").trim(), chartSurface = theme.getPropertyValue("--surface").trim();
-    const chartAccent = document.documentElement.dataset.theme === "dark" ? theme.getPropertyValue("--accent").trim() : "#159a76";
-    chart.setOption({
+    const chartAccent = getComputedStyle($(hourly ? "tokenhub-hourly-chart" : "tokenhub-trend-chart")).getPropertyValue("--th-chart-color").trim() || "#4f7ceb";
+    return {
       textStyle: { fontFamily: getComputedStyle(document.body).fontFamily },
       animation: false, color: [chartAccent],
-      tooltip: { trigger: "axis", confine: true, renderMode: "richText", backgroundColor: chartSurface, borderColor: chartLine, borderWidth: 1, padding: [12, 16], textStyle: { color: chartInk, fontSize: 13 },
-        axisPointer: { type: "line", lineStyle: { color: chartMuted, type: "dashed" } }, valueFormatter: (value) => known(value) ? money(value) + " USD" : "未知" },
-      grid: { left: 20, right: 26, top: 26, bottom: 24, containLabel: true },
-      xAxis: { type: "category", boundaryGap: false, data: dates, axisLabel: { formatter: (value) => value.slice(5), color: chartMuted, fontSize: 12, margin: 12, hideOverlap: true }, axisLine: { lineStyle: { color: chartLine } }, axisTick: { show: false } },
-      yAxis: { type: "value", min: 0, splitNumber: 4, axisLabel: { color: chartMuted, fontSize: 12, margin: 12, formatter: (value) => money(value) }, splitLine: { lineStyle: { color: chartLine, type: "dashed" } } },
-      series: [{ name: "实际花费", type: "line", smooth: false, showSymbol: dates.length <= 7, symbol: "circle", symbolSize: 7, connectNulls: false,
+      tooltip: { trigger: "axis", confine: true, renderMode: "richText", backgroundColor: chartSurface, borderColor: chartLine, borderWidth: 1, borderRadius: 10, padding: [12, 16], textStyle: { color: chartInk, fontSize: 13 },
+        axisPointer: { type: "line", lineStyle: { color: chartAccent, width: 1, opacity: .4, type: "dashed" } }, valueFormatter: (value) => known(value) ? money(value) + " USD" : "未知" },
+      grid: { left: 24, right: 32, top: 26, bottom: 22, containLabel: true },
+      xAxis: { type: "category", boundaryGap: false, data: dates, axisLabel: { formatter: (value) => hourly ? value.slice(11) + (value.endsWith("00:00") ? "\n" + value.slice(5, 10) : "") : value.slice(5), color: chartMuted, fontSize: 11, lineHeight: 17, margin: 14, hideOverlap: true, showMinLabel: true, showMaxLabel: true }, axisLine: { lineStyle: { color: chartLine, opacity: .6 } }, axisTick: { show: false } },
+      yAxis: { type: "value", min: 0, splitNumber: 4, axisLabel: { color: chartMuted, fontSize: 11, margin: 14, formatter: (value) => Number.isInteger(value) ? `$${count(value)}` : money(value) }, splitLine: { lineStyle: { color: chartLine, opacity: .65, width: 1, type: "solid" } } },
+      series: [{ name: hourly ? "每小时实际费用" : "实际花费", type: "line", smooth: .3, smoothMonotone: "x", showSymbol: false, symbol: "circle", symbolSize: 8, connectNulls: hourly,
         itemStyle: { color: chartAccent, borderColor: chartSurface, borderWidth: 2 },
-        lineStyle: { width: 2.5 }, areaStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: echarts.color.modifyAlpha(chartAccent, .22) }, { offset: 1, color: echarts.color.modifyAlpha(chartAccent, .01) }] } },
-        data: dates.map((day) => known(byDate.get(day)?.actual_cost) ? byDate.get(day).actual_cost : null) }]
-    }, true);
-    chart.resize();
-    $("tokenhub-trend-chart").setAttribute("aria-label", `每日实际花费趋势，单位 USD，${trendData.start_date} 至 ${trendData.end_date}，已返回记录花费合计 ${rows.some((row) => known(row.actual_cost)) ? money(sum) : "未知"}，${rows.length} 天有记录`);
+        lineStyle: { width: 3, cap: "round", join: "round" }, emphasis: { scale: 1.25 },
+        areaStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: echarts.color.modifyAlpha(chartAccent, .13) }, { offset: 1, color: echarts.color.modifyAlpha(chartAccent, 0) }] } },
+        data: values }]
+    };
+  }
+
+  function drawHourly() {
+    if (!hourlyData || selectedTab !== "dashboard" || route !== "tokenhub") return;
+    const start = Date.parse(hourlyData.start_hour), byHour = new Map(hourlyData.trend.map((row) => [Date.parse(row.date), row.actual_cost]));
+    const hours = Array.from({ length: 24 }, (_, i) => start + i * 3600000);
+    const labels = hours.map((hour) => new Date(hour + 8 * 3600000).toISOString().slice(0, 16).replace("T", " "));
+    const values = hours.map((hour) => known(byHour.get(hour)) ? byHour.get(hour) : null);
+    const recorded = values.filter(known), sum = recorded.reduce((a, b) => a + b, 0);
+    const peak = recorded.length ? Math.max(...recorded) : null, summary = $("tokenhub-hourly-summary");
+    summary.replaceChildren();
+    for (const [label, value, detail] of [
+      [recorded.length === 24 ? "24 小时费用" : "已知小时费用", recorded.length ? money(sum) : "—", `${labels[0].slice(5)} — ${labels[23].slice(5)}`],
+      ["单小时峰值", money(peak), peak === null ? "尚无费用数据" : labels[values.indexOf(peak)].slice(5)]
+    ]) {
+      const metric = node("div"); metric.append(node("span", label), amountLabel(value), node("small", detail)); summary.append(metric);
+    }
+    if (!window.echarts) { $("tokenhub-hourly-status").textContent = "图表组件不可用，请刷新页面。"; return; }
+    hourlyChart = hourlyChart || echarts.init($("tokenhub-hourly-chart"));
+    hourlyChart.setOption(costChartOptions(labels, values, true), true); hourlyChart.resize();
+    $("tokenhub-hourly-chart").setAttribute("aria-label", `近 24 小时费用，${labels[0]} 至 ${labels[23]}，北京时间，已记录费用 ${recorded.length ? money(sum) : "未知"} USD，${recorded.length} 个小时有费用记录`);
+  }
+
+  async function loadHourly() {
+    if (!relevant() || route !== "tokenhub" || selectedTab !== "dashboard") return;
+    if (!snapshot?.connected) { $("tokenhub-hourly-status").textContent = hourlyData ? "连接已失效，当前为旧数据。" : "请先连接 TokenHub。"; return; }
+    hourlyController?.abort();
+    const controller = new AbortController(), serial = ++hourlySerial; hourlyController = controller;
+    const timeout = setTimeout(() => controller.abort(), 65000);
+    $("tokenhub-hourly-status").textContent = "正在读取逐小时费用…";
+    try {
+      const data = await request("/api/tokenhub/trend?granularity=hour", { signal: controller.signal });
+      if (serial !== hourlySerial) return;
+      if (!Array.isArray(data.trend) || data.hours !== 24 || !Number.isFinite(Date.parse(data.start_hour)) || Date.parse(data.end_hour) - Date.parse(data.start_hour) !== 23 * 3600000) throw new Error("小时费用格式无法识别。");
+      hourlyData = data; drawHourly();
+      $("tokenhub-hourly-status").textContent = `更新 ${date(data.updated_at)} · 当前小时未结束；无使用显示 $0`;
+    } catch (error) {
+      if (serial !== hourlySerial) return;
+      $("tokenhub-hourly-status").textContent = `${error.name === "AbortError" ? "读取超时" : error.message}。${hourlyData ? `保留旧数据 · 更新 ${date(hourlyData.updated_at)}` : "尚未取得小时费用。"}`;
+    } finally { clearTimeout(timeout); if (serial === hourlySerial) hourlyController = null; }
   }
 
   async function loadTrend() {
@@ -279,6 +329,9 @@
     clearKeyCopy();
     closeGroupDialog();
     trendSerial += 1; trendController?.abort(); trendController = null; trendData = null; chart?.clear();
+    hourlySerial += 1; hourlyController?.abort(); hourlyController = null; hourlyData = null; hourlyChart?.clear();
+    $("tokenhub-hourly-summary").textContent = "连接后查看逐小时费用";
+    $("tokenhub-hourly-status").textContent = "";
     $("tokenhub-trend-summary").textContent = "连接后查看每日花费趋势";
     $("tokenhub-trend-status").textContent = "";
     for (const [kind, list] of Object.entries(lists)) {
@@ -307,7 +360,7 @@
       if (!snapshot.connected) clearKeyCopy();
       render();
       if (route === "tokenhub") {
-        if (selectedTab === "dashboard") { await loadTrend(); if ($("tokenhub-usage-details").open) await loadList("usage"); }
+        if (selectedTab === "dashboard") { await Promise.all([loadTrend(), loadHourly()]); if ($("tokenhub-usage-details").open) await loadList("usage"); }
         if (selectedTab === "keys") await loadList("keys");
       }
     } catch (error) {
@@ -493,6 +546,7 @@
   function updateActivity() {
     clearKeyCopy(); clearTimeout(timer);
     trendSerial += 1; trendController?.abort(); trendController = null;
+    hourlySerial += 1; hourlyController?.abort(); hourlyController = null;
     stateSerial += 1; stateController?.abort(); stateController = null; $("tokenhub-refresh").disabled = false;
     for (const list of Object.values(lists)) { list.serial += 1; list.controller?.abort(); list.controller = null; }
     if (relevant()) loadState();
@@ -508,7 +562,8 @@
     }
     for (const panel of document.querySelectorAll("[data-tokenhub-panel]")) panel.hidden = panel.dataset.tokenhubPanel !== selectedTab;
     if (selectedTab === "keys") loadList("keys");
-    if (selectedTab === "dashboard") { drawTrend(); loadTrend(); }
+    if (selectedTab === "dashboard") { drawTrend(); drawHourly(); loadTrend(); loadHourly(); }
+    else { hourlySerial += 1; hourlyController?.abort(); hourlyController = null; }
   });
   for (const kind of Object.keys(lists)) for (const [direction, delta] of [["prev", -1], ["next", 1]]) {
     $(`tokenhub-${kind}-${direction}`).addEventListener("click", () => loadList(kind, (lists[kind].data?.page || 1) + delta));
@@ -541,12 +596,14 @@
   });
   $("tokenhub-all-quotas").addEventListener("click", () => document.querySelector('[data-tokenhub-tab="quotas"]').click());
   $("tokenhub-usage-details").addEventListener("toggle", () => { if ($("tokenhub-usage-details").open) loadList("usage"); });
-  window.addEventListener("resize", () => chart?.resize());
-  // Account quota cards can resize the chart row without a window resize.
-  new ResizeObserver(([entry]) => {
-    if (entry.contentRect.width && entry.contentRect.height) chart?.resize();
-  }).observe($("tokenhub-trend-chart"));
-  document.addEventListener("appearance-change", () => { if (chart) drawTrend(); });
+  window.addEventListener("resize", () => { chart?.resize(); hourlyChart?.resize(); });
+  const chartObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) if (entry.contentRect.width && entry.contentRect.height) {
+      (entry.target.id === "tokenhub-hourly-chart" ? hourlyChart : chart)?.resize();
+    }
+  });
+  for (const id of ["tokenhub-trend-chart", "tokenhub-hourly-chart"]) chartObserver.observe($(id));
+  document.addEventListener("appearance-change", () => { if (chart) drawTrend(); if (hourlyChart) drawHourly(); });
   for (const link of document.querySelectorAll('.th-page a[href^="https://tokenhub.ilab.beer/"]')) link.addEventListener("click", (event) => {
     if (snapshot?.can_connect !== false) return;
     event.preventDefault();

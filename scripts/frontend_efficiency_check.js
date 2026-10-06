@@ -554,3 +554,21 @@ test("a resize burst redraws the chart once per animation frame using the curren
   frames.shift()();
   assert.equal(resizes, 2);
 });
+
+for (const [status, message] of [["reconnecting", "正在重连，完成后会自动采集。"], ["collecting", "正在采集，完成后页面会自动更新。"], ["started", "刷新已启动，完成后页面会自动更新。"]]) {
+  test(`refresh notice uses server progress: ${status}`, async () => {
+    const b = browser(), app = b.load("app.js", "model, renderStatus");
+    b.requests.find(request => request.url === "/api/state").respond(runningData());
+    await settle();
+    b.nodes.get("refresh-button").click();
+    const request = b.requests.find(request => request.url === "/api/refresh");
+    assert.equal(request.options.method, "POST");
+    request.respond({ status, started: status === "started", message });
+    await settle();
+    assert.equal(b.nodes.get("action-message").textContent, message);
+    b.requests.at(-1).respond({ ...runningData(), connecting: status === "reconnecting", status: "collecting" });
+    await settle();
+    assert.equal(b.nodes.get("status-title").textContent, status === "reconnecting" ? "正在重连" : "正在采集");
+    assert.equal(b.nodes.get("refresh-button").disabled, false);
+  });
+}

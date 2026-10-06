@@ -23,6 +23,8 @@ class Hub:
         return {'id': kwargs['key_id'], 'group_id': kwargs['group_id']}
     async def trend(self, days=7):
         return {'days': days, 'trend': []}
+    async def hourly_trend(self):
+        return {'hours': 24, 'trend': []}
     async def usage(self, **kwargs):
         self.calls.append(('usage', kwargs))
         raise TokenHubError('日期无效。', 'invalid_dates', 400)
@@ -50,6 +52,8 @@ def test_tokenhub_routes_are_global_redacted_and_validated(tmp_path):
         assert client.get('/api/tokenhub/keys?page=0').status_code == 422
         assert client.get('/api/tokenhub/trend?days=30').json()['days'] == 30
         assert client.get('/api/tokenhub/trend?days=8').status_code == 422
+        assert client.get('/api/tokenhub/trend?granularity=hour').json()['hours'] == 24
+        assert client.get('/api/tokenhub/trend?granularity=minute').status_code == 422
         assert client.get('/api/tokenhub/usage?start_date=2026-10-07&end_date=2026-10-06').status_code == 400
         assert client.get('/data/tokenhub/session.json').status_code == 404
         assert client.post('/api/tokenhub/connect').status_code == 403

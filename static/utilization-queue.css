@@ -1,0 +1,16 @@
+#queue-view { display: grid; gap: 24px; }
+#queue-view > .waiting-panel { margin: 0; }
+.utilization-status { padding: 0 24px 14px; margin: 0; color: #708978; font-size: 12px; }
+.utilization-table .utilization-value { display: block; color: #287c62; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.utilization-table .utilization-unknown { color: #839087; font-size: 13px; font-weight: 400; }
+.utilization-table .utilization-rank { display: inline-block; min-width: 24px; margin-right: 6px; color: #81988c; font-size: 11px; font-weight: 400; }
+.utilization-table .utilization-time { font-variant-numeric: tabular-nums; }
+.utilization-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.utilization-mine { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: inherit; cursor: pointer; white-space: nowrap; }
+.utilization-mine input { width: 15px; height: 15px; margin: 0; accent-color: #287c62; }
+.utilization-table .utilization-duration { display: block; margin-top: 5px; }
+@media (max-width: 760px) {
+  #queue-view { gap: 16px; }
+  .utilization-status { padding: 0 14px 12px; font-size: 11px; }
+  #utilization-section .section-heading { gap: 12px; flex-wrap: wrap; }
+}

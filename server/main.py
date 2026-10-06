@@ -22,6 +22,7 @@ from .cci_ide import CCIEditor
 from .ide_routes import register_ide_routes
 from .storage import StorageManager
 from .task_history import TaskHistory
+from .utilization_queue import UtilizationQueue
 from .tokenhub import TokenHub
 from .tokenhub_routes import register_tokenhub_routes
 from .normalize import task_console_url
@@ -48,6 +49,7 @@ class SiteRuntime:
     acp_terminal: object = None
     terminal_bridge: object = None
     ide: object = None
+    utilization_queue: object = None
 
 
 def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=None, tokenhub=None):
@@ -69,6 +71,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         if runtime.ide is None:runtime.ide=CCIEditor(runtime.site,runtime.terminal_bridge,runtime.terminal)
         if runtime.storage is None:runtime.storage=StorageManager(runtime.site)
         if runtime.task_history is None:runtime.task_history=TaskHistory(runtime.monitor.store,runtime.site)
+        if runtime.utilization_queue is None:runtime.utilization_queue=UtilizationQueue(runtime.site)
     def current_site(request: Request):
         site_id=request.headers.get('x-monitor-site','maoshanwang')
         if site_id not in runtimes:
@@ -98,6 +101,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
                 await runtime.monitor.close()
                 if hasattr(runtime.storage,"close"):await runtime.storage.close()
                 if hasattr(runtime.task_history,"close"):await runtime.task_history.close()
+                await runtime.utilization_queue.close()
             if lock_file:
                 lock_file.close()
     app=FastAPI(lifespan=lifespan,docs_url=None,redoc_url=None,openapi_url=None)
@@ -156,17 +160,11 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
 
     @app.post('/api/refresh',status_code=202)
     async def refresh(runtime=Depends(current_site)):
-        monitor=runtime.monitor
-        if not monitor.lock.locked():
-            monitor.spawn(monitor.refresh())
-        return {'message':'已请求采集，完成后自动更新。'}
+        return runtime.monitor.request_refresh()
 
     @app.post('/api/connect',status_code=202)
     async def connect(runtime=Depends(current_site)):
-        monitor=runtime.monitor
-        if monitor.connecting is None or monitor.connecting.done():
-            monitor.connecting=monitor.spawn(monitor.connect())
-        return {'message':'正在使用本机保存的 IAM 凭据自动连接，无需手动输入。'}
+        return runtime.monitor.request_connect()
 
     async def action_body(request,fields,optional=()):
         content=await request.body()
@@ -201,6 +199,10 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     @app.get('/api/storage')
     async def storage(runtime=Depends(current_site)):
         return await perform(runtime.storage.snapshot)
+
+    @app.get('/api/utilization-queue')
+    async def utilization_queue(runtime=Depends(current_site)):
+        return await perform(runtime.utilization_queue.snapshot)
 
     @app.get('/api/logs/targets')
     async def log_targets(task_id: str=Query(max_length=100),runtime=Depends(current_site)):

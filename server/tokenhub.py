@@ -262,6 +262,35 @@ class TokenHub:
         return {'days': days, 'start_date': start.isoformat(), 'end_date': end.isoformat(),
                 'trend': sorted(rows, key=lambda row: row['date']), 'updated_at': iso(time.time())}
 
+    async def hourly_trend(self):
+        zone = ZoneInfo('Asia/Shanghai')
+        end = datetime.now(zone).replace(minute=0, second=0, microsecond=0)
+        start = end - timedelta(hours=23)
+        data = await self.request('/usage/dashboard/trend', {
+            'start_date': start.date().isoformat(), 'end_date': end.date().isoformat(),
+            'granularity': 'hour', 'timezone': 'Asia/Shanghai'})
+        if not isinstance(data, dict) or not isinstance(data.get('trend'), list):
+            raise TokenHubError('小时费用数据格式已变化。')
+        rows, seen = [], set()
+        for row in data['trend']:
+            value = pick(row, ('date',)).get('date')
+            try:
+                hour = datetime.strptime(value, '%Y-%m-%d %H:%M').replace(tzinfo=zone)
+                if hour.minute or hour.strftime('%Y-%m-%d %H:%M') != value or hour in seen:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                raise TokenHubError('小时费用时间格式已变化。') from None
+            seen.add(hour)
+            # The upstream accepts whole calendar dates; keep only the 24 hourly buckets.
+            if start <= hour <= end:
+                rows.append({'date': hour.isoformat(), 'actual_cost': number(row.get('actual_cost'))})
+        by_hour = {row['date']: row for row in rows}
+        # A successful aggregate omits hours with no usage. An explicit unknown cost stays unknown.
+        timeline = [(start + timedelta(hours=i)).isoformat() for i in range(24)]
+        return {'hours': 24, 'timezone': 'Asia/Shanghai', 'start_hour': start.isoformat(),
+                'end_hour': end.isoformat(), 'trend': [by_hour.get(hour, {'date': hour, 'actual_cost': 0}) for hour in timeline],
+                'updated_at': iso(time.time())}
+
     async def keys(self, page=1):
         generation = self.generation
         data = await self.request('/keys', {'page': page, 'page_size': 20})

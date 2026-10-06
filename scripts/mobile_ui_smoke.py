@@ -32,6 +32,7 @@ async def main():
         site = route.request.headers.get('x-monitor-site', 'maoshanwang')
         if path == '/api/state': data = state
         elif path == '/api/history': data = {'series': []}
+        elif path == '/api/utilization-queue': data = {'site': site, 'tasks': [], 'loading': False, 'status': 'ok', 'updated_at': now, 'warnings': []}
         elif path == '/api/logs/targets': data = {'task_id': 'ACP:test', 'workers': [{'name': 'worker-0', 'containers': ['trainer']}]}
         elif path == '/api/logs': data = {'task_id': 'ACP:test', 'worker': 'worker-0', 'container': 'trainer', 'text': 'training log ' * 70, 'entries': 1, 'updated_at': now}
         elif path == '/api/acp/options':

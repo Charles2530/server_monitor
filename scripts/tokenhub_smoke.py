@@ -60,6 +60,11 @@ async def main():
                     {'key': 'daily', 'utilization': None}], 'model_quotas': [], 'credits': []}]),
                 'subscriptions': section([])}
             data = {'status': 'ok' if connected else 'disconnected', 'connected': connected, 'connecting': False, 'sections': sections, 'can_connect': can_connect}
+        elif path == '/api/tokenhub/trend' and parse_qs(url.query).get('granularity') == ['hour']:
+            end = datetime.now(ZoneInfo('Asia/Shanghai')).replace(minute=0, second=0, microsecond=0)
+            start = end - timedelta(hours=23)
+            data = {'hours': 24, 'start_hour': start.isoformat(), 'end_hour': end.isoformat(), 'updated_at': now,
+                    'trend': [{'date': (start + timedelta(hours=i)).isoformat(), 'actual_cost': i / 10} for i in range(24)]}
         elif path == '/api/tokenhub/trend':
             if trend_broken:
                 await route.fulfill(status=503, json={'error': '趋势暂不可用'}); return

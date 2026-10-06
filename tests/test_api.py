@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 from server.main import create_app
 from server.service import Monitor
@@ -129,3 +130,34 @@ def test_acp_terminal_route_is_read_only_and_no_store(tmp_path):
         assert client.get('/api/acp/terminal-targets?task_id=ACP:app',headers={'Origin':'https://evil.test'}).status_code==403
         response=client.get('/api/acp/terminal-targets?task_id=ACP:bad')
         assert response.status_code==503 and 'PRIVATE' not in response.text
+
+
+@pytest.mark.asyncio
+async def test_refresh_api_reports_actual_progress(tmp_path):
+    import asyncio
+    import httpx
+    entered = asyncio.Event()
+    class Collector:
+        async def collect(self, previous):
+            entered.set()
+            await asyncio.Event().wait()
+    monitor = Monitor(Store(tmp_path/'db'), Collector())
+    app = create_app(monitor, background=False)
+    transport = httpx.ASGITransport(app=app)
+    try:
+        async with httpx.AsyncClient(transport=transport, base_url='http://localhost:8765', headers={'X-Monitor-Request':'1'}) as client:
+            first = await client.post('/api/refresh')
+            assert first.status_code == 202
+            assert first.json()['status'] == 'started' and first.json()['started']
+            await entered.wait()
+            busy = (await client.post('/api/refresh')).json()
+            assert busy['status'] == 'collecting' and not busy['started']
+            assert '正在采集' in busy['message']
+            monitor.state['connecting'] = True
+            reconnecting = (await client.post('/api/refresh')).json()
+            assert reconnecting['status'] == 'reconnecting' and not reconnecting['started']
+            assert '正在重连' in reconnecting['message']
+            duplicate = (await client.post('/api/connect')).json()
+            assert not duplicate['started']
+    finally:
+        await monitor.close()

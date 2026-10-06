@@ -1,6 +1,7 @@
 """Automatic IAM login in a dedicated local browser, using local configuration."""
 import asyncio
 import json
+import logging
 import os
 from urllib.parse import urlparse
 from playwright.async_api import async_playwright
@@ -10,6 +11,7 @@ from .browser import browser_launch_options
 SESSION = DATA / 'session.json'
 LOGIN_LOCKS = {}
 SIGNIN_ORIGIN = 'https://signin.ms-sc-01.maoshanwangtech.com'
+logger = logging.getLogger(__name__)
 
 class AuthRequired(Exception):
     pass
@@ -91,7 +93,9 @@ async def authenticate(context, credentials=None, timeout=75, site=None):
     try:
         return await asyncio.wait_for(run(),timeout=timeout)
     except AuthRequired:raise
-    except Exception:
+    except Exception as error:
+        reason = 'timeout' if isinstance(error, asyncio.TimeoutError) else type(error).__name__
+        logger.warning('monitor_failure site=%s stage=authenticate reason=%s', site.id if site else 'default', reason)
         raise AuthRequired('自动 IAM 登录未完成，请检查本地凭据、网络或平台验证要求。') from None
     finally:
         context.remove_listener('response',capture)

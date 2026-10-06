@@ -71,7 +71,7 @@
       description = snapshot ? "正在展示上次快照，数据可能已过期。请确认本地服务仍在运行。" : "请确认本地服务正在运行；页面将自动重试。";
     } else if (snapshot) {
       if (snapshot.connecting) {
-        title = "正在自动登录"; description = "正在使用本机保存的 IAM 凭据连接云平台，无需手动输入。";
+        title = "正在重连"; description = "正在等待当前采集结束或使用本机 IAM 配置重新登录；超时后会结束本次重连并提示重试。";
       } else if (snapshot.status === "collecting") {
         title = "正在采集"; description = snapshot.updated_at ? "新的快照准备中，当前仍显示上次采集结果。" : "首次采集可能需要一些时间。";
       } else if (snapshot.status === "disconnected" || !snapshot.connected) {
