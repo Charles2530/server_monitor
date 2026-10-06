@@ -1,0 +1,129 @@
+/* Theme controls stay in the sidebar footer on desktop and in the top bar on mobile. */
+:root { color-scheme: light; }
+.theme-toggle { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; margin: 0 0 18px; padding: 10px 8px; border: 0; border-radius: 9px; background: transparent; color: #627770; font-size: 14px; font-weight: 500; text-align: left; cursor: pointer; }
+.theme-toggle:hover { background: #ecf5f0; color: #096953; }
+.theme-toggle .ui-icon { width: 22px; height: 22px; }
+.theme-toggle .theme-sun { display: none; }
+:root[data-theme="dark"] .theme-toggle .theme-moon { display: none; }
+:root[data-theme="dark"] .theme-toggle .theme-sun { display: block; }
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #dce9e3; --muted: #a0b5aa; --line: #31463d;
+  --surface: #1a2823; --page: #111b19; --accent: #65d4ae;
+  --blue: #80aaff; --purple: #bba0f4; --teal: #65d4ae; --amber: #e0b765;
+  --surface-raised: #22342c; --surface-hover: #2a4035;
+  --success-bg: #1b3b2d; --warning-bg: #3b3220; --danger-bg: #3d2827;
+  --panel-shadow: 0 2px 12px #00000018;
+  --tblr-body-color: var(--ink); --tblr-body-bg: var(--page);
+  --tblr-border-color: var(--line); --tblr-bg-surface: var(--surface);
+}
+:root[data-theme="dark"] body { background: var(--page); color: var(--ink); }
+:root[data-theme="dark"] ::selection { background: #31654e; color: #fff; }
+:root[data-theme="dark"] .th-page { --th-ink: var(--ink); --th-muted: var(--muted); --th-line: var(--line); --th-green: var(--accent); }
+
+/* Specific components override the existing light palette without changing layout. */
+:root[data-theme="dark"] :is(.sidebar, .page-header, .summary-card, .cluster-panel, .acp-panel, .detail-panel, .dashboard-panel, .task-card, .overview-task, .empty-state, .allocation-ring > div, .acp-dialog, .dialog-actions, .task-config-dialog, .task-config-header, .task-config-fields, .task-config-status, .storage-summary > div, .th-toolbar, .th-page .th-section, .th-detail-metrics .th-metric, .th-original-dialog, .th-group-dialog, #tokenhub-account-quotas .th-quota-window) { background: var(--surface); border-color: var(--line); color: var(--ink); }
+:root[data-theme="dark"] :is(h1, h2, h3, .brand, .profile, .task-name, .summary-number, .metric-value, .resource-value, .allocation-ring strong, .allocation-legend strong, .quick-links strong, .storage-summary strong, .storage-table strong, .history-stat strong, .task-history-table strong, .waiting-identity strong, .form-block-heading h3, .acp-form-footer strong, .acp-preview-details dd, .task-config-fields dd, .th-metric strong, .th-trend-summary strong, .th-table strong) { color: var(--ink); }
+:root[data-theme="dark"] :is(.brand small, .sidebar-label, .profile small, .page-description, .refresh-cadence, .summary-label, .summary-foot, .summary-number small, .section-heading p, .detail-heading p, .panel-heading p, .table-note, .table-scroll-hint, .collection-note, .page-footer, .overview-task-info small, .overview-task-metric small, .allocation-ring span, .allocation-legend small, .allocation-legend p, .quick-links small, .task-cluster, .task-meta, .task-bottom, .metric-label, .chart-footer p, .detail-task-actions, .logs-options, .logs-status, .acp-helper, .acp-form label, .acp-form label small, .acp-form .command-help, .form-block-heading p, .acp-form-footer p, .acp-form-footer small, .acp-preview-details dt, .task-config-header p, .task-config-fields dt, .storage-filters label, .storage-summary > div > span, .history-stat > span, .history-stat small, .task-history-filters label, .task-history-pagination, .task-history-pagination label, .task-history-table small, .task-history-table .history-task-id, .history-excluded, #task-history-filter-note, #task-history-status, .utilization-status, .utilization-unknown, .utilization-rank, .waiting-identity small, .th-eyebrow, .th-metric-heading, .th-metric small, .th-summary-footer, .th-section-status, .th-quota small, .th-trend-summary, .th-spend-label, .th-spend-period, .th-spend-period small, .th-filters label, .th-pagination, .th-table small, .th-key-meta, .th-group-dialog label) { color: var(--muted); }
+:root[data-theme="dark"] :is(.nav-item, .theme-toggle, .site-switcher, .site-switcher button) { color: var(--muted); }
+:root[data-theme="dark"] :is(.nav-item:hover, .theme-toggle:hover, .overview-task:hover, .quick-links > a:hover, .resource-table tbody tr:hover, .th-table tbody tr:hover, .th-table tbody tr:focus-within) { background: var(--surface-hover); color: var(--ink); }
+:root[data-theme="dark"] :is(.nav-item.active, .task-card.selected) { background: var(--success-bg); color: var(--accent); box-shadow: inset 0 0 0 1px #3b6753; border-color: #3b6753; }
+:root[data-theme="dark"] :is(.button-secondary, .task-detail-links .button, .th-page .button-secondary, .history-search-control, .search-field, .acp-form input, .acp-form select, .storage-filters input, .storage-filters select, .logs-toolbar select, .history-select, .th-select, .th-filters input, .th-original-dialog input, .th-group-dialog select) { background-color: var(--surface); color: var(--ink); border-color: var(--line); box-shadow: none; }
+:root[data-theme="dark"] :is(.search-field input, .history-search-control input) { background: transparent; color: var(--ink); }
+:root[data-theme="dark"] :is(input, textarea)::placeholder { color: var(--muted); }
+:root[data-theme="dark"] :is(.button-secondary:hover, select:hover:not(:disabled)) { background-color: var(--surface-hover); }
+:root[data-theme="dark"] :is(.button-primary, #cci-terminal-selected) { background: #168663; color: #fff; }
+:root[data-theme="dark"] .button-primary:hover { background: #1b9b73; }
+:root[data-theme="dark"] :is(.heading-tag, .subtle-badge, .avatar-circle, .meta-pill, .count-badge, .form-step, .optional-label, .th-account-mark, .th-summary-quotas span, .th-group-edit, .th-key-copy) { background: var(--surface-raised); color: var(--accent); border-color: var(--line); }
+:root[data-theme="dark"] :is(.summary-card:nth-child(3), .storage-summary > div:last-child, .acp-form-footer) { background: #1a3026; border-color: #345743; }
+:root[data-theme="dark"] :is(.summary-card:nth-child(3) .summary-number, .resource-value.gpu-value, .overview-task-metric strong, .running-badge, .panel-link, .text-link, .task-detail-hint, .storage-summary > div:last-child strong, .history-stat.succeeded strong, .utilization-value, .th-metric:first-child strong) { color: var(--accent); }
+:root[data-theme="dark"] :is(.overview-task-gpu > [data-metric="gpu_memory"]:not(.is-stale) strong, .overview-task-metric.is-stale strong, .th-metric.is-stale strong) { color: var(--amber); }
+
+:root[data-theme="dark"] :is(.resource-table th, #clusters-section .resource-table th:first-child, #storage-section th, #task-history-section th, .th-table th) { background: var(--surface-raised); color: var(--muted); border-color: var(--line); }
+:root[data-theme="dark"] :is(.resource-table td, .resource-table td:first-child, .resource-table td:last-child, .th-table td) { color: var(--ink); border-color: var(--line); }
+:root[data-theme="dark"] #clusters-section .resource-table td:first-child:not(.table-empty) { background: var(--surface); box-shadow: 1px 0 0 var(--line); }
+:root[data-theme="dark"] #clusters-section .resource-table tr:hover td:first-child:not(.table-empty) { background: var(--surface-hover); }
+:root[data-theme="dark"] :is(.table-note, .overview-empty, .overview-empty::before, .chart-message, .filter-group, .detail-tabs, .history-summary, .history-excluded, #task-history-filter-note, #storage-section .storage-filters, #acp-template-config, .acp-panel > .acp-helper, .acp-dialog .acp-preview-details, .task-config-overview, .storage-table code, #waiting-summary, .waiting-table td.table-empty, .th-page .th-tabs, .th-range, .th-filters, .th-quota, #tokenhub-account-quotas .th-quota, .th-trend-panel .th-trend-summary, .th-trend-panel .th-section-status, .th-table tbody tr:nth-child(even), .th-table td .th-concurrency, .th-table td .th-key-status, .th-group-dialog #tokenhub-group-key) { background: var(--surface-raised); border-color: var(--line); color: var(--muted); }
+:root[data-theme="dark"] :is(.filter-button, .range-button, .detail-tabs button, .th-tabs button, .th-range button) { color: var(--muted); }
+:root[data-theme="dark"] :is(.filter-button.selected, .range-button.selected, .detail-tabs button[aria-selected="true"], .th-tabs button.active, .th-range button[aria-pressed="true"]) { background: var(--surface-hover); color: var(--accent); border-color: var(--line); }
+:root[data-theme="dark"] :is(.profile, .page-header, .overview-task, .quick-links > a, .allocation-legend > div, .task-bottom, .chart-footer, .acp-config-block, .acp-dialog h2, .dialog-actions, .task-config-field-wide, .history-stat, .task-history-pagination, #task-history-section .table-scroll, .th-summary-footer, .th-table td, .th-pagination, .th-quota-window, .task-lifecycle-actions) { border-color: var(--line); }
+:root[data-theme="dark"] :is(.metric-track, .preview-meter, .th-quota-window progress, .storage-table progress) { background: var(--line); }
+:root[data-theme="dark"] :is(.th-quota-window progress, .storage-table progress)::-webkit-progress-bar { background: var(--line); }
+:root[data-theme="dark"] .table-scroll { scrollbar-color: #4c6b5a var(--surface); }
+:root[data-theme="dark"] :is(.blue, .service-icon.cci, .history-service, #cci-ide-selected) { color: #96baff; background: #24354c; border-color: #3b5373; }
+:root[data-theme="dark"] :is(.purple, .service-icon.acp, .history-service.acp) { color: #c1a7ef; background: #342c49; border-color: #504366; }
+:root[data-theme="dark"] :is(.teal, .status-ok, .running-badge, .history-state.succeeded, .node-normal, .th-table td .th-key-status[data-status="active"], .th-table td .th-concurrency.is-busy) { color: #7cddb3; background: var(--success-bg); border-color: #365c47; }
+:root[data-theme="dark"] :is(.amber, .status-warning, .status-disconnected, .inventory-notice, .th-notice, #acp-release-restart-selected, .th-table td .th-key-status[data-status="quota_exhausted"]) { color: #e8c583; background: var(--warning-bg); border-color: #625332; }
+:root[data-theme="dark"] :is(.status-error, .history-state.failed, .node-alert, #acp-stop-selected, .acp-notice.error) { color: #f0a49b; background: var(--danger-bg); border-color: #69413c; }
+:root[data-theme="dark"] :is(.status-loading, .action-message, .acp-notice, .history-state.stopped) { color: #b3c8de; background: #223342; border-color: #3b5366; }
+:root[data-theme="dark"] .status-symbol { background: #ffffff12; }
+:root[data-theme="dark"] .th-detail-metrics .th-metric:first-child { background: linear-gradient(125deg, #214636, #2b5e47); }
+:root[data-theme="dark"] .th-detail-metrics .th-metric:first-child strong { color: #fff; }
+:root[data-theme="dark"] .th-detail-metrics .th-metric-heading svg { background: var(--surface-raised); }
+:root[data-theme="dark"] :is(#acp-template-config dd, .history-cluster, .task-history-table .history-duration, .th-spend-main > strong, .th-spend-range) { color: var(--ink); }
+:root[data-theme="dark"] :is(.acp-form select, .history-select, .storage-filters select, .logs-toolbar select, .th-select)::picker(select) { background: var(--surface); color: var(--ink); border-color: var(--line); }
+:root[data-theme="dark"] select option { color: var(--ink); background: var(--surface); }
+:root[data-theme="dark"] select option:checked { color: var(--accent); background: var(--surface-hover); }
+:root[data-theme="dark"] .site-switcher { background: var(--surface-raised); border-color: var(--line); }
+:root[data-theme="dark"] .site-switcher button:hover { background: var(--surface-hover); }
+:root[data-theme="dark"] .resource-table tbody tr { background: var(--surface); border-color: var(--line); }
+:root[data-theme="dark"] .resource-table tbody tr:nth-child(even) { background: var(--surface-raised); }
+:root[data-theme="dark"] .resource-table tbody tr:hover,
+:root[data-theme="dark"] .resource-table tbody tr:focus-within { background: var(--surface-hover); }
+:root[data-theme="dark"] :is(.th-empty, .th-secondary summary, .th-usage-details summary, .th-usage-details summary .th-disclosure-label, .th-usage-details summary .th-disclosure-hint, .th-trend-summary .th-spend-currency, .th-trend-summary .th-spend-decimals, .resource-table th span) { color: var(--muted); }
+:root[data-theme="dark"] #acp-template-config :is(dt, dd) { border-color: var(--line); }
+:root[data-theme="dark"] :is(.button-danger, .queue-badge, .logs-message) { background: var(--warning-bg); color: var(--amber); border-color: #625332; }
+:root[data-theme="dark"] .button-danger { background: var(--danger-bg); color: #f0a49b; border-color: #69413c; }
+
+/* TokenHub details use the same surfaces and contrast as the monitor. */
+:root[data-theme="dark"] #tokenhub-metrics .th-metric:first-child :is(.th-metric-heading, small) { color: #c4e0cf; }
+:root[data-theme="dark"] #tokenhub-metrics .th-metric:first-child { background: linear-gradient(125deg, #214636, #2b5e47); border-color: #3b6753; }
+:root[data-theme="dark"] #tokenhub-view .th-table td .th-key-status[data-status="active"],
+:root[data-theme="dark"] #tokenhub-view .th-table td .th-concurrency.is-busy { color: #7cddb3; background: var(--success-bg); }
+:root[data-theme="dark"] #tokenhub-view .th-table td .th-key-status[data-status="quota_exhausted"] { color: #e8c583; background: var(--warning-bg); }
+:root[data-theme="dark"] :is(.th-quota-line, .th-key-group, .th-key-usage-line span, .th-key-usage-line + .th-key-usage-line strong, .th-token-pair span, .th-credit, .th-group-note, .th-disclosure-arrow, #tokenhub-disconnect) { color: var(--muted); }
+:root[data-theme="dark"] :is(.th-quota-line strong, .th-table .th-usage-cost strong, .th-key-usage-line:first-child strong, .th-copy-feedback, .th-quota-preview-panel .panel-link) { color: var(--accent); }
+:root[data-theme="dark"] .th-quota-window.is-warning strong { color: var(--amber); }
+:root[data-theme="dark"] .th-quota-window.is-danger strong { color: #f0a49b; }
+:root[data-theme="dark"] .th-badge { color: #7cddb3; background: var(--success-bg); border-color: #365c47; }
+:root[data-theme="dark"] .th-badge.is-warning { color: #e8c583; background: var(--warning-bg); border-color: #625332; }
+:root[data-theme="dark"] .th-badge.is-unknown { color: var(--muted); background: var(--surface-raised); border-color: var(--line); }
+:root[data-theme="dark"] #tokenhub-quota-preview .th-quota { background: transparent; }
+:root[data-theme="dark"] .th-quota-preview-panel .th-quota-window { background: var(--surface-raised); border-color: var(--line); }
+:root[data-theme="dark"] :is(.th-quota > small:last-child, .th-group-dialog .th-actions, .th-actions, .th-usage-details[open] summary, .th-secondary[open] summary, .th-table th + th) { border-color: var(--line); }
+:root[data-theme="dark"] :is(.th-key-copy:hover:not(:disabled), .th-group-edit:hover:not(:disabled), .th-usage-details summary:hover) { background: var(--surface-hover); border-color: #547761; }
+:root[data-theme="dark"] #tokenhub-metrics .th-metric:nth-child(2) { background: #29291f; border-color: #474535; }
+:root[data-theme="dark"] #tokenhub-metrics .th-metric:nth-child(2) .th-metric-heading { color: #d4c298; }
+:root[data-theme="dark"] #tokenhub-metrics .th-metric:nth-child(2) strong { color: #e8d3a6; }
+:root[data-theme="dark"] #tokenhub-metrics .th-metric:nth-child(2) .th-metric-heading svg { background: #3a3627; }
+:root[data-theme="dark"] #tokenhub-metrics .th-metric.is-stale strong { color: var(--amber); }
+:root[data-theme="dark"] #tokenhub-group-status { color: #e8c583; }
+:root[data-theme="dark"] .th-quota progress { accent-color: #65d4ae; }
+:root[data-theme="dark"] .th-quota progress::-webkit-progress-value { background: #65d4ae; }
+:root[data-theme="dark"] .th-quota progress::-moz-progress-bar { background: #65d4ae; }
+:root[data-theme="dark"] .th-quota-window.is-warning progress { accent-color: #e0b765; }
+:root[data-theme="dark"] .th-quota-window.is-warning progress::-webkit-progress-value { background: #e0b765; }
+:root[data-theme="dark"] .th-quota-window.is-warning progress::-moz-progress-bar { background: #e0b765; }
+:root[data-theme="dark"] .th-quota-window.is-danger progress { accent-color: #f0a49b; }
+:root[data-theme="dark"] .th-quota-window.is-danger progress::-webkit-progress-value { background: #f0a49b; }
+:root[data-theme="dark"] .th-quota-window.is-danger progress::-moz-progress-bar { background: #f0a49b; }
+:root[data-theme="dark"] .th-page .th-table td[data-label]::before { color: var(--muted); }
+:root[data-theme="dark"] :is(.th-page button, .th-page summary, .th-page input, .th-group-dialog select):focus-visible { outline-color: var(--accent); }
+
+@media (max-width: 1100px) {
+  .sidebar { grid-template-columns: 1fr auto auto; }
+  .sidebar .sidebar-bottom { display: block; grid-column: 3; grid-row: 1; padding: 0; margin: 0; }
+  .sidebar-bottom .profile { display: none; }
+  .theme-toggle { width: 40px; min-height: 40px; justify-content: center; padding: 8px; margin: 0; }
+  .theme-toggle-label { display: none; }
+}
+@media (max-width: 760px) {
+  .sidebar .sidebar-bottom { flex: 0 0 40px; }
+  .sidebar > .site-switcher { min-width: 0; }
+  .sidebar .site-switcher button { width: 32px; flex-basis: 32px; }
+  :root[data-theme="dark"] .sidebar nav { background: var(--surface); border-color: var(--line); }
+  :root[data-theme="dark"] .task-history-table tbody tr { background: var(--surface); border-color: var(--line); }
+  :root[data-theme="dark"] .th-page .th-table tr { background: var(--surface); border-color: var(--line); }
+  :root[data-theme="dark"] .th-page .th-table .th-key-usage { background: var(--surface-raised); }
+}

@@ -84,3 +84,12 @@ def test_terminal_requires_write_access_and_binds_device_identity(tmp_path):
             if write:
                 assert all(c.headers['x-monitor-device']==device['device_id'] for c in calls)
             else:assert not calls
+
+
+def test_key_copy_requires_device_control_permission(tmp_path):
+    for write in (False, True):
+        _, device, calls, client = setup(tmp_path / str(write), write=write)
+        with client:
+            response = client.post('/api/tokenhub/key-copy', headers={'Authorization': 'Bearer ' + device['token']}, json={'key_id': 1, 'account_id': 7})
+            assert response.status_code == (200 if write else 403)
+        assert len(calls) == int(write)

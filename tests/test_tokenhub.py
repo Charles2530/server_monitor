@@ -350,3 +350,55 @@ async def test_key_group_rejects_account_change_during_read(tmp_path):
     from server.tokenhub_auth import TokenHubAuthRequired
     with pytest.raises(TokenHubAuthRequired):
         await hub.update_key_group(1, 3, expected_group_id=2, account_id=7)
+
+
+@pytest.mark.asyncio
+async def test_key_copy_is_explicit_owned_and_not_cached(tmp_path):
+    calls = []
+    def handler(request):
+        calls.append((request.method, request.url.path))
+        if request.url.path.endswith('/auth/me'):
+            return ok({'id': 7})
+        assert request.url.path.endswith('/keys/1')
+        return ok({'id': 1, 'user_id': 7, 'key': 'sk-test-copy-secret', 'access_token': 'NEVER-RETURN'})
+    hub, _ = setup(tmp_path, handler)
+    result = await hub.copy_key(key_id=1, account_id=7)
+    assert result == {'key': 'sk-test-copy-secret'}
+    assert all(method == 'GET' for method, _ in calls)
+    assert 'sk-test-copy-secret' not in json.dumps(hub.view())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('owner,key,code', [
+    ({'id': 8}, {'id': 1, 'user_id': 8, 'key': 'sk-secret'}, 'account_changed'),
+    ({'id': 7}, {'id': 1, 'user_id': 8, 'key': 'sk-secret'}, 'account_changed'),
+    ({'id': 7}, {'id': 2, 'user_id': 7, 'key': 'sk-secret'}, 'account_changed'),
+    ({'id': 7}, {'id': 1, 'user_id': 7, 'key': 'sk-***'}, 'key_unavailable'),
+    ({'id': 7}, {'id': 1, 'user_id': 7, 'key': None}, 'key_unavailable'),
+])
+async def test_key_copy_rejects_wrong_account_or_missing_plaintext(tmp_path, owner, key, code):
+    from server.tokenhub_auth import TokenHubError
+    hub, _ = setup(tmp_path, lambda request: ok(owner if request.url.path.endswith('/auth/me') else key))
+    with pytest.raises(TokenHubError) as error:
+        await hub.copy_key(key_id=1, account_id=7)
+    assert error.value.code == code
+    assert 'sk-secret' not in str(error.value)
+
+
+@pytest.mark.asyncio
+async def test_inflight_key_copy_does_not_cross_session_change(tmp_path):
+    from server.tokenhub_auth import TokenHubAuthRequired
+    started, resume = asyncio.Event(), asyncio.Event()
+    async def handler(request):
+        if request.url.path.endswith('/auth/me'):
+            return ok({'id': 7})
+        started.set()
+        await resume.wait()
+        return ok({'id': 1, 'user_id': 7, 'key': 'sk-secret'})
+    hub, _ = setup(tmp_path, handler)
+    task = asyncio.create_task(hub.copy_key(key_id=1, account_id=7))
+    await started.wait()
+    await hub.disconnect()
+    resume.set()
+    with pytest.raises(TokenHubAuthRequired):
+        await task

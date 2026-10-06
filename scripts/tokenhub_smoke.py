@@ -34,6 +34,10 @@ async def main():
     group_writes = []
     group_fail = False
     keys_unknown = False
+    copy_fail = False
+    copy_delay = False
+    copy_calls = []
+    copy_started, copy_release = asyncio.Event(), asyncio.Event()
     def section(data):
         return {'data': data, 'updated_at': now, 'status': 'ok', 'error': None}
     async def api(route):
@@ -79,6 +83,16 @@ async def main():
             if keys_unknown:
                 data['items'][0].update(current_concurrency=None, today_actual_cost=None, last_30_days_actual_cost=None)
                 data['usage_error'] = '用量暂未获取'
+        elif path == '/api/tokenhub/key-copy':
+            assert request.headers.get('x-monitor-request') == '1'
+            assert request.post_data_json == {'key_id': 1, 'account_id': account_id}
+            copy_calls.append(request.post_data_json)
+            if copy_delay:
+                copy_started.set()
+                await copy_release.wait()
+            if copy_fail:
+                await route.fulfill(status=503, json={'error': '原站暂不可用'}); return
+            data = {'key': 'sk-simulated-copy-only'}
         elif path == '/api/tokenhub/key-groups':
             data = {'account_id': account_id, 'key': {'id': 1, 'name': 'work', 'group_id': group_id}, 'items': [{'id': 2, 'name': 'OpenAI', 'platform': 'openai'}, {'id': 3, 'name': 'Claude', 'platform': 'anthropic'}]}
         elif path == '/api/tokenhub/key-group':
@@ -106,6 +120,14 @@ async def main():
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(**browser_launch_options())
             page = await browser.new_page(viewport={'width': 1440, 'height': 1000})
+            await page.add_init_script('''
+              window.__copiedKeys = [];
+              window.__copyMode = 'ok';
+              Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text) => {
+                if (window.__copyMode === 'deny') throw new DOMException('Denied', 'NotAllowedError');
+                window.__copiedKeys.push(text);
+              } } });
+            ''')
             errors = []
             page.on('pageerror', lambda error: errors.append(str(error)))
             await page.route('**/api/**', api)
@@ -173,6 +195,54 @@ async def main():
             await expect(page.locator('#tokenhub-keys-body')).to_contain_text('$0.0000')
             await expect(page.locator('#tokenhub-keys-body')).to_contain_text('$11.3996')
             await expect(page.locator('.th-concurrency')).to_have_text('0')
+            assert not copy_calls, 'Listing must not request plaintext'
+            await page.locator('.th-key-copy').click()
+            await expect(page.locator('#tokenhub-key-copy-status')).to_have_text('密钥已复制到剪贴板。')
+            assert await page.evaluate('window.__copiedKeys') == ['sk-simulated-copy-only']
+            assert 'sk-simulated-copy-only' not in await page.content()
+            assert 'sk-simulated-copy-only' not in await page.evaluate('JSON.stringify(localStorage) + JSON.stringify(sessionStorage)')
+            await page.evaluate("window.__copyMode = 'deny'")
+            await page.locator('.th-key-copy').click()
+            await expect(page.locator('.th-key-copy')).to_have_text('再次点击复制')
+            attempts = len(copy_calls)
+            await page.evaluate("window.__copyMode = 'ok'")
+            await page.locator('.th-key-copy').click()
+            await expect(page.locator('#tokenhub-key-copy-status')).to_have_text('密钥已复制到剪贴板。')
+            assert len(copy_calls) == attempts, 'Retry clipboard only, do not fetch again'
+            assert await page.evaluate('window.__copiedKeys.length') == 2
+            copy_fail = True
+            await page.locator('.th-key-copy').click()
+            await expect(page.locator('#tokenhub-key-copy-status')).to_contain_text('原站暂不可用')
+            assert await page.evaluate('window.__copiedKeys.length') == 2
+            copy_fail = False
+            await page.evaluate("""() => {
+                window.__clipboardStub = navigator.clipboard;
+                Object.defineProperty(navigator, 'clipboard', {configurable: true, value: undefined});
+                window.__execCommand = document.execCommand;
+                document.execCommand = (command) => {
+                    if (command === 'copy') { window.__legacyCopied = document.querySelector('.th-copy-buffer').value; return true; }
+                    return false;
+                };
+            }""")
+            await page.locator('.th-key-copy').click()
+            await expect(page.locator('#tokenhub-key-copy-status')).to_have_text('密钥已复制到剪贴板。')
+            assert await page.evaluate('window.__legacyCopied') == 'sk-simulated-copy-only'
+            await expect(page.locator('.th-copy-buffer')).to_have_count(0)
+            assert 'sk-simulated-copy-only' not in await page.content()
+            await page.evaluate("""() => {
+                Object.defineProperty(navigator, 'clipboard', {configurable: true, value: window.__clipboardStub});
+                document.execCommand = window.__execCommand;
+            }""")
+            copy_delay = True
+            await page.locator('.th-key-copy').click()
+            await asyncio.wait_for(copy_started.wait(), 5)
+            await page.get_by_role('button', name='仪表板', exact=True).click()
+            copy_release.set()
+            await page.get_by_role('button', name='API 密钥', exact=True).click()
+            await expect(page.locator('#tokenhub-keys-body')).to_contain_text('$11.3996')
+            assert await page.evaluate('window.__copiedKeys.length') == 2, 'Navigation must cancel copy'
+            copy_delay = False
+
             await expect(page.get_by_text('密钥额度 USD', exact=True)).to_have_count(0)
             await expect(page.get_by_text('平台计费额度与订阅', exact=True)).to_have_count(0)
             await page.locator('.th-group-edit').click()
@@ -263,11 +333,11 @@ async def main():
             await page.locator('#tokenhub-refresh').click()
             await expect(page.locator('#tokenhub-trend-summary')).not_to_contain_text('$7.00')
             await expect(page.locator('#tokenhub-trend-status')).to_contain_text('尚未取得趋势数据')
-            assert all(method == 'GET' or path == '/api/tokenhub/key-group' for method, path, _ in calls), 'Only explicit group saves can write'
+            assert all(method == 'GET' or path in ('/api/tokenhub/key-group', '/api/tokenhub/key-copy') for method, path, _ in calls), 'Only explicit group saves and key copies use POST'
             assert len(group_writes) == 2
             assert not errors, errors
             await browser.close()
-            print('TokenHub UI passed: disconnected state, summary, navigation, quota units, unknown data, safe text, pagination, error retention, usage precision, concurrency, deliberate group saves, mobile layouts.')
+            print('TokenHub UI passed: disconnected state, summary, navigation, quota units, unknown data, safe text, pagination, error retention, usage precision, concurrency, deliberate group saves, explicit key copy, clipboard retry/fallback, navigation cancellation, mobile layouts.')
     finally:
         server.shutdown()
         server.server_close()

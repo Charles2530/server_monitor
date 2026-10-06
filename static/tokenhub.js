@@ -22,6 +22,7 @@
   let snapshot = null, route = "", selectedTab = "dashboard", timer = null, stateController = null, stateSerial = 0;
   let trendDays = 7, trendData = null, trendSerial = 0, trendController = null, chart = null;
   const lists = { keys: { data: null, controller: null, serial: 0 }, usage: { data: null, controller: null, serial: 0 } };
+  let keyCopy = null;
   $("tokenhub-start").value = today(-6);
   $("tokenhub-end").value = today();
   const section = (name) => snapshot?.sections?.[name];
@@ -129,17 +130,21 @@
     const dates = Array.from({ length: trendData.days }, (_, index) => new Date(Date.parse(trendData.start_date + "T00:00:00Z") + index * 86400000).toISOString().slice(0, 10));
     if (!window.echarts) { $("tokenhub-trend-status").textContent = "图表组件不可用，请刷新页面。"; return; }
     chart = chart || echarts.init($("tokenhub-trend-chart"));
+    const theme = getComputedStyle(document.documentElement);
+    const chartInk = theme.getPropertyValue("--ink").trim(), chartMuted = theme.getPropertyValue("--muted").trim();
+    const chartLine = theme.getPropertyValue("--line").trim(), chartSurface = theme.getPropertyValue("--surface").trim();
+    const chartAccent = document.documentElement.dataset.theme === "dark" ? theme.getPropertyValue("--accent").trim() : "#159a76";
     chart.setOption({
       textStyle: { fontFamily: getComputedStyle(document.body).fontFamily },
-      animation: false, color: ["#159a76"],
-      tooltip: { trigger: "axis", confine: true, renderMode: "richText", backgroundColor: "#fff", borderColor: "#dce8e1", borderWidth: 1, padding: [12, 16], textStyle: { color: "#294b3b", fontSize: 13 },
-        axisPointer: { type: "line", lineStyle: { color: "#91b7a3", type: "dashed" } }, valueFormatter: (value) => known(value) ? money(value) + " USD" : "未知" },
+      animation: false, color: [chartAccent],
+      tooltip: { trigger: "axis", confine: true, renderMode: "richText", backgroundColor: chartSurface, borderColor: chartLine, borderWidth: 1, padding: [12, 16], textStyle: { color: chartInk, fontSize: 13 },
+        axisPointer: { type: "line", lineStyle: { color: chartMuted, type: "dashed" } }, valueFormatter: (value) => known(value) ? money(value) + " USD" : "未知" },
       grid: { left: 20, right: 26, top: 26, bottom: 24, containLabel: true },
-      xAxis: { type: "category", boundaryGap: false, data: dates, axisLabel: { formatter: (value) => value.slice(5), color: "#73867b", fontSize: 12, margin: 12, hideOverlap: true }, axisLine: { lineStyle: { color: "#e0e9e3" } }, axisTick: { show: false } },
-      yAxis: { type: "value", min: 0, splitNumber: 4, axisLabel: { color: "#73867b", fontSize: 12, margin: 12, formatter: (value) => money(value) }, splitLine: { lineStyle: { color: "#eaf0ec", type: "dashed" } } },
+      xAxis: { type: "category", boundaryGap: false, data: dates, axisLabel: { formatter: (value) => value.slice(5), color: chartMuted, fontSize: 12, margin: 12, hideOverlap: true }, axisLine: { lineStyle: { color: chartLine } }, axisTick: { show: false } },
+      yAxis: { type: "value", min: 0, splitNumber: 4, axisLabel: { color: chartMuted, fontSize: 12, margin: 12, formatter: (value) => money(value) }, splitLine: { lineStyle: { color: chartLine, type: "dashed" } } },
       series: [{ name: "实际花费", type: "line", smooth: false, showSymbol: dates.length <= 7, symbol: "circle", symbolSize: 7, connectNulls: false,
-        itemStyle: { color: "#159a76", borderColor: "#fff", borderWidth: 2 },
-        lineStyle: { width: 2.5 }, areaStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: "#159a7633" }, { offset: 1, color: "#159a7602" }] } },
+        itemStyle: { color: chartAccent, borderColor: chartSurface, borderWidth: 2 },
+        lineStyle: { width: 2.5 }, areaStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: echarts.color.modifyAlpha(chartAccent, .22) }, { offset: 1, color: echarts.color.modifyAlpha(chartAccent, .01) }] } },
         data: dates.map((day) => known(byDate.get(day)?.actual_cost) ? byDate.get(day).actual_cost : null) }]
     }, true);
     chart.resize();
@@ -203,6 +208,7 @@
   }
   async function openGroupDialog(item) {
     if (groupSaving) return;
+    clearKeyCopy();
     closeGroupDialog();
     const serial = groupSerial, controller = new AbortController(); groupController = controller;
     const timeout = setTimeout(() => controller.abort(), 65000);
@@ -218,7 +224,10 @@
       if (!Array.isArray(data.items) || data.key?.id !== item.id || !Number.isInteger(data.account_id)) throw new Error("可用分组数据不完整。");
       groupOptions = data;
       select.replaceChildren(new Option("选择目标分组", ""));
-      for (const group of data.items) select.append(new Option(`${group.name || "未命名"} · ${platformName(group.platform)}${group.id === data.key.group_id ? "（当前）" : ""}`, String(group.id)));
+      for (const group of data.items) {
+        const name = group.name || "未命名", platform = platformName(group.platform);
+        select.append(new Option(`${name}${name === platform ? "" : " · " + platform}${group.id === data.key.group_id ? "（当前）" : ""}`, String(group.id)));
+      }
       if (data.items.some((group) => group.id === data.key.group_id)) select.value = String(data.key.group_id);
       select.disabled = !data.items.length;
       $("tokenhub-group-status").textContent = data.items.length ? "" : "暂无可切换的分组。";
@@ -267,6 +276,7 @@
   });
 
   function resetLists() {
+    clearKeyCopy();
     closeGroupDialog();
     trendSerial += 1; trendController?.abort(); trendController = null; trendData = null; chart?.clear();
     $("tokenhub-trend-summary").textContent = "连接后查看每日花费趋势";
@@ -293,7 +303,9 @@
       if (!data.sections || typeof data.sections !== "object" || typeof data.status !== "string") throw new Error("TokenHub 状态格式无法识别。");
       const before = sectionData("account")?.id, after = data.sections.account?.data?.id;
       if (before !== after || data.status === "disconnected") resetLists();
-      snapshot = data; render();
+      snapshot = data;
+      if (!snapshot.connected) clearKeyCopy();
+      render();
       if (route === "tokenhub") {
         if (selectedTab === "dashboard") { await loadTrend(); if ($("tokenhub-usage-details").open) await loadList("usage"); }
         if (selectedTab === "keys") await loadList("keys");
@@ -328,7 +340,78 @@
     return item;
   }
 
+  function clearKeyCopy() {
+    const operation = keyCopy; keyCopy = null;
+    if (operation) {
+      operation.controller.abort(); clearTimeout(operation.timeout); operation.secret = "";
+      operation.button.disabled = false; operation.button.textContent = "复制密钥";
+    }
+    $("tokenhub-key-copy-status").textContent = "";
+  }
+
+  function currentKeyCopy(operation) {
+    return keyCopy === operation && route === "tokenhub" && selectedTab === "keys"
+      && snapshot?.connected && sectionData("account")?.id === operation.accountId
+      && operation.button.isConnected && !document.hidden;
+  }
+
+  function legacyCopy(secret) {
+    const input = node("textarea", undefined, "th-copy-buffer");
+    input.value = secret; input.setAttribute("aria-hidden", "true"); input.tabIndex = -1;
+    const focused = document.activeElement;
+    document.body.append(input);
+    try { input.select(); return document.execCommand("copy"); }
+    finally { input.value = ""; input.remove(); focused?.focus({ preventScroll: true }); }
+  }
+
+  async function finishKeyCopy(operation) {
+    if (!currentKeyCopy(operation) || !operation.secret) return;
+    operation.button.disabled = true;
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(operation.secret);
+      else if (!legacyCopy(operation.secret)) throw new Error("clipboard_unavailable");
+      if (!currentKeyCopy(operation)) return;
+      clearKeyCopy();
+      operation.button.textContent = "已复制";
+      $("tokenhub-key-copy-status").textContent = "密钥已复制到剪贴板。";
+      setTimeout(() => { if (operation.button.isConnected && operation.button.textContent === "已复制") operation.button.textContent = "复制密钥"; }, 2500);
+    } catch {
+      if (!currentKeyCopy(operation)) return;
+      operation.button.disabled = false; operation.button.textContent = "再次点击复制";
+      $("tokenhub-key-copy-status").textContent = "浏览器未允许复制，请再点一次；仍失败可前往原站复制。";
+    }
+  }
+
+  async function copyKey(item, button) {
+    if (keyCopy?.button === button) { await finishKeyCopy(keyCopy); return; }
+    clearKeyCopy();
+    if (!snapshot?.connected) { $("tokenhub-key-copy-status").textContent = "请先连接 TokenHub。"; return; }
+    const operation = { button, accountId: sectionData("account")?.id, controller: new AbortController(), secret: "", timeout: null };
+    keyCopy = operation; button.disabled = true; button.textContent = "正在读取…";
+    operation.timeout = setTimeout(() => operation.controller.abort(), 65000);
+    try {
+      const data = await request("/api/tokenhub/key-copy", {
+        method: "POST", headers: { "Content-Type": "application/json", "X-Monitor-Request": "1" },
+        body: JSON.stringify({ key_id: item.id, account_id: operation.accountId }), signal: operation.controller.signal
+      });
+      if (!currentKeyCopy(operation)) return;
+      if (typeof data.key !== "string" || !data.key) throw new Error("未读取到完整密钥，请前往原站复制。");
+      operation.secret = data.key; delete data.key;
+      clearTimeout(operation.timeout);
+      operation.timeout = setTimeout(() => {
+        if (keyCopy !== operation) return;
+        clearKeyCopy(); $("tokenhub-key-copy-status").textContent = "复制等待已结束，请重新点击复制密钥。";
+      }, 30000);
+      await finishKeyCopy(operation);
+    } catch (error) {
+      if (keyCopy !== operation) return;
+      clearKeyCopy();
+      $("tokenhub-key-copy-status").textContent = error.name === "AbortError" ? "读取超时，请重试。" : error.message;
+    }
+  }
+
   function renderList(kind, data) {
+    if (kind === "keys") clearKeyCopy();
     const body = $(`tokenhub-${kind}-body`); body.replaceChildren();
     if (!data.items.length) emptyList(kind, kind === "keys" ? "暂无 API Key" : "该日期范围内暂无用量记录");
     for (const item of data.items) {
@@ -341,6 +424,10 @@
         edit.setAttribute("aria-label", `调整 ${item.name || "未命名"} 的分组`);
         edit.disabled = !Number.isInteger(item.id) || item.id <= 0;
         edit.addEventListener("click", () => openGroupDialog(item)); meta.append(edit); identity.append(meta);
+        const copy = node("button", "复制密钥", "th-key-copy"); copy.type = "button";
+        copy.setAttribute("aria-label", `复制 ${item.name || "未命名"} 的密钥`);
+        copy.disabled = !Number.isInteger(item.id) || item.id <= 0;
+        copy.addEventListener("click", () => copyKey(item, copy)); meta.append(copy);
         const usage = node("td", undefined, "th-key-usage");
         for (const [label, value] of [["今日", item.today_actual_cost], ["近30天", item.last_30_days_actual_cost]]) {
           const line = node("div", undefined, "th-key-usage-line");
@@ -351,7 +438,14 @@
         concurrency.firstElementChild.classList.toggle("is-busy", item.current_concurrency > 0);
         row.append(identity, cell(statusName(item.status)), concurrency, usage, dateCell(item.expires_at, item.expires_at === null ? "未设到期时间" : "—"), dateCell(item.last_used_at));
       }
-      else row.append(cell(item.model || "未知模型", date(item.created_at)), cell(item.key_name || "—"), cell(`${count(item.input_tokens)} / ${count(item.output_tokens)}`), cell(known(item.cache_creation_tokens) && known(item.cache_read_tokens) ? count(item.cache_creation_tokens + item.cache_read_tokens) : "—"), cell(money(item.actual_cost)));
+      else {
+        const tokens = node("td", undefined, "th-token-pair");
+        for (const [label, value] of [["输入", item.input_tokens], ["输出", item.output_tokens]]) {
+          const line = node("div"); line.append(node("span", label), node("strong", count(value))); tokens.append(line);
+        }
+        const amount = cell(money(item.actual_cost)); amount.className = "th-usage-cost";
+        row.append(cell(item.model || "未知模型", date(item.created_at)), cell(item.key_name || "—"), tokens, cell(known(item.cache_creation_tokens) && known(item.cache_read_tokens) ? count(item.cache_creation_tokens + item.cache_read_tokens) : "—"), amount);
+      }
       if (kind === "keys") {
         const badge = row.children[1].firstElementChild;
         badge.className = "th-key-status"; badge.dataset.status = item.status || "unknown";
@@ -397,6 +491,7 @@
   }
 
   function activate(nextRoute) {
+    clearKeyCopy();
     route = nextRoute; clearTimeout(timer);
     closeGroupDialog();
     trendSerial += 1; trendController?.abort(); trendController = null;
@@ -405,6 +500,7 @@
     if (relevant()) loadState();
   }
   for (const button of document.querySelectorAll("[data-tokenhub-tab]")) button.addEventListener("click", () => {
+    clearKeyCopy();
     selectedTab = button.dataset.tokenhubTab;
     for (const item of document.querySelectorAll("[data-tokenhub-tab]")) {
       const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-pressed", String(active));
@@ -445,6 +541,11 @@
   $("tokenhub-all-quotas").addEventListener("click", () => document.querySelector('[data-tokenhub-tab="quotas"]').click());
   $("tokenhub-usage-details").addEventListener("toggle", () => { if ($("tokenhub-usage-details").open) loadList("usage"); });
   window.addEventListener("resize", () => chart?.resize());
+  // Account quota cards can resize the chart row without a window resize.
+  new ResizeObserver(([entry]) => {
+    if (entry.contentRect.width && entry.contentRect.height) chart?.resize();
+  }).observe($("tokenhub-trend-chart"));
+  document.addEventListener("appearance-change", () => { if (chart) drawTrend(); });
   for (const link of document.querySelectorAll('.th-page a[href^="https://tokenhub.ilab.beer/"]')) link.addEventListener("click", (event) => {
     if (snapshot?.can_connect !== false) return;
     event.preventDefault();
@@ -462,5 +563,7 @@
   });
   $("tokenhub-close-original").addEventListener("click", () => $("tokenhub-original-dialog").close());
   document.addEventListener("workspace-page", (event) => activate(event.detail));
+  document.addEventListener("visibilitychange", () => { if (document.hidden) clearKeyCopy(); });
+  window.addEventListener("pagehide", clearKeyCopy);
   render(); activate(location.hash.slice(1) || "overview");
 })();

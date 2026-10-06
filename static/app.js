@@ -312,6 +312,9 @@
 
   function renderChart(series) {
     if (!model.chart) { chartMessage("图表组件暂不可用，请确认本地 ECharts 文件已就绪。"); return; }
+    const theme = getComputedStyle(document.documentElement);
+    const chartInk = theme.getPropertyValue("--ink").trim(), chartMuted = theme.getPropertyValue("--muted").trim();
+    const chartLine = theme.getPropertyValue("--line").trim(), chartSurface = theme.getPropertyValue("--surface").trim();
     const selectedSeries = Array.isArray(series) ? series.filter((item) => METRICS.some((metric) => metric.key === item.metric)) : [];
     const hasValues = selectedSeries.some((item) => Array.isArray(item.points) && item.points.some((point) => Array.isArray(point) && percent(point[1]) !== null));
     model.chartSeries = series;
@@ -349,21 +352,21 @@
         textStyle: { fontSize: 13, fontWeight: 600, color: metric.color },
       })),
       color: selectedSeries.map((item) => METRICS.find((metric) => metric.key === item.metric).color),
-      tooltip: { trigger: "axis", renderMode: "richText", confine: true, valueFormatter: (value) => value === null || value === undefined ? "—" : `${numberFormat.format(value)}%` },
-      legend: { type: "scroll", bottom: 0, left: 16, right: 16, icon: "roundRect", itemWidth: 12, itemHeight: 3, itemGap: 15, formatter: (name) => legendNames.get(name) || name, textStyle: { color: "#536b62", fontSize: 11 } },
+      tooltip: { trigger: "axis", renderMode: "richText", confine: true, backgroundColor: chartSurface, borderColor: chartLine, textStyle: { color: chartInk }, valueFormatter: (value) => value === null || value === undefined ? "—" : `${numberFormat.format(value)}%` },
+      legend: { type: "scroll", bottom: 0, left: 16, right: 16, icon: "roundRect", itemWidth: 12, itemHeight: 3, itemGap: 15, formatter: (name) => legendNames.get(name) || name, textStyle: { color: chartMuted, fontSize: 11 }, pageTextStyle: { color: chartMuted } },
       axisPointer: { link: [{ xAxisIndex: "all" }], lineStyle: { color: "#97b4aa", type: "dashed" } },
       grid: grids,
       xAxis: METRICS.map((metric, index) => ({
         gridIndex: index, type: "time", boundaryGap: false, splitNumber: columns === 1 ? 4 : 3,
         min: Number.isFinite(firstSample) ? firstSample - (singleSample ? 30000 : 0) : undefined,
         max: Number.isFinite(lastSample) ? lastSample + (singleSample ? 30000 : 0) : undefined,
-        axisLine: { lineStyle: { color: "#e5edeb" } }, axisTick: { show: false },
-        axisLabel: { color: "#62776e", fontSize: 11, hideOverlap: true, formatter: (value) => model.hours > 1 ? `${chartDay.format(value)}\n${chartClock.format(value)}` : chartClock.format(value) }, splitLine: { show: false },
+        axisLine: { lineStyle: { color: chartLine } }, axisTick: { show: false },
+        axisLabel: { color: chartMuted, fontSize: 11, hideOverlap: true, formatter: (value) => model.hours > 1 ? `${chartDay.format(value)}\n${chartClock.format(value)}` : chartClock.format(value) }, splitLine: { show: false },
       })),
       yAxis: METRICS.map((metric, index) => ({
         gridIndex: index, type: "value", min: 0, max: 100, interval: 50,
-        axisLabel: { formatter: "{value}%", color: "#62776e", fontSize: 11 },
-        splitLine: { lineStyle: { color: "#eaf0ef", type: "dashed" } },
+        axisLabel: { formatter: "{value}%", color: chartMuted, fontSize: 11 },
+        splitLine: { lineStyle: { color: chartLine, type: "dashed" } },
       })),
       series: selectedSeries.map((item, index) => {
         const metricIndex = METRICS.findIndex((metric) => metric.key === item.metric);
@@ -454,6 +457,9 @@
   });
   byId("connect-button").addEventListener("click", () => action("connect-button", "/api/connect", "自动登录已开始，连接状态将自动更新。"));
   document.addEventListener("monitor-refresh", () => poll());
+  document.addEventListener("appearance-change", () => {
+    if (model.chartSeries && model.chartTaskId === model.selected) renderChart(model.chartSeries);
+  });
   document.addEventListener("workspace-page", (event) => {
     model.historyRequest += 1;
     if (event.detail === "tasks") { renderDetail(); loadHistory(); }

@@ -270,6 +270,24 @@ class TokenHub:
             raise TokenHubAuthRequired()
         return result
 
+    async def copy_key(self, key_id, account_id):
+        if integer(key_id, 1) is None or integer(account_id, 1) is None:
+            raise TokenHubError('密钥或账户编号无效。', 'invalid_key', 400)
+        generation = self.generation
+        owner, key = await asyncio.gather(self.request('/auth/me'), self.request(f'/keys/{key_id}'))
+        if generation != self.generation:
+            raise TokenHubAuthRequired()
+        if (not isinstance(owner, dict) or integer(owner.get('id'), 1) != account_id
+                or not isinstance(key, dict) or integer(key.get('id'), 1) != key_id
+                or integer(key.get('user_id'), 1) != account_id):
+            raise TokenHubError('账户或密钥已变化，请刷新后重试。', 'account_changed', 409)
+        value = key.get('key')
+        if (not isinstance(value, str) or not 1 <= len(value) <= 4096
+                or any(char.isspace() for char in value) or any(mask in value for mask in ('*', '…', '•', '...'))):
+            raise TokenHubError('原站未返回完整密钥，请前往原站复制。', 'key_unavailable', 503)
+        # Only this explicit action returns a secret; never add it to snapshots or lists.
+        return {'key': value}
+
     async def key_groups(self, key_id):
         if integer(key_id, 1) is None:
             raise TokenHubError('密钥编号无效。', 'invalid_key', 400)

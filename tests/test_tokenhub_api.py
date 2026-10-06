@@ -100,3 +100,27 @@ def test_key_group_routes_validate_body_and_origin(tmp_path):
     assert allowed_path('/api/tokenhub/key-groups', 'GET')
     assert allowed_path('/api/tokenhub/key-group', 'POST')
     assert not allowed_path('/api/tokenhub/key-group/1', 'POST')
+
+
+def test_key_copy_requires_explicit_post_validated_identity_and_no_cache(tmp_path):
+    hub = Hub()
+    async def copy_key(**kwargs):
+        hub.calls.append(('copy', kwargs))
+        return {'key': 'sk-test-only'}
+    hub.copy_key = copy_key
+    headers = {'X-Monitor-Request': '1'}
+    body = {'key_id': 1, 'account_id': 7}
+    with client_for(tmp_path, hub) as client:
+        assert client.get('/api/tokenhub/key-copy').status_code == 405
+        assert client.post('/api/tokenhub/key-copy', json=body).status_code == 403
+        assert client.post('/api/tokenhub/key-copy', headers={**headers, 'Origin': 'https://evil.test'}, json=body).status_code == 403
+        for bad in ({'key_id': True, 'account_id': 7}, {'key_id': -1, 'account_id': 7}, {'key_id': '1', 'account_id': 7}, {'key_id': 1}, {**body, 'url': 'https://evil.test'}):
+            assert client.post('/api/tokenhub/key-copy', headers=headers, json=bad).status_code == 422
+        assert not hub.calls
+        response = client.post('/api/tokenhub/key-copy', headers=headers, json=body)
+        assert response.status_code == 200 and response.json() == {'key': 'sk-test-only'}
+        assert response.headers['cache-control'] == 'no-store'
+        assert hub.calls == [('copy', body)]
+    from server.mobile_gateway import allowed_path
+    assert allowed_path('/api/tokenhub/key-copy', 'POST')
+    assert not allowed_path('/api/tokenhub/key-copy', 'GET')

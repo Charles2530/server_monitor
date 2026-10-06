@@ -18,6 +18,12 @@ class KeyGroupUpdate(BaseModel):
     account_id: PositiveId
 
 
+class KeyCopyRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    key_id: PositiveId
+    account_id: PositiveId
+
+
 def register_tokenhub_routes(app, hub):
     async def perform(callback):
         try:
@@ -45,6 +51,10 @@ def register_tokenhub_routes(app, hub):
     @app.get('/api/tokenhub/key-groups')
     async def key_groups(key_id: int = Query(gt=0)):
         return await perform(lambda: hub.key_groups(key_id))
+
+    @app.post('/api/tokenhub/key-copy')
+    async def key_copy(body: KeyCopyRequest):
+        return await perform(lambda: hub.copy_key(**body.model_dump()))
 
     @app.post('/api/tokenhub/key-group')
     async def key_group(body: KeyGroupUpdate):

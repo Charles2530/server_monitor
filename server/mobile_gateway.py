@@ -14,7 +14,7 @@ READ_PATHS=frozenset(('/', '/terminal', '/api/state','/api/history','/api/task-h
     '/api/logs','/api/logs/targets','/api/cci/terminal-targets','/api/acp/terminal-targets',
     '/api/acp/options','/api/acp/task-config','/api/acp/restart-options','/api/acp/release-restart-options'))
 WRITE_PATHS=frozenset(('/api/connect','/api/refresh','/api/acp/preview','/api/acp/create','/api/acp/stop',
-    '/api/tokenhub/key-group',
+    '/api/tokenhub/key-group','/api/tokenhub/key-copy',
     '/api/acp/restart-preview','/api/acp/release-restart-preview',
     '/api/terminal/open','/api/terminal/targets','/api/terminal/status','/api/terminal/read','/api/terminal/write','/api/terminal/close'))
 MAX_BODY=131072
