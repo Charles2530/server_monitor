@@ -61,7 +61,7 @@
   }
 
   async function refresh() {
-    if (!active || controller) return;
+    if (!active || document.hidden || controller) return;
     clearTimeout(timer);
     let nextDelay = 60000;
     const request = ++serial;
@@ -91,17 +91,18 @@
       if (!snapshot) { const cell = node("td", "存储数据未获取", "table-empty"); cell.colSpan = 4; const row = node("tr"); row.append(cell); $("storage-body").replaceChildren(row); }
     } finally {
       clearTimeout(timeout);
-      if (request === serial) { controller = null; $("storage-refresh").disabled = false; if (active) timer = setTimeout(refresh, nextDelay); }
+      if (request === serial) { controller = null; $("storage-refresh").disabled = false; if (active && !document.hidden) timer = setTimeout(refresh, nextDelay); }
     }
   }
   function activate(route) {
     active = route === "storage"; clearTimeout(timer);
-    if (active) refresh();
+    if (active && !document.hidden) refresh();
     else { serial += 1; controller?.abort(); controller = null; $("storage-refresh").disabled = false; }
   }
   for (const id of ["storage-zone", "storage-search", "storage-related"]) $(id).addEventListener("input", render);
   $("storage-refresh").addEventListener("click", refresh);
   $("refresh-button").addEventListener("click", () => { if (active) refresh(); });
   document.addEventListener("workspace-page", (event) => activate(event.detail));
+  document.addEventListener("visibilitychange", () => activate(location.hash.slice(1)));
   activate(location.hash.slice(1));
 })();

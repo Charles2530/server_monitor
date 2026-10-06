@@ -163,9 +163,36 @@ class Collector:
                         {'filter':' OR '.join("state='"+value+"'" for value in states)})
                     own_acp_names.update(r['name'] for r in rows if is_charles(r.get('display_name')))
                 return [task_from_raw(r,kind,now) for r in rows if is_target(r.get('display_name',''),r.get('state'))]
-            for kind in ('CCI','ACP'):
+            async def queue(kind,service,path,key):
+                # Filter before pagination: full CCI records can exceed the cloud's 4 MiB limit.
+                params={'page_size':20,'filter':' OR '.join("state='"+value+"'" for value in QUEUE_LABELS[kind])}
+                return await self.paginate(client,service,path,key,params)
+            async def read_list(read,auth_fatal=True):
                 try:
-                    tasks=await source(kind)
+                    return await read
+                except AuthRequired as error:
+                    if auth_fatal:raise
+                    return error
+                except Exception as error:
+                    return error
+            # Read independent lists together, then assemble in the original order.
+            # In particular, ACP queue permissions need the completed personal list.
+            reads=[asyncio.create_task(read_list(read,auth_fatal)) for read,auth_fatal in (
+                (source('CCI'),True),(source('ACP'),True),
+                (queue('CCI','CCI','/compute/cci/data/v2'+self.workspace+'/apps','apps'),False),
+                (queue('ACP','AEC2','/compute/acp/data/v2'+self.workspace+'/trainingJobs','training_jobs'),False),
+                (self.paginate(client,'AEC2','/compute/workspace/data/v1'+self.workspace+'/workspaceAEC2Bindings','aec2s'),True))]
+            try:
+                lists=await asyncio.gather(*reads)
+            finally:
+                # Authentication failure or cancellation must drain siblings before
+                # leaving the shared HTTP client context.
+                for read in reads:
+                    if not read.done():read.cancel()
+                await asyncio.gather(*reads,return_exceptions=True)
+            for kind,tasks in zip(('CCI','ACP'),lists[:2]):
+                try:
+                    if isinstance(tasks,BaseException):raise tasks
                     state['tasks'].extend(tasks)
                     state['source_status'][kind]={'status':'ok','updated_at':iso(now)}
                 except AuthRequired:
@@ -173,15 +200,10 @@ class Collector:
                 except Exception:
                     state['tasks'].extend(t for t in previous.get('tasks',[]) if t['kind']==kind)
                     state['source_status'][kind]={'status':'error','error':'任务列表获取失败，保留旧快照','updated_at':previous.get('source_status',{}).get(kind,{}).get('updated_at')}
-            for kind,service,path,key in (
-                ('CCI','CCI','/compute/cci/data/v2'+self.workspace+'/apps','apps'),
-                ('ACP','AEC2','/compute/acp/data/v2'+self.workspace+'/trainingJobs','training_jobs'),
-            ):
+            for kind,rows in zip(('CCI','ACP'),lists[2:4]):
                 source_key=kind+'_queue'
                 try:
-                    # Filter before pagination: full CCI records can exceed the cloud's 4 MiB limit.
-                    params={'page_size':20,'filter':' OR '.join("state='"+value+"'" for value in QUEUE_LABELS[kind])}
-                    rows=await self.paginate(client,service,path,key,params)
+                    if isinstance(rows,BaseException):raise rows
                     waiting=[]
                     for row in rows:
                         if row.get('state') not in QUEUE_LABELS[kind]:
@@ -196,7 +218,8 @@ class Collector:
                     state['waiting_tasks'].extend(t for t in previous.get('waiting_tasks',[]) if t.get('kind')==kind and t.get('state') in QUEUE_LABELS[kind])
                     state['source_status'][source_key]={'status':'error','error':'全用户等待队列获取失败或权限不足，保留旧快照','updated_at':previous.get('source_status',{}).get(source_key,{}).get('updated_at')}
             try:
-                rows=await self.paginate(client,'AEC2','/compute/workspace/data/v1'+self.workspace+'/workspaceAEC2Bindings','aec2s')
+                rows=lists[4]
+                if isinstance(rows,BaseException):raise rows
                 state['clusters']=[cluster_from_raw(r,now) for r in rows if r.get('state')=='ACTIVE']
                 state['source_status']['resources']={'status':'ok','updated_at':iso(now)}
             except AuthRequired:

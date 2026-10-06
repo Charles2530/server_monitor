@@ -73,7 +73,7 @@
     $("task-history-warning").hidden = !warnings.length; $("task-history-warning").textContent = warnings.join(" ");
   }
   async function refresh() {
-    if (!active || controller) return;
+    if (!active || document.hidden || controller) return;
     clearTimeout(timer); const request = ++serial, current = new AbortController(); controller = current;
     const timeout = setTimeout(() => current.abort(), 15000); let delay = 60000;
     $("task-history-refresh").disabled = true;
@@ -92,12 +92,12 @@
       if (!snapshot) { const cell = node("td", "历史数据未获取", "table-empty"), row = node("tr"); cell.colSpan = 6; row.append(cell); $("task-history-body").replaceChildren(row); }
     } finally {
       clearTimeout(timeout);
-      if (request === serial) { controller = null; $("task-history-refresh").disabled = false; if (active) timer = setTimeout(refresh, delay); }
+      if (request === serial) { controller = null; $("task-history-refresh").disabled = false; if (active && !document.hidden) timer = setTimeout(refresh, delay); }
     }
   }
   function activate(route) {
     active = route === "history"; clearTimeout(timer);
-    if (active) refresh();
+    if (active && !document.hidden) refresh();
     else { serial += 1; controller?.abort(); controller = null; $("task-history-refresh").disabled = false; }
   }
   for (const id of ["task-history-search", "task-history-kind", "task-history-state", "task-history-size"]) $(id).addEventListener("input", () => { page = 1; render(); });
@@ -110,5 +110,6 @@
   $("task-history-refresh").addEventListener("click", refresh);
   $("refresh-button").addEventListener("click", () => { if (active) refresh(); });
   document.addEventListener("workspace-page", event => activate(event.detail));
+  document.addEventListener("visibilitychange", () => activate(location.hash.slice(1)));
   activate(location.hash.slice(1));
 })();

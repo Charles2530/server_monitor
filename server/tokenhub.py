@@ -108,8 +108,14 @@ class TokenHub:
         self.connect_task = None
         self.loop_task = None
         self.generation = 0
+        self.closed = False
+        self.snapshot_task = None
+        self.snapshot_generation = None
+        self.snapshot_tasks = set()
 
     async def raw(self, method, path, token=None, **kwargs):
+        if self.closed:
+            raise TokenHubError()
         try:
             async with httpx.AsyncClient(base_url=API + '/', timeout=20, follow_redirects=False, transport=self.transport) as client:
                 response = await client.request(method, path.lstrip('/'), headers={'Authorization': 'Bearer ' + token} if token else {}, **kwargs)
@@ -176,14 +182,32 @@ class TokenHub:
                 'sections': copy.deepcopy(self.sections), 'interval_seconds': 60}
 
     async def snapshot(self, force=False):
+        if self.closed:
+            raise TokenHubError()
+        refreshing = self.snapshot_task is not None and not self.snapshot_task.done() and self.snapshot_generation == self.generation
+        if not refreshing and not force and self.checked_at and time.monotonic() - self.checked_at < 60:
+            return self.view()
+        if not refreshing:
+            self.snapshot_generation = self.generation
+            self.snapshot_task = asyncio.create_task(self.refresh_snapshot(force, self.generation))
+            self.snapshot_tasks.add(self.snapshot_task)
+            self.snapshot_task.add_done_callback(self.snapshot_tasks.discard)
+            self.snapshot_task.add_done_callback(lambda task: None if task.cancelled() else task.exception())
+        # An HTTP caller leaving must not cancel a refresh shared with other callers.
+        await asyncio.shield(self.snapshot_task)
+        return self.view()
+
+    async def refresh_snapshot(self, force, generation):
         async with self.snapshot_lock:
+            if generation != self.generation:
+                return
             if not force and self.checked_at and time.monotonic() - self.checked_at < 60:
-                return self.view()
+                return
             try:
                 self.session.load()
             except TokenHubAuthRequired:
                 self.status, self.connected = 'disconnected', False
-                return self.view()
+                return
             try:
                 old_id = (self.sections.get('account', {}).get('data') or {}).get('id')
                 await self.read_section('account', '/auth/me', account)
@@ -191,7 +215,7 @@ class TokenHub:
                     for name in self.sections:
                         self.stale(name, '账户验证失败，数据未更新。')
                     self.status = 'error'
-                    return self.view()
+                    return
                 new_id = self.sections['account']['data']['id']
                 if old_id is not None and new_id != old_id:
                     self.sections = {'account': self.sections['account']}
@@ -210,7 +234,6 @@ class TokenHub:
                     self.stale(name, '登录已失效，数据未更新。')
             finally:
                 self.checked_at = time.monotonic()
-            return self.view()
 
     async def trend(self, days=7):
         if isinstance(days, bool) or days not in (7, 30):
@@ -386,7 +409,8 @@ class TokenHub:
             await asyncio.sleep(60)
 
     async def close(self):
-        tasks = [task for task in (self.connect_task, self.loop_task) if task and not task.done()]
+        self.closed = True
+        tasks = [task for task in (self.connect_task, self.loop_task, *self.snapshot_tasks) if task and not task.done()]
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)

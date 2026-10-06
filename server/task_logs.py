@@ -1,4 +1,5 @@
 """Read bounded log snapshots for verified personal CCI/ACP tasks."""
+import asyncio
 import base64
 import binascii
 import json
@@ -52,6 +53,12 @@ def log_text(entries,tail):
     warning='日志过长，仅显示末尾内容。' if truncated else ''
     if broken:warning+='平台报告日志流中断，部分内容可能缺失。'
     return text,min(count,tail),eof,truncated,warning
+
+
+def parse_logs(content,tail):
+    payload=json.loads(content)
+    if not isinstance(payload,dict):raise ValueError('invalid response')
+    return log_text(payload.get('entries'),tail)
 
 
 class TaskLogs:
@@ -120,9 +127,7 @@ class TaskLogs:
                     async for chunk in response.aiter_bytes():
                         content.extend(chunk)
                         if len(content)>MAX_RESPONSE:raise ActionError('日志响应超过读取限制，请稍后重试。','logs_unavailable',502)
-                    payload=json.loads(content)
-            if not isinstance(payload,dict):raise ValueError('invalid response')
-            text,count,eof,truncated,warning=log_text(payload.get('entries'),tail)
+            text,count,eof,truncated,warning=await asyncio.to_thread(parse_logs,content,tail)
         except (httpx.HTTPError,ValueError):
             raise ActionError('日志暂时无法读取，请稍后刷新。','logs_unavailable',503) from None
         return {'task_id':task_id,'worker':worker,'container':container,'text':text,'entries':count,'tail':tail,

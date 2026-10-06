@@ -33,17 +33,19 @@
   function showDetail() {
     if (!phone.matches || !tasks || !detail || detail.hidden) return;
     tasks.classList.add('mobile-show-detail');
+    document.dispatchEvent(new CustomEvent('monitor-detail-visibility'));
     requestAnimationFrame(() => {
       detail.scrollIntoView({ block: 'start', behavior: 'instant' });
       back.focus({ preventScroll: true }); resizeCharts();
     });
   }
   function showList() {
+    tasks?.classList.remove('mobile-show-detail');
+    document.dispatchEvent(new CustomEvent('monitor-detail-visibility'));
     if (phone.matches) {
       // Existing tab handler cancels outstanding log reads and the refresh timer.
       document.getElementById('detail-tab-monitor')?.click();
     }
-    tasks?.classList.remove('mobile-show-detail');
     if (phone.matches) {
       document.getElementById('tasks-section')?.scrollIntoView({ block: 'start', behavior: 'instant' });
       list?.querySelector('.task-card.selected')?.focus({ preventScroll: true });
@@ -67,6 +69,7 @@
   phone.addEventListener('change', () => {
     if (!phone.matches) tasks?.classList.remove('mobile-show-detail');
     else if (!tasks?.classList.contains('mobile-show-detail')) showList();
+    document.dispatchEvent(new CustomEvent('monitor-detail-visibility'));
     resizeCharts();
   });
 })();

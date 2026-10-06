@@ -28,7 +28,7 @@
   const section = (name) => snapshot?.sections?.[name];
   const sectionData = (name) => section(name)?.data;
   const fresh = (name) => section(name)?.status === "ok";
-  const relevant = () => route === "overview" || route === "tokenhub";
+  const relevant = () => !document.hidden && (route === "overview" || route === "tokenhub");
 
   async function request(path, options = {}) {
     const response = await fetch(path, { cache: "no-store", ...options });
@@ -152,7 +152,7 @@
   }
 
   async function loadTrend() {
-    if (route !== "tokenhub" || selectedTab !== "dashboard") return;
+    if (!relevant() || route !== "tokenhub" || selectedTab !== "dashboard") return;
     if (!snapshot?.connected) { $("tokenhub-trend-status").textContent = trendData ? "连接已失效，当前为旧数据。" : "请先连接 TokenHub。"; return; }
     trendController?.abort();
     const controller = new AbortController(), serial = ++trendSerial, days = trendDays; trendController = controller;
@@ -460,7 +460,7 @@
   }
 
   async function loadList(kind, page) {
-    if (route !== "tokenhub" || !lists[kind]) return;
+    if (!relevant() || route !== "tokenhub" || !lists[kind]) return;
     const list = lists[kind];
     if (!snapshot?.connected) {
       $(`tokenhub-${kind}-status`).textContent = list.data ? "连接已失效，当前为旧数据。" : "请先连接 TokenHub。"; return;
@@ -490,14 +490,15 @@
     }
   }
 
-  function activate(nextRoute) {
-    clearKeyCopy();
-    route = nextRoute; clearTimeout(timer);
-    closeGroupDialog();
+  function updateActivity() {
+    clearKeyCopy(); clearTimeout(timer);
     trendSerial += 1; trendController?.abort(); trendController = null;
     stateSerial += 1; stateController?.abort(); stateController = null; $("tokenhub-refresh").disabled = false;
     for (const list of Object.values(lists)) { list.serial += 1; list.controller?.abort(); list.controller = null; }
     if (relevant()) loadState();
+  }
+  function activate(nextRoute) {
+    route = nextRoute; closeGroupDialog(); updateActivity();
   }
   for (const button of document.querySelectorAll("[data-tokenhub-tab]")) button.addEventListener("click", () => {
     clearKeyCopy();
@@ -563,7 +564,7 @@
   });
   $("tokenhub-close-original").addEventListener("click", () => $("tokenhub-original-dialog").close());
   document.addEventListener("workspace-page", (event) => activate(event.detail));
-  document.addEventListener("visibilitychange", () => { if (document.hidden) clearKeyCopy(); });
+  document.addEventListener("visibilitychange", updateActivity);
   window.addEventListener("pagehide", clearKeyCopy);
   render(); activate(location.hash.slice(1) || "overview");
 })();

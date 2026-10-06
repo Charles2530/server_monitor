@@ -386,6 +386,9 @@ class CCIEditor:
                 prepared = await run_python(self.bridge, data, bootstrap_script(data['instance'], session['address']), cleanup_jobs=self.cleanup_jobs)
                 if 'error' not in prepared and self.sessions.get(identity) is session:
                     session.update(codex=prepared.get('codex', {}), appearance=prepared.get('appearance', {}))
+                    if session['proxy'].assets is not None:
+                        roots = prepared.get('asset_roots', [])
+                        session['proxy'].assets.resource_roots = roots if isinstance(roots, list) else []
             except Exception:
                 # Optional marketplace/setup failures must not break a usable editor.
                 pass
@@ -453,6 +456,9 @@ class CCIEditor:
                         await asyncio.gather(warming, return_exceptions=True)
                     if warmed: await warmed.close()
                 session.update(codex=prepared.get('codex', {}), appearance=prepared.get('appearance', {}), name=result['name'])
+                if session['proxy'].assets is not None:
+                    roots = prepared.get('asset_roots', [])
+                    session['proxy'].assets.resource_roots = roots if isinstance(roots, list) else []
                 self.sessions[identity] = session
                 return self.opened(identity, session, data, origin, notify)
 

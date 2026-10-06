@@ -144,4 +144,7 @@ else:
     RESULT = {k: state[k] for k in ('port', 'password', 'workspace')}
 RESULT['codex'] = codex
 RESULT['appearance'] = appearance
+RESULT['asset_roots'] = [str(folder / 'lib/vscode/extensions')]
+if appearance and appearance.get('installed'):
+    RESULT['asset_roots'].append(str(base / 'extensions' / ('ilab.workspace-appearance-' + APPEARANCE_BUNDLE['version'])))
 '''

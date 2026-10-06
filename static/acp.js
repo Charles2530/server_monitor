@@ -285,11 +285,16 @@
     stopDialog.showModal();
   }
 
+  let waitingSignature = null;
   function renderWaiting() {
+    if (document.hidden || location.hash !== "#waiting") return;
     const snapshot = state.snapshot, kinds = ["CCI", "ACP"];
     const tasks = (Array.isArray(snapshot?.waiting_tasks) ? snapshot.waiting_tasks : []).filter((task) => task.state !== "SUSPENDING");
     const missing = kinds.filter((kind) => !fresh(`${kind}_queue`));
     const known = missing.length === 0;
+    const signature = JSON.stringify([tasks, missing, fresh(), state.stopping, state.stopUnknown, state.storageError]);
+    if (signature === waitingSignature) return;
+    waitingSignature = signature;
     byId("waiting-count").textContent = known ? String(tasks.length) : "—";
     byId("waiting-summary").textContent = kinds.map((kind) => `${kind} ${fresh(`${kind}_queue`) ? tasks.filter((task) => task.kind === kind).length : "未知"}`).join(" · ");
     message("waiting-notice", missing.length ? `${missing.join("、")} 全用户队列暂不可用或已过期；保留上次等待队列的旧数据，完整数量未知。` : "");
@@ -568,6 +573,8 @@
   byId("acp-options-retry").addEventListener("click", () => options());
   document.addEventListener("monitor-selection", (event) => { state.selected = event.detail; renderSelected(); });
   document.addEventListener("monitor-snapshot", (event) => { state.snapshot = event.detail.snapshot; state.unavailable = event.detail.unavailable; renderWaiting(); renderSelected(); });
+  document.addEventListener("workspace-page", renderWaiting);
+  document.addEventListener("visibilitychange", renderWaiting);
   window.addEventListener("storage", (event) => {
     for (const kind of ["create", "stop"]) if (event.key === pendingKeys[kind] || event.key === null) syncPending(kind);
   });

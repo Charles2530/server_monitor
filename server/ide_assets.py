@@ -6,29 +6,58 @@ import os
 from pathlib import Path
 import re
 import tempfile
+from urllib.parse import parse_qs
 
 
 MAX_ASSET = 32 * 1024 * 1024
 MAX_CACHE = 128 * 1024 * 1024
 MAX_ENTRIES = 512
 STATIC_PATH = re.compile(r'^/stable-[a-f0-9]{40}/static/(?:out|node_modules)/[A-Za-z0-9_./@+-]+\.(?:js|css|wasm|woff2?|ttf|svg|png|jpg|ico)$')
-SAVED_HEADERS = {'content-type', 'content-encoding', 'cache-control', 'etag', 'last-modified', 'vary'}
+RESOURCE_PATH = re.compile(r'^/stable-[a-f0-9]{40}/vscode-remote-resource$')
+RESOURCE_FILE = re.compile(r'^[A-Za-z0-9_./@+() -]+\.(?:json|tmLanguage|js|css|wasm|woff2?|ttf|svg|png|jpg|ico)$')
+WEBVIEW_PATH = re.compile(r'^/stable-[a-f0-9]{40}/static/out/vs/workbench/contrib/webview/browser/pre/(?:index\.html|fake\.html|service-worker\.js)$')
+WEBVIEW_QUERY = {'id', 'parentId', 'origin', 'swVersion', 'extensionId', 'platform',
+                 'vscode-resource-base-authority', 'parentOrigin', 'remoteAuthority', 'v'}
+SAVED_HEADERS = {'content-type', 'content-encoding', 'cache-control', 'etag', 'last-modified', 'vary', 'content-security-policy'}
 
 
 class EditorAssetCache:
     def __init__(self, directory):
         self.directory = Path(directory)
+        # Supplied by our verified bootstrap, never inferred from a browser path.
+        self.resource_roots = []
 
     def key(self, request):
         path = request.scope['raw_path'].decode('ascii')
         encoding = request.headers.get('accept-encoding', 'identity')
-        if (request.method not in ('GET', 'HEAD') or request.url.query
+        if (request.method not in ('GET', 'HEAD')
                 or request.headers.get('range') or request.headers.get('transfer-encoding')
                 or request.headers.get('content-length', '0') != '0'
-                or len(encoding) > 128 or not STATIC_PATH.fullmatch(path)
+                or len(encoding) > 128 or len(request.url.query) > 4096
                 or any(part in ('.', '..', '') for part in path[1:].split('/'))):
             return None
-        return hashlib.sha256((path + '\n' + encoding).encode()).hexdigest()
+        identity = path
+        if RESOURCE_PATH.fullmatch(path):
+            query = parse_qs(request.url.query, keep_blank_values=True)
+            # code-server's browser appends an empty connection-token parameter.
+            # Only that empty placeholder is invariant; real tokens still bypass.
+            if query.get('tkn') == ['']: query.pop('tkn')
+            if set(query) != {'path'} or len(query['path']) != 1: return None
+            resource = query['path'][0]
+            if not any(isinstance(root, str) and root.startswith('/') and resource.startswith(root.rstrip('/') + '/')
+                       for root in self.resource_roots): return None
+            if (not RESOURCE_FILE.fullmatch(resource) or
+                    any(part in ('.', '..', '') for part in resource[1:].split('/'))): return None
+            identity += '\n' + resource
+        elif WEBVIEW_PATH.fullmatch(path):
+            # These are the shipped, byte-identical boot templates. Query values
+            # are read by client JS; rendered Markdown and webview content never
+            # pass this allowlist. Do not cache other HTML or arbitrary queries.
+            query = parse_qs(request.url.query, keep_blank_values=True)
+            if not set(query) <= WEBVIEW_QUERY or any(len(values) != 1 for values in query.values()): return None
+        elif request.url.query or not STATIC_PATH.fullmatch(path):
+            return None
+        return hashlib.sha256((identity + '\n' + encoding).encode()).hexdigest()
 
     async def get(self, key):
         if key is None: return None
@@ -55,7 +84,9 @@ class EditorAssetCache:
         store = (key is not None and upstream.status_code == 200
                  and 'set-cookie' not in upstream.headers and 'content-range' not in upstream.headers
                  and not any(token in control for token in ('no-store', 'private', 'no-cache'))
-                 and vary <= {'accept-encoding'})
+                 # EditorProxy strips Origin before forwarding every HTTP read,
+                 # so upstream Origin is fixed, including for built-in grammars.
+                 and vary <= {'accept-encoding', 'origin'})
         data = bytearray()
         try:
             async for chunk in upstream.aiter_raw():

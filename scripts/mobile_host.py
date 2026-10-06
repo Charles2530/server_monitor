@@ -76,7 +76,7 @@ def main():
             time.sleep(.1)
         else:parser.error('8767 仍被占用，请先确认占用进程。')
         package=RUNTIME/'server';package.mkdir(exist_ok=True);(package/'__init__.py').touch()
-        for name in ('mobile_access.py','mobile_gateway.py','mobile_admin.py','store.py'):shutil.copy2(SOURCE/'server'/name,package/name)
+        for name in ('mobile_access.py','mobile_gateway.py','mobile_admin.py','store.py','http_assets.py'):shutil.copy2(SOURCE/'server'/name,package/name)
         plist.parent.mkdir(exist_ok=True,parents=True)
         temp=plist.with_suffix('.tmp');temp.write_bytes(plistlib.dumps(payload(RUNTIME,python)));temp.chmod(0o600);temp.replace(plist)
         subprocess.run(['plutil','-lint',str(plist)],check=True)

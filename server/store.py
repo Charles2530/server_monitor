@@ -38,6 +38,7 @@ class Store:
                     PRIMARY KEY (task, metric, label, timestamp)
                 );
                 CREATE INDEX IF NOT EXISTS samples_time ON samples(timestamp);
+                CREATE INDEX IF NOT EXISTS samples_task_time ON samples(task,timestamp);
                 CREATE TABLE IF NOT EXISTS task_runs (task TEXT PRIMARY KEY);
                 CREATE TABLE IF NOT EXISTS operations (
                     key TEXT PRIMARY KEY, kind TEXT NOT NULL, target TEXT NOT NULL,

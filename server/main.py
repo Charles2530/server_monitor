@@ -28,6 +28,7 @@ from .normalize import task_console_url
 from .config import DATA, ROOT
 from .service import Monitor
 from .store import Store
+from .http_assets import StaticAssetCompression, revalidatable_asset
 from .sites import SITES, MAOSHANWANG
 
 
@@ -100,6 +101,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
             if lock_file:
                 lock_file.close()
     app=FastAPI(lifespan=lifespan,docs_url=None,redoc_url=None,openapi_url=None)
+    app.add_middleware(StaticAssetCompression)
     app.state.monitor=runtimes["maoshanwang"].monitor
     app.state.runtimes=runtimes
     app.state.tokenhub=tokenhub
@@ -115,7 +117,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         if request.method not in ('GET','HEAD','OPTIONS') and request.headers.get('x-monitor-request')!='1':
             return JSONResponse({'error':'缺少本地请求标记。'},status_code=403)
         response=await call_next(request)
-        response.headers['Cache-Control']='no-store'
+        response.headers['Cache-Control']=('private, no-cache' if revalidatable_asset(request.url.path,request.method,response.status_code) else 'no-store')
         response.headers['X-Content-Type-Options']='nosniff'
         response.headers['Referrer-Policy']='no-referrer'
         response.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"

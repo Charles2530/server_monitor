@@ -142,7 +142,10 @@ class EditorProxy:
         cached = await self.assets.get(cache_key) if self.assets else None
         if cached is not None:
             body, headers = cached
-            headers['content-security-policy'] = "frame-ancestors 'self' " + self.parent_origin
+            directives = [x.strip() for x in headers.get('content-security-policy', '').split(';')
+                          if x.strip() and not x.strip().startswith('frame-ancestors')]
+            directives.append("frame-ancestors 'self' " + self.parent_origin)
+            headers['content-security-policy'] = '; '.join(directives)
             headers['referrer-policy'] = 'no-referrer'
             if headers.get('etag') and request.headers.get('if-none-match') == headers['etag']:
                 return Response(status_code=304, headers={k: v for k, v in headers.items() if k != 'content-length'})

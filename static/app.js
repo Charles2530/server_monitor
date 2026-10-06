@@ -46,8 +46,11 @@
     return tasks().filter((task) => (model.kind === "all" || task.kind === model.kind) && `${task.name || ""} ${task.cluster || ""} ${task.id || ""}`.toLocaleLowerCase().includes(model.search));
   }
 
-  async function request(path, method = "GET") {
+  async function request(path, method = "GET", signal) {
     const controller = new AbortController();
+    const abort = () => controller.abort();
+    if (signal?.aborted) abort();
+    else signal?.addEventListener("abort", abort, { once: true });
     const timeout = setTimeout(() => controller.abort(), 20000);
     try {
       const response = await (window.MonitorSite?.fetch || fetch)(path, { method, headers: method === "POST" ? { "X-Monitor-Request": "1" } : {}, signal: controller.signal, cache: "no-store" });
@@ -55,7 +58,7 @@
       try { data = await response.json(); } catch { throw new Error("本地服务返回了无法读取的数据。"); }
       if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : `本地服务暂不可用（${response.status}）。`);
       return data;
-    } finally { clearTimeout(timeout); }
+    } finally { clearTimeout(timeout); signal?.removeEventListener("abort", abort); }
   }
 
   function renderStatus() {
@@ -192,7 +195,7 @@
       model.selected = null;
       byId("detail-panel").hidden = true;
       document.dispatchEvent(new CustomEvent("monitor-selection", { detail: null }));
-      model.historyRequest += 1;
+      cancelHistory();
       return;
     }
     if (!list.some((task) => task.id === model.selected)) model.selected = list[0].id;
@@ -298,7 +301,7 @@
       const url = new URL(task.url);
       if (url.origin === new URL(model.snapshot?.site?.console || "https://console.ms-sc-01.maoshanwangtech.com").origin && !url.username && !url.password) { link.href = url.href; link.hidden = false; }
     } catch { /* A task without a trusted console URL simply has no link. */ }
-    if (!byId("tasks-view").hidden && !byId("detail-monitor").hidden) {
+    if (historyVisible()) {
       if (!model.chart && window.echarts) model.chart = window.echarts.init(byId("history-chart"), null, { renderer: "canvas" });
       model.chart?.resize();
     }
@@ -311,7 +314,7 @@
   }
 
   function renderChart(series) {
-    if (!model.chart) { chartMessage("图表组件暂不可用，请确认本地 ECharts 文件已就绪。"); return; }
+    if (!model.chart) { chartMessage("图表组件暂不可用，请确认本地 ECharts 文件已就绪。"); return false; }
     const theme = getComputedStyle(document.documentElement);
     const chartInk = theme.getPropertyValue("--ink").trim(), chartMuted = theme.getPropertyValue("--muted").trim();
     const chartLine = theme.getPropertyValue("--line").trim(), chartSurface = theme.getPropertyValue("--surface").trim();
@@ -383,22 +386,49 @@
       }),
     }, true);
     chartMessage(hasValues ? "" : "所选时间范围还没有有效采样。采集完成后，历史曲线将在这里出现。");
+    return true;
   }
 
-  async function loadHistory() {
-    if (!model.selected || byId("tasks-view").hidden || byId("detail-monitor").hidden) return;
-    const requestId = ++model.historyRequest, taskId = model.selected, hours = model.hours;
+  function historyVisible() {
+    return !document.hidden && !byId("tasks-view").hidden && !byId("detail-monitor").hidden
+      && (!window.matchMedia("(max-width: 760px)").matches || byId("tasks-view").classList.contains("mobile-show-detail"));
+  }
+
+  function cancelHistory() {
+    model.historyRequest += 1;
+    model.historyController?.abort(); model.historyController = null;
+    model.historyPendingKey = null; model.historyPromise = null;
+  }
+
+  function loadHistory() {
+    if (!model.selected || !historyVisible()) { cancelHistory(); return; }
+    const taskId = model.selected, hours = model.hours;
+    const key = JSON.stringify([taskId, hours, model.snapshot?.updated_at]);
+    if (model.historyPendingKey === key) return model.historyPromise;
+    if (model.historyKey === key) { cancelHistory(); chartMessage(model.historyMessage); return; }
+    cancelHistory();
+    const requestId = model.historyRequest, controller = new AbortController();
+    model.historyController = controller; model.historyPendingKey = key;
     chartMessage("正在读取历史采样…");
-    try {
-      const history = await request(`/api/history?task_id=${encodeURIComponent(taskId)}&hours=${hours}`);
-      if (requestId !== model.historyRequest) return;
-      renderChart(history.series);
-    } catch {
-      if (requestId !== model.historyRequest) return;
-      model.chartSeries = null;
-      model.chart?.clear();
-      chartMessage("历史采样暂时无法读取，请稍后重试。任务卡片保留最近快照。");
-    }
+    model.historyPromise = (async () => {
+      try {
+        const history = await request(`/api/history?task_id=${encodeURIComponent(taskId)}&hours=${hours}`, "GET", controller.signal);
+        if (requestId !== model.historyRequest) return;
+        if (!renderChart(history.series)) return;
+        model.historyKey = key;
+        model.historyMessage = byId("chart-message").textContent;
+      } catch {
+        if (requestId !== model.historyRequest) return;
+        model.historyKey = null; model.chartSeries = null;
+        model.chart?.clear();
+        chartMessage("历史采样暂时无法读取，请稍后重试。任务卡片保留最近快照。");
+      } finally {
+        if (requestId === model.historyRequest) {
+          model.historyController = null; model.historyPendingKey = null; model.historyPromise = null;
+        }
+      }
+    })();
+    return model.historyPromise;
   }
 
   async function poll() {
@@ -461,18 +491,24 @@
     if (model.chartSeries && model.chartTaskId === model.selected) renderChart(model.chartSeries);
   });
   document.addEventListener("workspace-page", (event) => {
-    model.historyRequest += 1;
     if (event.detail === "tasks") { renderDetail(); loadHistory(); }
+    else cancelHistory();
   });
   document.addEventListener("monitor-detail-tab", (event) => {
-    model.historyRequest += 1;
-    if (event.detail === "monitor") { model.chart?.resize(); loadHistory(); }
+    if (event.detail === "monitor") { renderDetail(); loadHistory(); }
+    else cancelHistory();
+  });
+  document.addEventListener("monitor-detail-visibility", () => {
+    if (historyVisible()) { renderDetail(); loadHistory(); } else cancelHistory();
   });
   window.addEventListener("resize", () => {
     model.chart?.resize();
     if (model.chartSeries && model.chartTaskId === model.selected) renderChart(model.chartSeries);
   });
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) { poll(); model.chart?.resize(); } });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) cancelHistory();
+    else { poll(); renderDetail(); loadHistory(); }
+  });
   poll();
   setInterval(() => { if (!document.hidden) poll(); }, 10000);
 })();

@@ -8,6 +8,7 @@ from fastapi import FastAPI,Request
 from fastapi.responses import JSONResponse,Response
 from .mobile_access import AccessError,DeviceStore
 from .store import store_call
+from .http_assets import revalidatable_asset
 
 READ_PATHS=frozenset(('/', '/terminal', '/api/state','/api/history','/api/task-history','/api/storage',
     '/api/tokenhub/state','/api/tokenhub/keys','/api/tokenhub/usage','/api/tokenhub/trend','/api/tokenhub/key-groups',
@@ -61,7 +62,7 @@ def create_gateway(store=None,*,transport=None):
     @app.middleware('http')
     async def headers(request,call_next):
         response=await call_next(request)
-        response.headers['Cache-Control']='no-store'
+        response.headers['Cache-Control']=('private, no-cache' if revalidatable_asset(request.url.path,request.method,response.status_code) else 'no-store')
         response.headers['X-Content-Type-Options']='nosniff'
         response.headers['Referrer-Policy']='no-referrer'
         return response
@@ -101,15 +102,25 @@ def create_gateway(store=None,*,transport=None):
         query=request.scope.get('query_string',b'')
         if len(query)>8192:return JSONResponse({'error':'查询过长。'},status_code=413)
         headers={'X-Monitor-Site':site,'X-Monitor-Request':'1','Content-Type':'application/json','Host':'127.0.0.1:8766','X-Monitor-Device':device['id']}
+        static_read=request.method=='GET' and path.startswith('/static/')
+        if static_read:
+            headers['Accept-Encoding']=request.headers.get('accept-encoding','identity')
+            for name in ('if-none-match','if-modified-since'):
+                if name in request.headers:headers[name]=request.headers[name]
         try:
             # Do not forward cookies, caller Authorization, Host, Origin, or forwarding headers.
             async with app.state.upstream.stream(request.method,path+('?' + query.decode('ascii') if query else ''),headers=headers,content=body) as response:
-                if 300<=response.status_code<400:return JSONResponse({'error':'后台返回了非预期跳转。'},status_code=502)
+                if 300<=response.status_code<400 and not (static_read and response.status_code==304):return JSONResponse({'error':'后台返回了非预期跳转。'},status_code=502)
+                allowed_headers={'content-type','content-security-policy'}
+                if static_read:allowed_headers.update(('etag','last-modified','vary','content-encoding'))
+                forwarded={k:v for k,v in response.headers.items() if k in allowed_headers}
+                if response.status_code==304:return Response(status_code=304,headers=forwarded)
                 data=bytearray()
-                async for chunk in response.aiter_bytes():
+                # Static encodings pass through; dynamic responses retain their decoded bound.
+                stream=response.aiter_raw() if static_read else response.aiter_bytes()
+                async for chunk in stream:
                     data.extend(chunk)
                     if len(data)>MAX_RESPONSE:raise ValueError('response too large')
-                forwarded={k:v for k,v in response.headers.items() if k in ('content-type','content-security-policy')}
                 return Response(bytes(data),status_code=response.status_code,headers=forwarded)
         except (httpx.HTTPError,ValueError,UnicodeDecodeError):
             message='后台未响应；本次操作结果未知，请连接恢复后核对任务，勿重复提交。' if request.method=='POST' else '电脑上的监控后台暂不可用，请稍后重试。'
