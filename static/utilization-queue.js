@@ -10,7 +10,8 @@
   };
   const known = value => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100;
   const number = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 });
-  const date = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString("zh-CN", { hour12: false }) : "—";
+  const dateFormat = new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric", hour12: false });
+  const date = value => value && Number.isFinite(Date.parse(value)) ? dateFormat.format(new Date(value)) : "—";
   const duration = value => {
     if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "未知";
     const minutes = Math.floor(value / 60), days = Math.floor(minutes / 1440), hours = Math.floor(minutes % 1440 / 60);

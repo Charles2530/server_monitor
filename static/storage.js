@@ -12,14 +12,16 @@
     return el;
   };
   const known = (n) => typeof n === "number" && Number.isFinite(n) && n >= 0;
+  const amountFormat = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 });
+  const dateFormat = new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric", hour12: false });
   const amount = (n) => {
     if (!known(n)) return "—";
     const units = ["B", "KB", "MB", "GB", "TB", "PB"];
     let i = 0;
     while (n >= 1000 && i < units.length - 1) { n /= 1000; i += 1; }
-    return `${n.toLocaleString("zh-CN", { maximumFractionDigits: 2 })} ${units[i]}`;
+    return `${amountFormat.format(n)} ${units[i]}`;
   };
-  const date = (value) => value && !Number.isNaN(Date.parse(value)) ? new Date(value).toLocaleString("zh-CN", { hour12: false }) : "—";
+  const date = (value) => value && !Number.isNaN(Date.parse(value)) ? dateFormat.format(new Date(value)) : "—";
   const zoneName = (zone) => site.id === "sensecore" && /^cn-sh-01[a-z]$/.test(zone) ? `${zone.slice(-1).toUpperCase()} 区 · ${zone}` : zone;
   const message = (text) => { $("storage-warning").textContent = text; $("storage-warning").hidden = !text; };
   $("storage-console").href = site.id === "sensecore" ? "https://console.sensecore.cn/cn-sh-01/afs/list" : "https://console.ms-sc-01.maoshanwangtech.com/afs/list";

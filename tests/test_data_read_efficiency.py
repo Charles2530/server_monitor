@@ -34,6 +34,82 @@ def rows(path):
 
 
 @pytest.mark.asyncio
+async def test_metadata_overlaps_lists_but_metrics_wait_for_metadata(collector, monkeypatch):
+    started, release = asyncio.Event(), asyncio.Event()
+    seen, metrics = [], []
+
+    async def metadata(client):
+        await release.wait()
+        collector.workspace_uid = 'ready'
+
+    async def pages(client, service, path, key, extra_params=None):
+        seen.append(path)
+        if len(seen) == 5:
+            started.set()
+        return rows(path)
+
+    async def read_metrics(client, task, now):
+        assert collector.workspace_uid == 'ready'
+        metrics.append(task['id'])
+
+    monkeypatch.setattr(collector, 'metadata', metadata)
+    monkeypatch.setattr(collector, 'paginate', pages)
+    monkeypatch.setattr(collector, 'task_metrics', read_metrics)
+    task = asyncio.create_task(collector.collect())
+    try:
+        await asyncio.wait_for(started.wait(), .5)
+        assert not metrics and not task.done()
+        release.set()
+        result = await task
+        assert metrics == ['CCI:cci', 'ACP:acp']
+        assert result['waiting_tasks'][1]['can_stop'] is True
+    finally:
+        release.set()
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure', ['metadata', 'list', 'cancel'])
+async def test_parallel_metadata_and_lists_drain_on_failure(collector, monkeypatch, failure):
+    started, fail = asyncio.Event(), asyncio.Event()
+    entered, cleaned = [], []
+
+    async def read(client, name):
+        entered.append(name)
+        if len(entered) == 6:
+            started.set()
+        try:
+            await fail.wait()
+            if name == ('metadata' if failure == 'metadata' else 'appsOwn'):
+                raise AuthRequired('expired')
+            await asyncio.Event().wait()
+        finally:
+            await asyncio.sleep(0)
+            cleaned.append((name, client.is_closed))
+
+    async def pages(client, service, path, key, extra_params=None):
+        return await read(client, path.rsplit('/', 1)[-1])
+
+    monkeypatch.setattr(collector, 'metadata', lambda client: read(client, 'metadata'))
+    monkeypatch.setattr(collector, 'paginate', pages)
+    task = asyncio.create_task(collector.collect())
+    try:
+        await asyncio.wait_for(started.wait(), .5)
+        if failure == 'cancel':
+            task.cancel()
+        else:
+            fail.set()
+        with pytest.raises(asyncio.CancelledError if failure == 'cancel' else AuthRequired):
+            await asyncio.wait_for(task, .5)
+        assert len(cleaned) == 6
+        assert all(not closed for _, closed in cleaned)
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.asyncio
 async def test_five_lists_overlap_but_assembly_and_ownership_are_ordered(collector, monkeypatch):
     started = asyncio.Event()
     gates = {}

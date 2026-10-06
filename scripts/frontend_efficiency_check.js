@@ -10,7 +10,7 @@ const { test } = require("node:test");
 
 function browser({ route = "overview", hidden = false, mobile = false } = {}) {
   const nodes = new Map(), requests = [], timers = new Map(), charts = [], mediaQueries = [];
-  let timerId = 0, nodeCreations = 0, now = Date.parse("2026-10-06T00:00:00Z");
+  let timerId = 0, nodeCreations = 0, dateLocalizations = 0, now = Date.parse("2026-10-06T00:00:00Z");
   class Target {
     constructor() { this.listeners = new Map(); }
     addEventListener(name, fn) { if (!this.listeners.has(name)) this.listeners.set(name, []); this.listeners.get(name).push(fn); }
@@ -39,6 +39,7 @@ function browser({ route = "overview", hidden = false, mobile = false } = {}) {
       this.children.splice(before ? this.children.indexOf(before) : this.children.length, 0, item);
     }
     removeChild(item) { this.removals++; this.children.splice(this.children.indexOf(item), 1); }
+    get childNodes() { return this.children; }
     get options() { return this.children; }
     setAttribute(name, value) { this[name] = value; }
     removeAttribute(name) { delete this[name]; }
@@ -70,7 +71,10 @@ function browser({ route = "overview", hidden = false, mobile = false } = {}) {
   };
   window.echarts = { init() { const chart = { options: [], resize() {}, clear() {}, getWidth: () => 800, getHeight: () => 600,
     setOption(option) { this.options.push(option); } }; charts.push(chart); return chart; } };
-  class Clock extends Date { static now() { return now; } }
+  class Clock extends Date {
+    static now() { return now; }
+    toLocaleString(...args) { dateLocalizations++; return super.toLocaleString(...args); }
+  }
   const context = vm.createContext({ window, document, location, fetch, AbortController, URL, URLSearchParams, Intl, Date: Clock,
     navigator: { userAgent: "test" }, localStorage: { getItem: () => null }, matchMedia: window.matchMedia,
     getComputedStyle: () => ({ getPropertyValue: () => "#000", fontFamily: "sans-serif" }),
@@ -89,6 +93,7 @@ function browser({ route = "overview", hidden = false, mobile = false } = {}) {
   }
   function emit(type, detail) { document.dispatchEvent({ type, detail }); }
   return { nodes, requests, timers, charts, context, document, window, location, load, emit, createdNodes: () => nodeCreations,
+    dateLocalizations: () => dateLocalizations,
     hide(value) { document.hidden = value; emit("visibilitychange"); },
     setMobile(value) { mobile = value; for (const query of [...mediaQueries]) query.dispatchEvent({ type: "change" }); },
     route(value) { location.hash = `#${value}`; document.getElementById("tasks-view").hidden = value !== "tasks"; emit("workspace-page", value); },
@@ -369,6 +374,80 @@ function historyPage(options = {}) {
   return { b, app, reads: () => b.requests.filter(request => request.url.startsWith("/api/history")) };
 }
 const curve = value => ({ series: [{ metric: "cpu", points: [[60, value]] }] });
+
+test("slow history reads do not hold state polling or duplicate unchanged history", async () => {
+  const b = browser({ route: "tasks" });
+  b.load("app.js");
+  const state = runningData(2);
+  const states = () => b.requests.filter(request => request.url === "/api/state");
+  const histories = () => b.requests.filter(request => request.url.startsWith("/api/history"));
+  states()[0].respond(clone(state)); await settle();
+  assert.equal(histories().length, 1);
+  b.tick(10000);
+  assert.equal(states().length, 2, "pending history must not block the next state read");
+  states()[1].respond(clone(state)); await settle();
+  assert.equal(histories().length, 1);
+  assert.equal(histories()[0].options.signal.aborted, false);
+  b.tick(10000);
+  states()[2].respond({ ...clone(state), updated_at: "2026-10-06T00:01:00Z" }); await settle();
+  assert.equal(histories().length, 2);
+  assert.equal(histories()[0].options.signal.aborted, true);
+  histories()[1].respond(curve(90)); await settle();
+  histories()[0].respond(curve(10)); await settle();
+  assert.equal(b.charts.at(-1).options.at(-1).series[0].data[0][1], 90);
+});
+
+for (const file of ["storage.js", "task-history.js", "tokenhub.js", "utilization-queue.js"]) {
+  test(`${file}: bulk date formatting preserves text without constructing per-row locale formatters`, t => {
+    const b = browser({ route: "other" }), subject = b.load(file, "date");
+    const options = { hour12: false, ...(file === "tokenhub.js" ? { timeZone: "Asia/Shanghai" } : {}) };
+    for (const value of [null, "", "invalid"]) assert.equal(subject.date(value), "—");
+    const samples = ["2026-10-06T00:00:00Z", "2026-10-06T16:00:00Z", "2026-01-01T01:02:03+08:00"];
+    const before = b.dateLocalizations();
+    for (let i = 0; i < 100; i++) {
+      const value = samples[i % samples.length];
+      assert.equal(subject.date(value), new Date(value).toLocaleString("zh-CN", options));
+    }
+    t.diagnostic(`100 dates: ${b.dateLocalizations() - before} per-value locale formatters`);
+    assert.equal(b.dateLocalizations(), before);
+  });
+}
+
+test("reused billing and storage number formatters preserve zero, precision and unknown values", () => {
+  const tokenhub = browser({ route: "other" }).load("tokenhub.js", "money, count, usageFormat");
+  for (const value of [0, .0001, .123456, 99999.12345, -1.23]) {
+    assert.equal(tokenhub.money(value), "$" + value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
+    assert.equal(tokenhub.count(value), value.toLocaleString("zh-CN"));
+    assert.equal(tokenhub.usageFormat.format(value), value.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 }));
+  }
+  for (const value of [null, undefined, NaN, Infinity, true, "0"]) {
+    assert.equal(tokenhub.money(value), "—"); assert.equal(tokenhub.count(value), "—");
+  }
+  const storage = browser({ route: "other" }).load("storage.js", "amount");
+  for (const [value, expected] of [[0, "0 B"], [999, "999 B"], [1234567, "1.23 MB"], [1e12, "1 TB"], [-1, "—"], [null, "—"]]) {
+    assert.equal(storage.amount(value), expected);
+  }
+});
+
+if (process.env.MONITOR_FORMAT_BENCHMARK === "1") test("formatting benchmark (informational, real page helpers)", t => {
+  const subject = browser({ route: "other" }).load("tokenhub.js", "date, money");
+  const dates = Array.from({ length: 2000 }, (_, i) => new Date(1791244800000 + i * 60000).toISOString());
+  const costs = Array.from({ length: 2000 }, (_, i) => i / 13);
+  const median = values => values.sort((a, b) => a - b)[Math.floor(values.length / 2)];
+  const measure = (values, format) => {
+    values.forEach(format);
+    return median(Array.from({ length: 7 }, () => {
+      const start = process.hrtime.bigint(); values.forEach(format);
+      return Number(process.hrtime.bigint() - start) / 1e6;
+    })).toFixed(3);
+  };
+  const oldDate = value => new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false });
+  const oldMoney = value => "$" + value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  t.diagnostic(JSON.stringify({ values: 2000, median_ms: {
+    old_dates: measure(dates, oldDate), reused_dates: measure(dates, subject.date),
+    old_money: measure(costs, oldMoney), reused_money: measure(costs, subject.money),
+  } }));
+});
 
 test("history coalesces pending/completed keys, refreshes revisions, and cancels obsolete reads", async () => {
   const { b, app, reads } = historyPage();

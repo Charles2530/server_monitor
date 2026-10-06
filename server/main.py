@@ -151,7 +151,8 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
                  'url':task_console_url(task,runtime.site)}
                 for task in snapshot.get(key,[])
             ]
-        return snapshot
+        # State is already normalized to JSON values; skip FastAPI's extra tree walk.
+        return JSONResponse(snapshot)
 
     @app.get('/api/history')
     def history(task_id: str=Query(max_length=300), hours: int=Query(default=1,ge=1,le=168), runtime=Depends(current_site)):

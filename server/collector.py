@@ -161,13 +161,6 @@ class Collector:
         headers=(load_session(self.site) if self.site else load_session())['headers']
         state={'tasks':[], 'waiting_tasks':[], 'clusters':[], 'source_status':{}, 'updated_at':iso(now),'connected':True,'status':'ok','error':None}
         async with httpx.AsyncClient(headers=headers,timeout=25,follow_redirects=False) as client:
-            metadata_error = None
-            try:
-                await self.metadata(client)
-            except AuthRequired:
-                raise
-            except Exception:
-                metadata_error = '监控元数据暂不可用'
             own_acp_names=set()
             async def source(kind):
                 if kind=='CCI':
@@ -190,13 +183,14 @@ class Collector:
                     return error
                 except Exception as error:
                     return error
-            # Read independent lists together, then assemble in the original order.
-            # In particular, ACP queue permissions need the completed personal list.
+            # Lists do not depend on telemetry metadata; overlap their reads, but
+            # wait for metadata before metrics and personal lists before queue permissions.
             reads=[asyncio.create_task(read_list(read,auth_fatal)) for read,auth_fatal in (
                 (source('CCI'),True),(source('ACP'),True),
                 (queue('CCI','CCI','/compute/cci/data/v2'+self.workspace+'/apps','apps'),False),
                 (queue('ACP','AEC2','/compute/acp/data/v2'+self.workspace+'/trainingJobs','training_jobs'),False),
-                (self.paginate(client,'AEC2','/compute/workspace/data/v1'+self.workspace+'/workspaceAEC2Bindings','aec2s'),True))]
+                (self.paginate(client,'AEC2','/compute/workspace/data/v1'+self.workspace+'/workspaceAEC2Bindings','aec2s'),True),
+                (self.metadata(client),True))]
             try:
                 lists=await asyncio.gather(*reads)
             finally:
@@ -205,6 +199,7 @@ class Collector:
                 for read in reads:
                     if not read.done():read.cancel()
                 await asyncio.gather(*reads,return_exceptions=True)
+            metadata_error = '监控元数据暂不可用' if isinstance(lists[5], Exception) else None
             for kind,tasks in zip(('CCI','ACP'),lists[:2]):
                 try:
                     if isinstance(tasks,BaseException):raise tasks

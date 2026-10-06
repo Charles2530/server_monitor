@@ -19,6 +19,8 @@ async def main():
     async def api(route):
         req=route.request;path=urlparse(req.url).path;site=req.headers.get('x-monitor-site')
         assert req.method=='GET', 'storage navigation cannot mutate cloud resources'
+        if path=='/api/tokenhub/state':
+            await route.fulfill(json={'status':'disconnected','connected':False,'sections':{}});return
         assert site in ('sensecore','maoshanwang')
         calls.append((path,site))
         if path=='/api/state':data={'status':'ok','connected':True,'updated_at':now,'tasks':[],'waiting_tasks':[],'clusters':[],'source_status':{}}

@@ -473,7 +473,8 @@
       document.dispatchEvent(new CustomEvent("monitor-snapshot", { detail: { snapshot, unavailable: false } }));
       if (taskDataChanged) { renderTasks(); renderDetail(); }
       if (clusterDataChanged) renderClusters();
-      if (changed || previousSelection !== model.selected) await loadHistory();
+      // History owns its cancellation/errors; a slow chart must not hold state polling.
+      if (changed || previousSelection !== model.selected) loadHistory();
     } catch {
       model.unavailable = true;
       document.dispatchEvent(new CustomEvent("monitor-snapshot", { detail: { snapshot: model.snapshot, unavailable: true } }));

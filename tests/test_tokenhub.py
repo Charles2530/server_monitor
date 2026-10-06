@@ -195,6 +195,49 @@ async def test_account_quota_error_keeps_snapshot(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('days', [7, 30])
+@pytest.mark.parametrize('empty', [False, True])
+async def test_trend_fills_unused_days_but_preserves_unknown_costs(tmp_path, days, empty):
+    from datetime import date, timedelta
+
+    def handler(request):
+        start = date.fromisoformat(request.url.params['start_date'])
+        rows = [] if empty else [
+            {'date': (start + timedelta(days=3)).isoformat(), 'actual_cost': 1.25},
+            {'date': start.isoformat(), 'actual_cost': 0},
+            {'date': (start + timedelta(days=2)).isoformat(), 'actual_cost': None},
+            {'date': (start + timedelta(days=4)).isoformat(), 'actual_cost': True},
+            {'date': (start + timedelta(days=5)).isoformat(), 'total_tokens': 12},
+        ]
+        return ok({'trend': rows})
+
+    hub, _ = setup(tmp_path, handler)
+    try:
+        data = await hub.trend(days)
+        start = date.fromisoformat(data['start_date'])
+        assert [row['date'] for row in data['trend']] == [
+            (start + timedelta(days=i)).isoformat() for i in range(days)]
+        costs = [row['actual_cost'] for row in data['trend']]
+        assert costs == ([0] * days if empty else [0, 0, None, 1.25, None, None] + [0] * (days - 6))
+        assert data['trend'][-1]['date'] == data['end_date']
+    finally:
+        await hub.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('payload', [None, {}, {'trend': None}])
+async def test_trend_invalid_response_is_not_zero_usage(tmp_path, payload):
+    from server.tokenhub_auth import TokenHubError
+
+    hub, _ = setup(tmp_path, lambda request: ok(payload))
+    try:
+        with pytest.raises(TokenHubError):
+            await hub.trend()
+    finally:
+        await hub.close()
+
+
+@pytest.mark.asyncio
 async def test_trend_days_timezone_unknown_and_redaction(tmp_path):
     from datetime import date
     seen = []

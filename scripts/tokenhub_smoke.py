@@ -83,6 +83,10 @@ async def main():
                 del data['trend'][1]
             elif trend_shape == 'unknown':
                 for row in data['trend']: row['actual_cost'] = None
+            elif trend_shape == 'zero':
+                for row in data['trend']: row['actual_cost'] = 0
+            elif trend_shape == 'today_zero':
+                data['trend'][-1]['actual_cost'] = 0
         elif path == '/api/tokenhub/keys':
             data = {'page': 1, 'pages': 1, 'total': 1, 'updated_at': now, 'items': [{'id': 1, 'name': '<img src=x onerror=alert(1)>', 'status': 'active', 'group_name': 'OpenAI' if group_id == 2 else 'Claude', 'group_id': group_id, 'current_concurrency': 0, 'today_actual_cost': 0, 'last_30_days_actual_cost': 11.3996}]}
             if keys_unknown:
@@ -162,6 +166,17 @@ async def main():
             assert option['series'][0]['name'] == '实际花费'
             assert option['series'][0]['data'] == [.25, .5, .75, 1, 1.25, 1.5, 1.75]
             assert await page.locator('#tokenhub-trend-chart').evaluate('(el) => echarts.getInstanceByDom(el).getOption().tooltip[0].valueFormatter(.1234)') == '$0.1234 USD'
+            trend_shape = 'today_zero'
+            await page.get_by_role('button', name='7 天', exact=True).click()
+            await expect(page.locator('#tokenhub-trend-summary')).to_contain_text('$5.25')
+            await expect(page.locator('#tokenhub-trend-status')).to_contain_text('无使用显示 $0')
+            assert await page.locator('#tokenhub-trend-chart').evaluate('(el) => echarts.getInstanceByDom(el).getOption().series[0].data.at(-1)') == 0
+            trend_shape = 'zero'
+            await page.get_by_role('button', name='7 天', exact=True).click()
+            await expect(page.locator('#tokenhub-trend-summary')).to_contain_text('区间实际花费')
+            await expect(page.locator('#tokenhub-trend-summary strong')).to_have_text('$0.00')
+            assert await page.locator('#tokenhub-trend-chart').evaluate('(el) => echarts.getInstanceByDom(el).getOption().series[0].data') == [0] * 7
+            assert await page.locator('#tokenhub-trend-chart').evaluate('(el) => echarts.getInstanceByDom(el).getOption().tooltip[0].valueFormatter(0)') == '$0.00 USD'
             trend_shape = 'missing'
             await page.get_by_role('button', name='7 天', exact=True).click()
             await expect(page.locator('#tokenhub-trend-summary')).to_contain_text('$5.50')

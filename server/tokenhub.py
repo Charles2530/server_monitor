@@ -259,8 +259,12 @@ class TokenHub:
                 'requests', 'input_tokens', 'output_tokens', 'cache_creation_tokens',
                 'cache_read_tokens', 'total_tokens', 'actual_cost')})
             rows.append(item)
+        by_day = {row['date']: row for row in rows}
+        # Successful aggregates omit unused days; explicit unknown costs stay unknown.
+        timeline = [(start + timedelta(days=i)).isoformat() for i in range(days)]
         return {'days': days, 'start_date': start.isoformat(), 'end_date': end.isoformat(),
-                'trend': sorted(rows, key=lambda row: row['date']), 'updated_at': iso(time.time())}
+                'trend': [by_day.get(day, {'date': day, 'actual_cost': 0}) for day in timeline],
+                'updated_at': iso(time.time())}
 
     async def hourly_trend(self):
         zone = ZoneInfo('Asia/Shanghai')

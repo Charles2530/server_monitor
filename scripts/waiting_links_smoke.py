@@ -22,6 +22,7 @@ async def main():
    rows.extend({'id':'ACP:invalid-'+str(i),'kind':'ACP','state':'STARTING','name':'invalid','url':url} for i,url in enumerate(('javascript:alert(1)','https://untrusted.example/task',console.replace('https://','https://user:password@'),None)))
    data={'status':'ok','connected':True,'updated_at':now,'tasks':[],'waiting_tasks':rows,'clusters':[],
          'source_status':{kind:{'status':'ok','updated_at':now} for kind in ('ACP','CCI','ACP_queue','CCI_queue')}}
+  elif path=='/api/tokenhub/state':data={'status':'disconnected','connected':False,'sections':{}}
   elif path=='/api/utilization-queue':data={'site':site,'tasks':[],'loading':False,'status':'ok','updated_at':now,'warnings':[]}
   elif path=='/api/acp/options':data={'template':{'id':'ACP:test','name':'charles'},'gpu_options':[1]}
   else:raise AssertionError(path)

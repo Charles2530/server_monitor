@@ -9,8 +9,13 @@
     return item;
   };
   const known = (value) => typeof value === "number" && Number.isFinite(value);
-  const count = (value) => known(value) ? value.toLocaleString("zh-CN") : "—";
-  const money = (value) => known(value) ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : "—";
+  const countFormat = new Intl.NumberFormat("zh-CN");
+  const moneyFormat = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  const usageFormat = new Intl.NumberFormat("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+  const dateFormat = new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric", hour12: false });
+  const dayFormat = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" });
+  const count = (value) => known(value) ? countFormat.format(value) : "—";
+  const money = (value) => known(value) ? `$${moneyFormat.format(value)}` : "—";
   const amountLabel = (formatted) => {
     const amount = node("strong");
     if (formatted.startsWith("$")) {
@@ -19,11 +24,11 @@
     } else amount.textContent = formatted;
     return amount;
   };
-  const date = (value) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false }) : "—";
+  const date = (value) => value && Number.isFinite(Date.parse(value)) ? dateFormat.format(new Date(value)) : "—";
   const platformName = (value) => ({ openai: "OpenAI", anthropic: "Claude", gemini: "Gemini", antigravity: "Antigravity", grok: "Grok", kimi: "Kimi", deepseek: "DeepSeek", zhipu: "智谱", minimax: "MiniMax" })[value] || value || "未知平台";
   const statusName = (value) => ({ active: "启用", inactive: "停用", expired: "已到期", quota_exhausted: "额度耗尽" })[value] || value || "未知";
   const today = (offset = 0) => {
-    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(Date.now() + offset * 86400000));
+    const parts = dayFormat.formatToParts(new Date(Date.now() + offset * 86400000));
     const get = (type) => parts.find((part) => part.type === type).value;
     return `${get("year")}-${get("month")}-${get("day")}`;
   };
@@ -213,7 +218,7 @@
       if (serial !== trendSerial) return;
       if (!Array.isArray(data.trend) || data.days !== days) throw new Error("趋势数据格式无法识别。");
       trendData = data; drawTrend();
-      $("tokenhub-trend-status").textContent = `更新 ${date(data.updated_at)} · 今日尚未结束；缺失日期不补零`;
+      $("tokenhub-trend-status").textContent = `更新 ${date(data.updated_at)} · 今日尚未结束；无使用显示 $0`;
     } catch (error) {
       if (serial !== trendSerial) return;
       $("tokenhub-trend-status").textContent = `${error.name === "AbortError" ? "读取超时" : error.message}。${trendData ? `保留旧数据 · ${trendData.start_date} 至 ${trendData.end_date} · 更新 ${date(trendData.updated_at)}` : "尚未取得趋势数据。"}`;
@@ -484,7 +489,7 @@
         const usage = node("td", undefined, "th-key-usage");
         for (const [label, value] of [["今日", item.today_actual_cost], ["近30天", item.last_30_days_actual_cost]]) {
           const line = node("div", undefined, "th-key-usage-line");
-          line.append(node("span", label), node("strong", known(value) ? `$${value.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}` : "—")); usage.append(line);
+          line.append(node("span", label), node("strong", known(value) ? `$${usageFormat.format(value)}` : "—")); usage.append(line);
         }
         const concurrency = cell(Number.isInteger(item.current_concurrency) && item.current_concurrency >= 0 ? count(item.current_concurrency) : "—");
         concurrency.firstElementChild.className = "th-concurrency";

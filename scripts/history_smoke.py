@@ -16,6 +16,7 @@ async def main():
   req=route.request;path=urlparse(req.url).path;site=req.headers.get('x-monitor-site');calls.append(path)
   assert req.method=='GET'
   if path=='/api/state':data={'status':'ok','connected':True,'updated_at':now,'tasks':[],'waiting_tasks':[],'clusters':[],'source_status':{}}
+  elif path=='/api/tokenhub/state':data={'status':'disconnected','connected':False,'sections':{}}
   elif path=='/api/acp/options':data={'template':{'id':'ACP:test','name':'charles'},'gpu_options':[1]}
   elif path=='/api/task-history':
    if failed:await route.fulfill(status=503,json={'error':'暂时不可用'});return

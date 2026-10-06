@@ -7,7 +7,8 @@
     const el = document.createElement(tag); if (text !== undefined) el.textContent = text;
     if (className) el.className = className; return el;
   };
-  const date = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString("zh-CN", { hour12: false }) : "—";
+  const dateFormat = new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric", hour12: false });
+  const date = value => value && Number.isFinite(Date.parse(value)) ? dateFormat.format(new Date(value)) : "—";
   const duration = value => {
     if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "—";
     const seconds = Math.floor(value), days = Math.floor(seconds / 86400), hours = Math.floor(seconds % 86400 / 3600), minutes = Math.floor(seconds % 3600 / 60);

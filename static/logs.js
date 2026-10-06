@@ -6,11 +6,12 @@
   const output = byId("logs-output"), workerSelect = byId("logs-worker"), containerSelect = byId("logs-container");
   const errors = { not_connected: "请先连接云会话。", auth_required: "云会话已失效或没有日志权限，请重新连接后刷新。", target_mismatch: "任务或容器身份已变化，请重新选择任务。", logs_unavailable: "日志暂不可用，请稍后刷新。", invalid_request: "日志目标无效，请重新选择任务和容器。" };
   const active = () => state.tab === "logs" && Boolean(state.task) && !byId("tasks-view").hidden && !byId("detail-panel").hidden && !document.hidden;
+  const dateFormat = new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric", hour12: false });
   function message(text) { byId("logs-message").textContent = text; byId("logs-message").hidden = !text; }
   function status(text) { byId("logs-status").textContent = text; }
   function timestamp() {
     const parsed = new Date(state.updated);
-    return state.updated && Number.isFinite(parsed.getTime()) ? parsed.toLocaleString("zh-CN", { hour12: false }) : "时间未知";
+    return state.updated && Number.isFinite(parsed.getTime()) ? dateFormat.format(parsed) : "时间未知";
   }
   function invalidate() {
     state.generation += 1;

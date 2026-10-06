@@ -31,6 +31,7 @@ async def main():
         query = {key: value[0] for key, value in parse_qs(url.query).items()}
         calls.append((path, query))
         if path == '/api/state': data = snapshot
+        elif path == '/api/tokenhub/state': data = {'status': 'disconnected', 'connected': False, 'sections': {}}
         elif path == '/api/history': data = {'series': []}
         elif path == '/api/acp/options':
             await options_gate.wait()
