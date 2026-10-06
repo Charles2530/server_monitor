@@ -10,7 +10,7 @@ const { test } = require("node:test");
 
 function browser({ route = "overview", hidden = false, mobile = false } = {}) {
   const nodes = new Map(), requests = [], timers = new Map(), charts = [], mediaQueries = [];
-  let timerId = 0, now = Date.parse("2026-10-06T00:00:00Z");
+  let timerId = 0, nodeCreations = 0, now = Date.parse("2026-10-06T00:00:00Z");
   class Target {
     constructor() { this.listeners = new Map(); }
     addEventListener(name, fn) { if (!this.listeners.has(name)) this.listeners.set(name, []); this.listeners.get(name).push(fn); }
@@ -19,6 +19,7 @@ function browser({ route = "overview", hidden = false, mobile = false } = {}) {
   }
   class Node extends Target {
     constructor(tag = "div") {
+      nodeCreations++;
       super(); this.tagName = tag; this.children = []; this.dataset = {}; this.style = {}; this.value = "";
       this.textContent = ""; this.hidden = false; this.open = false; this.checked = false; this.replacements = 0;
       this.firstChild = { textContent: "" }; this.isConnected = true;
@@ -78,7 +79,7 @@ function browser({ route = "overview", hidden = false, mobile = false } = {}) {
     return context.subject;
   }
   function emit(type, detail) { document.dispatchEvent({ type, detail }); }
-  return { nodes, requests, timers, charts, context, document, window, location, load, emit,
+  return { nodes, requests, timers, charts, context, document, window, location, load, emit, createdNodes: () => nodeCreations,
     hide(value) { document.hidden = value; emit("visibilitychange"); },
     setMobile(value) { mobile = value; for (const query of [...mediaQueries]) query.dispatchEvent({ type: "change" }); },
     route(value) { location.hash = `#${value}`; document.getElementById("tasks-view").hidden = value !== "tasks"; emit("workspace-page", value); },
@@ -86,6 +87,157 @@ function browser({ route = "overview", hidden = false, mobile = false } = {}) {
     tick(delay) { for (const [id, timer] of [...timers]) if (timer.delay === delay) { if (!timer.interval) timers.delete(id); timer.fn(); } } };
 }
 const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+const treeText = node => String(node.textContent || "") + node.children.map(treeText).join(" ");
+const descendants = node => [node, ...node.children.flatMap(descendants)];
+const clone = value => JSON.parse(JSON.stringify(value));
+const storageData = () => ({ site: "maoshanwang", updated_at: "2026-10-06T00:00:00Z", status: "ok", refreshing: true,
+  mount_refreshing: false, mount_status: { ACP: "ok", CCI: "ok" }, volumes: Array.from({ length: 40 }, (_, i) => ({
+    id: `vol-${i}`, name: `Volume ${i}`, zone: i % 2 ? "zone-b" : "zone-a", state: "ACTIVE", expires_at: null,
+    total_bytes: 1000, used_bytes: i, free_bytes: 1000 - i, used_percent: i / 10, mounts: [],
+  })) });
+const taskHistoryData = () => ({ site: "maoshanwang", loading: true, filtered_stopped: { ACP: 1 },
+  source_status: { ACP: { status: "ok", updated_at: "2026-10-06T00:00:00Z" } },
+  tasks: Array.from({ length: 40 }, (_, i) => ({ id: `ACP:history-${i}`, name: `Task ${i}`, kind: "ACP",
+    status: "succeeded", status_label: "已成功", cluster: "cluster", gpu_count: 8, replicas: 1,
+    created_at: "2026-10-06T00:00:00Z", started_at: null, ended_at: null, updated_at: null,
+    duration_seconds: 100 + i, run_evidence: "observed", url: "https://console.ms-sc-01.maoshanwangtech.com/task/" + i,
+  })) });
+async function receiveRefresh(b, button, data, ok = true) {
+  b.document.getElementById(button).click(); b.requests.at(-1).respond(clone(data), ok); await settle();
+}
+
+test("unchanged storage polling reuses rows, summary and zone options while metadata updates", async t => {
+  const b = browser({ route: "storage" }), data = storageData(); b.load("storage.js");
+  b.requests[0].respond(clone(data)); await settle();
+  const body = b.nodes.get("storage-body"), zones = b.nodes.get("storage-zone"), summary = b.nodes.get("storage-summary");
+  const before = [body.replacements, zones.replacements, summary.replacements, b.createdNodes()];
+  for (let i = 1; i <= 3; i++) {
+    b.tick(2000); assert.equal(b.requests.length, i + 1);
+    b.requests.at(-1).respond({ ...clone(data), status: "partial", warnings: [`warning ${i}`], updated_at: `2026-10-06T00:00:0${i}Z` });
+    await settle();
+  }
+  const changes = [body.replacements, zones.replacements, summary.replacements, b.createdNodes()].map((value, i) => value - before[i]);
+  t.diagnostic(`3 unchanged 40-volume refreshes: table/options/summary replacements and created nodes = ${changes.join("/")}`);
+  assert.deepEqual(changes, [0, 0, 0, 0]);
+  assert.equal(b.nodes.get("storage-warning").textContent, "warning 3");
+  assert.match(b.nodes.get("storage-status").textContent, /部分信息未获取/);
+  assert.ok(b.nodes.get("storage-status").textContent.includes(new Date("2026-10-06T00:00:03Z").toLocaleString("zh-CN", { hour12: false })));
+});
+
+test("storage rows invalidate for mount states, visible fields and filters, but zone options only for zone changes", async () => {
+  const b = browser({ route: "storage" }), data = storageData(); b.load("storage.js");
+  data.volumes = data.volumes.slice(0, 2); b.requests[0].respond(clone(data)); await settle();
+  const body = b.nodes.get("storage-body"), zones = b.nodes.get("storage-zone"), zoneBuilds = zones.replacements;
+  assert.match(treeText(body), /暂无 charles 挂载记录/);
+  data.mount_refreshing = true; await receiveRefresh(b, "storage-refresh", data);
+  assert.match(treeText(body), /挂载记录正在后台读取/);
+  data.mount_refreshing = false; data.mount_status.ACP = "error"; await receiveRefresh(b, "storage-refresh", data);
+  assert.match(treeText(body), /挂载记录未完整读取/);
+  data.volumes[0].mounts = [{ kind: "ACP", task_name: "mounted-job", subdir: "old", mount_path: "/mnt", task_state: "running", created_at: null }];
+  data.volumes[0].used_bytes = 500; data.volumes[0].free_bytes = 500;
+  data.volumes[0].used_percent = 50; data.volumes[0].state = "EXPIRED";
+  await receiveRefresh(b, "storage-refresh", data);
+  assert.match(treeText(body), /mounted-job/); assert.match(treeText(body), /EXPIRED/); assert.match(treeText(body), /已用 50.0%/);
+  assert.equal(zones.replacements, zoneBuilds);
+  zones.value = "zone-b"; zones.dispatchEvent({ type: "input" }); assert.equal(body.children.length, 1);
+  await receiveRefresh(b, "storage-refresh", data); assert.equal(zones.value, "zone-b");
+  data.volumes = [data.volumes[0]]; await receiveRefresh(b, "storage-refresh", data);
+  assert.equal(zones.value, ""); assert.equal(zones.replacements, zoneBuilds + 1);
+  b.document.getElementById("storage-search").value = "mounted-job";
+  b.nodes.get("storage-search").dispatchEvent({ type: "input" }); assert.equal(body.children.length, 1);
+  b.nodes.get("storage-search").value = "missing"; b.nodes.get("storage-search").dispatchEvent({ type: "input" });
+  assert.match(treeText(body), /没有匹配的存储卷/);
+  b.nodes.get("storage-search").value = ""; b.document.getElementById("storage-related").checked = true;
+  data.volumes[0].mounts = []; data.mount_refreshing = true; await receiveRefresh(b, "storage-refresh", data);
+  assert.match(treeText(body), /挂载记录正在后台读取，稍后补齐/);
+  data.mount_refreshing = false; await receiveRefresh(b, "storage-refresh", data);
+  assert.match(treeText(body), /没有匹配的存储卷/);
+});
+
+test("storage recovers its previous rows after a malformed response interrupts rendering", async () => {
+  const b = browser({ route: "storage" }), data = storageData(); b.load("storage.js");
+  b.requests[0].respond(clone(data)); await settle();
+  const body = b.nodes.get("storage-body"), malformed = clone(data);
+  malformed.volumes[0].mounts = null;
+  await receiveRefresh(b, "storage-refresh", malformed);
+  assert.equal(b.nodes.get("storage-warning").hidden, false);
+  await receiveRefresh(b, "storage-refresh", data);
+  assert.equal(body.children.length, data.volumes.length);
+  assert.match(treeText(body), /Volume 39/);
+  assert.equal(b.nodes.get("storage-warning").hidden, true);
+});
+
+test("history polling reuses rows while source status, loading, counts and warnings remain live", async t => {
+  const b = browser({ route: "history" }), data = taskHistoryData(); b.load("task-history.js");
+  b.requests[0].respond(clone(data)); await settle(); const body = b.nodes.get("task-history-body");
+  const before = [body.replacements, b.createdNodes()];
+  for (let i = 1; i <= 3; i++) {
+    b.tick(2000); assert.equal(b.requests.length, i + 1);
+    data.source_status.ACP = { status: "error", updated_at: `2026-10-06T00:00:0${i}Z` };
+    data.filtered_stopped.ACP = i + 1;
+    b.requests.at(-1).respond(clone(data)); await settle();
+  }
+  t.diagnostic(`3 unchanged 25-row history pages: table replacements/created nodes = ${body.replacements - before[0]}/${b.createdNodes() - before[1]}`);
+  assert.equal(body.replacements, before[0]); assert.equal(b.createdNodes(), before[1]);
+  assert.match(b.nodes.get("task-history-warning").textContent, /ACP 历史读取失败/);
+  assert.match(b.nodes.get("task-history-status").textContent, /读取失败/);
+  assert.match(b.nodes.get("task-history-excluded").textContent, /ACP 4 条/);
+  data.loading = false; data.source_status.ACP.status = "ok";
+  await receiveRefresh(b, "task-history-refresh", data);
+  assert.equal(body.replacements, before[0]); assert.match(b.nodes.get("task-history-status").textContent, /历史读取完成/);
+  assert.equal(b.nodes.get("task-history-warning").hidden, true);
+  assert.equal([...b.timers.values()].filter(timer => timer.delay === 60000).length, 1);
+});
+
+test("history empty hints distinguish loading, source errors, filters and empty success", async () => {
+  const b = browser({ route: "history" }), data = taskHistoryData(); data.tasks = []; b.load("task-history.js");
+  b.requests[0].respond(clone(data)); await settle(); const body = b.nodes.get("task-history-body");
+  assert.match(treeText(body), /正在读取云端历史任务/);
+  data.loading = false; data.source_status.ACP.status = "error"; await receiveRefresh(b, "task-history-refresh", data);
+  assert.match(treeText(body), /历史数据未完整获取/);
+  data.source_status.ACP.status = "ok"; await receiveRefresh(b, "task-history-refresh", data);
+  assert.match(treeText(body), /暂无符合条件的历史任务/);
+  b.document.getElementById("task-history-search").value = "missing";
+  data.tasks = taskHistoryData().tasks; await receiveRefresh(b, "task-history-refresh", data);
+  assert.match(treeText(body), /没有匹配的历史任务/);
+  b.nodes.get("task-history-reset").click(); assert.equal(body.children.length, 25);
+});
+
+test("history filters, pagination, visible task updates and restart payload remain current", async () => {
+  const b = browser({ route: "history" }), data = taskHistoryData(); b.load("task-history.js");
+  b.requests[0].respond(clone(data)); await settle(); const body = b.nodes.get("task-history-body");
+  const restart = []; b.document.addEventListener("acp-restart", event => restart.push(event.detail));
+  descendants(body).find(node => node.tagName === "button").click();
+  assert.equal(restart[0].id, "ACP:history-0");
+  b.nodes.get("task-history-next").click(); assert.equal(body.children.length, 15); assert.match(treeText(body), /Task 25/);
+  b.nodes.get("task-history-prev").click();
+  b.document.getElementById("task-history-size").value = "10"; b.nodes.get("task-history-size").dispatchEvent({ type: "input" });
+  assert.equal(body.children.length, 10);
+  data.tasks[0].name = "renamed"; data.tasks[0].status = "failed"; data.tasks[0].status_label = "已失败";
+  data.tasks[0].duration_seconds = 200; data.tasks[0].url = "https://console.ms-sc-01.maoshanwangtech.com/new";
+  await receiveRefresh(b, "task-history-refresh", data);
+  assert.match(treeText(body), /renamed/); assert.match(treeText(body), /已失败/); assert.match(treeText(body), /3 分 20 秒/);
+  descendants(body).find(node => node.tagName === "button").click(); assert.equal(restart.at(-1).name, "renamed");
+  assert.equal(descendants(body).find(node => node.tagName === "a").href, data.tasks[0].url);
+  b.document.getElementById("task-history-state").value = "failed"; b.nodes.get("task-history-state").dispatchEvent({ type: "input" });
+  assert.equal(body.children.length, 1); assert.equal(b.nodes.get("history-failed").textContent, "1");
+});
+
+for (const [file, route, button, bodyId, warningId, statusId, makeData] of [
+  ["storage.js", "storage", "storage-refresh", "storage-body", "storage-warning", "storage-status", storageData],
+  ["task-history.js", "history", "task-history-refresh", "task-history-body", "task-history-warning", "task-history-status", taskHistoryData],
+]) test(`${file}: failed reads and same-data recovery keep accurate errors without replacing good rows`, async () => {
+  const b = browser({ route }), data = makeData(); b.load(file);
+  b.requests[0].respond({ error: "permission denied" }, false); await settle();
+  assert.match(treeText(b.nodes.get(bodyId)), /数据未获取/);
+  await receiveRefresh(b, button, data);
+  const body = b.nodes.get(bodyId), rows = body.replacements;
+  await receiveRefresh(b, button, { error: "permission denied" }, false);
+  assert.equal(body.replacements, rows); assert.match(b.nodes.get(warningId).textContent, /permission denied/);
+  await receiveRefresh(b, button, data);
+  assert.equal(body.replacements, rows); assert.equal(b.nodes.get(warningId).hidden, true);
+  assert.doesNotMatch(b.nodes.get(statusId).textContent, /读取失败|旧数据/);
+});
 
 for (const [file, route, endpoint, data] of [
   ["storage.js", "storage", "/api/storage", { site: "maoshanwang", volumes: [], mount_status: {}, status: "ok" }],

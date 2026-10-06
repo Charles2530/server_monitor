@@ -64,12 +64,12 @@ class Collector:
         return result
 
     async def metadata(self, client):
-        if not self.workspace_uid:
+        async def workspace():
             data = await self.request(client,'AEC2','/compute/workspace/data/v1'+self.workspace)
-            self.workspace_uid = data.get('uid')
-            if not self.workspace_uid:
+            if not data.get('uid'):
                 raise SourceError('工作空间标识缺失。')
-        if not self.station:
+            return data['uid']
+        async def station():
             data = await self.paginate(client,'MANAGEMENT','/rmh/v1/resources','resources',{'filter':'resource_type="monitor.ts.v1.telemetryStation"'})
             prefix = self.workspace.split('/workspaces/')[0] + '/telemetryStations/'
             for item in data:
@@ -78,10 +78,21 @@ class Collector:
                 except (ValueError,TypeError):
                     continue
                 if props.get('station_type') == 'TENANT' and item.get('rid','').startswith(prefix):
-                    self.station = item['rid']
-                    break
-            if not self.station:
-                raise SourceError('没有找到本工作空间的租户监控站。')
+                    return item['rid']
+            raise SourceError('没有找到本工作空间的租户监控站。')
+        reads=[(name,asyncio.create_task(read())) for name,read in
+               (('workspace_uid',workspace),('station',station)) if not getattr(self,name)]
+        try:
+            # Start together, but keep the original error and cache-update order.
+            for name,read in reads:
+                if name == 'station' and self.station:
+                    continue  # Another metadata caller may have populated it meanwhile.
+                setattr(self,name,await read)
+        finally:
+            # Both reads share this client's lifetime, including failure cleanup.
+            for _,read in reads:
+                if not read.done():read.cancel()
+            await asyncio.gather(*(read for _,read in reads),return_exceptions=True)
 
     async def task_metrics(self, client, task, now):
         kind = task['kind']
@@ -110,8 +121,12 @@ class Collector:
                 raise SourceError('监控接口返回格式异常。')
             series = metric_series(payload,key,kind)
             if kind == 'ACP':
+                by_worker = {}
+                for item in series:
+                    worker = item['label'].split(' · ',1)[-1].split(' / GPU ',1)[0]
+                    by_worker.setdefault(worker,[]).append(item)
                 for worker in task['workers']:
-                    worker_series = [item for item in series if item['label'].split(' · ',1)[-1].split(' / GPU ',1)[0] == worker]
+                    worker_series = by_worker.get(worker,[])
                     if summarize_metrics(worker_series,now).get(key) is None:
                         errors.append('worker 指标缺失或过期：'+worker)
                         failed_metrics.add(key)

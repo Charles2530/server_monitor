@@ -4,6 +4,7 @@
   const site = window.MonitorSite;
   const $ = (id) => document.getElementById(id);
   let snapshot = null, active = false, controller = null, serial = 0, timer = null;
+  let renderSignature = null, zoneSignature = null;
   const node = (tag, value, className) => {
     const el = document.createElement(tag);
     if (value !== undefined) el.textContent = value;
@@ -30,6 +31,9 @@
     const rows = snapshot.volumes.filter((v) => (!zone || v.zone === zone)
       && (!$("storage-related").checked || v.mounts.length)
       && (!query || [v.name, v.id, v.zone, ...v.mounts.flatMap((m) => [m.task_name, m.subdir, m.mount_path])].join(" ").toLowerCase().includes(query)));
+    const signature = JSON.stringify([rows, snapshot.volumes.length, snapshot.mount_refreshing, snapshot.mount_status, $("storage-related").checked]);
+    if (signature === renderSignature) return;
+    renderSignature = null;
     $("storage-count").textContent = `${rows.length} / ${snapshot.volumes.length}`;
     const summary = $("storage-summary"); summary.replaceChildren();
     for (const [field, label] of [["total_bytes", "总容量"], ["used_bytes", "已用容量"], ["free_bytes", "剩余容量"]]) {
@@ -58,6 +62,7 @@
       }
       row.append(name, capacity, state, mounts); body.append(row);
     }
+    renderSignature = signature;
   }
 
   async function refresh() {
@@ -78,10 +83,14 @@
       if (!active || request !== serial) return;
       snapshot = data;
       if (data.mount_refreshing || data.refreshing) nextDelay = 2000;
-      const selected = $("storage-zone").value;
-      $("storage-zone").replaceChildren(new Option("全部分区", ""));
-      for (const zone of [...new Set(data.volumes.map((v) => v.zone))].sort()) $("storage-zone").append(new Option(zoneName(zone), zone));
-      $("storage-zone").value = [...$("storage-zone").options].some((o) => o.value === selected) ? selected : "";
+      const zones = [...new Set(data.volumes.map((v) => v.zone))].sort(), signature = JSON.stringify(zones);
+      if (signature !== zoneSignature) {
+        const selected = $("storage-zone").value;
+        $("storage-zone").replaceChildren(new Option("全部分区", ""));
+        for (const zone of zones) $("storage-zone").append(new Option(zoneName(zone), zone));
+        $("storage-zone").value = zones.includes(selected) ? selected : "";
+        zoneSignature = signature;
+      }
       render(); message((data.warnings || []).join(" "));
       $("storage-status").textContent = `${data.status === "partial" ? "部分信息未获取" : "已更新"} · ${date(data.updated_at)} · 每 60 秒刷新${data.mount_refreshing ? " · 挂载记录后台读取中" : data.mount_updated_at ? ` · 挂载更新 ${date(data.mount_updated_at)}` : ""}`;
     } catch (error) {

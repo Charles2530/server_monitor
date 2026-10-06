@@ -2,6 +2,7 @@
 (() => {
   const $ = id => document.getElementById(id), site = window.MonitorSite;
   let snapshot = null, page = 1, active = false, controller = null, timer = null, serial = 0;
+  let tableSignature = null;
   const node = (tag, text, className) => {
     const el = document.createElement(tag); if (text !== undefined) el.textContent = text;
     if (className) el.className = className; return el;
@@ -28,13 +29,16 @@
     $("task-history-count").textContent = `${rows.length} / ${snapshot.tasks.length}`;
     $("task-history-page").textContent = `第 ${page} / ${pages} 页 · ${rows.length} 条${snapshot.loading ? "（读取中）" : ""}`;
     $("task-history-prev").disabled = page <= 1; $("task-history-next").disabled = page >= pages;
-    const body = $("task-history-body"); body.replaceChildren();
-    if (!rows.length) {
-      const failed = Object.values(snapshot.source_status || {}).some(s => s.status === "error");
-      const cell = node("td", snapshot.loading ? "正在读取云端历史任务…" : failed ? "历史数据未完整获取，可刷新重试" : snapshot.tasks.length ? "没有匹配的历史任务" : "暂无符合条件的历史任务", "table-empty");
+    const pageRows = rows.slice((page - 1) * size, page * size);
+    const failed = Object.values(snapshot.source_status || {}).some(s => s.status === "error");
+    const emptyText = rows.length ? null : snapshot.loading ? "正在读取云端历史任务…" : failed ? "历史数据未完整获取，可刷新重试" : snapshot.tasks.length ? "没有匹配的历史任务" : "暂无符合条件的历史任务";
+    const signature = JSON.stringify([pageRows, emptyText]), changed = signature !== tableSignature;
+    const body = $("task-history-body"); if (changed) { tableSignature = null; body.replaceChildren(); }
+    if (changed && !rows.length) {
+      const cell = node("td", emptyText, "table-empty");
       cell.colSpan = 6; const row = node("tr"); row.append(cell); body.append(row);
     }
-    for (const task of rows.slice((page - 1) * size, page * size)) {
+    for (const task of changed ? pageRows : []) {
       const row = node("tr"), identity = node("td"), state = node("td"), resources = node("td"), created = node("td"), ended = node("td"), action = node("td");
       const identityText = node("div", undefined, "history-identity-text"), identityGroup = node("div", undefined, "history-identity");
       identityText.append(node("strong", task.name || task.id), node("small", task.id, "history-task-id"));
@@ -62,6 +66,7 @@
       cells.forEach((cell, i) => { cell.dataset.label = labels[i]; });
       row.append(...cells); body.append(row);
     }
+    tableSignature = signature;
     const sources = Object.entries(snapshot.source_status || {}).map(([kind, s]) => `${kind} ${s.status === "error" ? "读取失败 · " : ""}${date(s.updated_at)}`).join("；");
     $("task-history-status").textContent = `${snapshot.loading ? "正在更新，已取得的结果先显示" : "历史读取完成"} · ${sources}`;
     const excluded = snapshot.filtered_stopped || {};
