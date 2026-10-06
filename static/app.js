@@ -9,6 +9,7 @@
   ];
   const byId = (id) => document.getElementById(id);
   const model = { snapshot: null, kind: "all", search: "", selected: null, hours: 1, unavailable: false, fetching: false, historyRequest: 0, chart: null };
+  let taskCards = new Map(), taskEmptySignature = null;
   const numberFormat = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 });
   const timeFormat = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
   const chartClock = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -191,7 +192,9 @@
       else if (!model.snapshot?.connected) { title = "连接后，开始观察你的算力"; description = "系统将使用本地 IAM 配置自动登录，连接后即可读取 charles 的运行任务。"; }
       else if (["CCI", "ACP"].some((kind) => model.snapshot?.source_status?.[kind]?.status !== "ok")) { title = "任务数量暂时未知"; description = "任务列表尚未成功采集，请等待重试或重新连接云会话。"; }
       else if (!model.snapshot?.updated_at) { title = "等待首次任务快照"; description = "采集器正在准备数据，请稍候。"; }
-      container.replaceChildren(emptyState(title, description));
+      const signature = JSON.stringify([title, description]);
+      if (signature !== taskEmptySignature) container.replaceChildren(emptyState(title, description));
+      taskEmptySignature = signature; taskCards.clear();
       model.selected = null;
       byId("detail-panel").hidden = true;
       document.dispatchEvent(new CustomEvent("monitor-selection", { detail: null }));
@@ -199,40 +202,58 @@
       return;
     }
     if (!list.some((task) => task.id === model.selected)) model.selected = list[0].id;
-    const fragment = document.createDocumentFragment();
+    const nextCards = new Map();
     for (const task of list) {
-      const card = element("button", `task-card${task.id === model.selected ? " selected" : ""}`);
-      card.type = "button";
-      card.setAttribute("aria-pressed", String(task.id === model.selected));
-      card.setAttribute("aria-label", `查看 ${task.name || task.id} 的资源使用历史`);
-      const top = element("div", "task-top");
-      const identity = element("div", "task-identity");
-      identity.append(element("div", "task-name", task.name || task.id), element("div", "task-cluster", `${task.cluster || "集群信息暂不可用"} · ${task.id}`));
-      top.append(element("span", `service-icon ${task.kind === "ACP" ? "purple" : "blue"}`, task.kind || "—"), identity, element("span", "running-badge", task.state === "running" ? "运行中" : (task.state || "状态未知")));
-      const meta = element("div", "task-meta");
-      meta.append(element("span", "meta-pill", `${count(task.gpu_count)} GPU`), element("span", "meta-pill", `${count(task.replicas)} 副本`));
-      if (Array.isArray(task.workers) && task.workers.length) meta.append(element("span", "meta-pill", `${task.workers.length} workers`));
-      const metrics = element("div", "metric-grid");
-      for (const metric of METRICS) {
-        const cell = element("div", "metric-cell"), value = percent(task.metrics?.[metric.key]);
-        const display = element("div", "metric-value", value === null ? "—" : numberFormat.format(value));
-        if (value !== null) display.append(element("small", "", "%"));
-        const track = element("div", `metric-track${value === null ? " metric-unknown" : ""}`);
-        const fill = element("div", `metric-fill ${metric.key}`);
-        fill.style.width = `${value ?? 0}%`;
-        track.append(fill);
-        cell.append(element("div", "metric-label", metric.label), display, track);
-        if (task.failed_metrics?.includes(metric.key)) cell.append(element("small", "metric-age", `旧采样 ${time(task.metric_updated_at?.[metric.key])}`));
-        metrics.append(cell);
+      const signature = JSON.stringify([task, model.snapshot?.source_status?.[task.kind]?.status]);
+      let cached = taskCards.get(task.id);
+      if (!cached || cached.signature !== signature) cached = { ...createTaskCard(task), signature };
+      const selected = task.id === model.selected;
+      if (cached.selected !== selected) {
+        cached.card.classList.toggle("selected", selected);
+        cached.card.setAttribute("aria-pressed", String(selected));
+        cached.hint.textContent = selected ? "正在查看历史" : "查看使用历史 →";
+        cached.selected = selected;
       }
-      if (task.metric_error || model.snapshot?.source_status?.[task.kind]?.status === "error") card.append(element("div", "task-warning", task.metric_error || "任务列表采集失败 · 旧快照"));
-      const bottom = element("div", "task-bottom");
-      bottom.append(element("span", "", `最新采样 ${time(task.updated_at)}`), element("span", "task-detail-hint", task.id === model.selected ? "正在查看历史" : "查看使用历史 →"));
-      card.append(top, meta, metrics, bottom);
-      card.addEventListener("click", () => { model.selected = task.id; renderTasks(); renderDetail(); loadHistory(); });
-      fragment.append(card);
+      nextCards.set(task.id, cached);
     }
-    container.replaceChildren(fragment);
+    const cards = [...nextCards.values()].map(entry => entry.card), retained = new Set(cards);
+    for (const child of [...container.children]) if (!retained.has(child)) container.removeChild(child);
+    cards.forEach((card, index) => { if (container.children[index] !== card) container.insertBefore(card, container.children[index] || null); });
+    taskCards = nextCards; taskEmptySignature = null;
+  }
+
+  function createTaskCard(task) {
+    const card = element("button", "task-card");
+    card.type = "button";
+    card.setAttribute("aria-label", `查看 ${task.name || task.id} 的资源使用历史`);
+    const top = element("div", "task-top");
+    const identity = element("div", "task-identity");
+    identity.append(element("div", "task-name", task.name || task.id), element("div", "task-cluster", `${task.cluster || "集群信息暂不可用"} · ${task.id}`));
+    top.append(element("span", `service-icon ${task.kind === "ACP" ? "purple" : "blue"}`, task.kind || "—"), identity, element("span", "running-badge", task.state === "running" ? "运行中" : (task.state || "状态未知")));
+    const meta = element("div", "task-meta");
+    meta.append(element("span", "meta-pill", `${count(task.gpu_count)} GPU`), element("span", "meta-pill", `${count(task.replicas)} 副本`));
+    if (Array.isArray(task.workers) && task.workers.length) meta.append(element("span", "meta-pill", `${task.workers.length} workers`));
+    const metrics = element("div", "metric-grid");
+    for (const metric of METRICS) {
+      const cell = element("div", "metric-cell"), value = percent(task.metrics?.[metric.key]);
+      const display = element("div", "metric-value", value === null ? "—" : numberFormat.format(value));
+      if (value !== null) display.append(element("small", "", "%"));
+      const track = element("div", `metric-track${value === null ? " metric-unknown" : ""}`);
+      const fill = element("div", `metric-fill ${metric.key}`);
+      fill.style.width = `${value ?? 0}%`;
+      track.append(fill);
+      cell.append(element("div", "metric-label", metric.label), display, track);
+      if (task.failed_metrics?.includes(metric.key)) cell.append(element("small", "metric-age", `旧采样 ${time(task.metric_updated_at?.[metric.key])}`));
+      metrics.append(cell);
+    }
+    if (task.metric_error || model.snapshot?.source_status?.[task.kind]?.status === "error") card.append(element("div", "task-warning", task.metric_error || "任务列表采集失败 · 旧快照"));
+    const bottom = element("div", "task-bottom");
+    const hint = element("span", "task-detail-hint");
+    bottom.append(element("span", "", `最新采样 ${time(task.updated_at)}`), hint);
+    card.append(top, meta, metrics, bottom);
+    const id = task.id;
+    card.addEventListener("click", () => { model.selected = id; renderTasks(); renderDetail(); loadHistory(); });
+    return { card, hint };
   }
 
   function renderClusters() {
@@ -442,7 +463,8 @@
       const snapshot = await request("/api/state");
       if (!snapshot || typeof snapshot.status !== "string" || !Array.isArray(snapshot.tasks) || !Array.isArray(snapshot.clusters)) throw new Error("监控快照格式无效");
       const changed = snapshot.updated_at !== model.snapshot?.updated_at;
-      const taskDataChanged = JSON.stringify(snapshot.tasks) !== JSON.stringify(model.snapshot?.tasks) || snapshot.status !== model.snapshot?.status || snapshot.connected !== model.snapshot?.connected;
+      const taskDataChanged = JSON.stringify(snapshot.tasks) !== JSON.stringify(model.snapshot?.tasks) || snapshot.status !== model.snapshot?.status || snapshot.connected !== model.snapshot?.connected
+        || ["CCI", "ACP"].some(kind => snapshot.source_status?.[kind]?.status !== model.snapshot?.source_status?.[kind]?.status);
       const clusterDataChanged = JSON.stringify(snapshot.clusters) !== JSON.stringify(model.snapshot?.clusters) || snapshot.connected !== model.snapshot?.connected;
       const previousSelection = model.selected;
       model.snapshot = snapshot;

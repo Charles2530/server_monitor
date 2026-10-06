@@ -24,12 +24,21 @@ function browser({ route = "overview", hidden = false, mobile = false } = {}) {
       this.textContent = ""; this.hidden = false; this.open = false; this.checked = false; this.replacements = 0;
       this.firstChild = { textContent: "" }; this.isConnected = true;
       const classes = new Set();
+      Object.defineProperty(this, "className", { get: () => [...classes].join(" "),
+        set: value => { classes.clear(); String(value).split(/\s+/).filter(Boolean).forEach(name => classes.add(name)); } });
+      this.insertions = 0; this.removals = 0;
       this.classList = { add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name),
         toggle(name, on = !classes.has(name)) { if (on) classes.add(name); else classes.delete(name); } };
     }
-    append(...items) { this.children.push(...items); }
+    append(...items) { this.children.push(...items.flatMap(item => item.tagName === "#fragment" ? item.children : [item])); }
     prepend(...items) { this.children.unshift(...items); }
-    replaceChildren(...items) { this.replacements++; this.children = items; }
+    replaceChildren(...items) { this.replacements++; this.children = []; this.append(...items); }
+    insertBefore(item, before) {
+      this.insertions++;
+      const old = this.children.indexOf(item); if (old >= 0) this.children.splice(old, 1);
+      this.children.splice(before ? this.children.indexOf(before) : this.children.length, 0, item);
+    }
+    removeChild(item) { this.removals++; this.children.splice(this.children.indexOf(item), 1); }
     get options() { return this.children; }
     setAttribute(name, value) { this[name] = value; }
     removeAttribute(name) { delete this[name]; }
@@ -46,7 +55,7 @@ function browser({ route = "overview", hidden = false, mobile = false } = {}) {
   document.getElementById = id => { if (!nodes.has(id)) nodes.set(id, new Node()); return nodes.get(id); };
   document.createElement = tag => new Node(tag); document.createElementNS = (_, tag) => new Node(tag);
   document.createTextNode = text => Object.assign(new Node(), { textContent: text });
-  document.createDocumentFragment = () => new Node(); document.querySelectorAll = () => [];
+  document.createDocumentFragment = () => new Node("#fragment"); document.querySelectorAll = () => [];
   document.querySelector = selector => selector === ".sidebar" ? new Node() : null;
   document.getElementById("tasks-view").hidden = route !== "tasks";
   document.getElementById("task-history-size").value = "25";
@@ -105,6 +114,99 @@ const taskHistoryData = () => ({ site: "maoshanwang", loading: true, filtered_st
 async function receiveRefresh(b, button, data, ok = true) {
   b.document.getElementById(button).click(); b.requests.at(-1).respond(clone(data), ok); await settle();
 }
+
+const runningData = (length = 40) => ({ status: "ok", connected: true, updated_at: "2026-10-06T00:00:00Z",
+  source_status: { ACP: { status: "ok" }, CCI: { status: "ok" } }, clusters: [],
+  tasks: Array.from({ length }, (_, i) => ({ id: `ACP:running-${i}`, name: `Running ${i}`, kind: "ACP", cluster: "shared",
+    state: "running", gpu_count: 8, replicas: 1, workers: ["worker-0"], updated_at: "2026-10-06T00:00:00Z",
+    metrics: { cpu: 10, gpu: 20, memory: 30, gpu_memory: 40 }, url: "https://console.ms-sc-01.maoshanwangtech.com/task/" + i,
+  })) });
+function runningPage(length = 40, route = "overview") {
+  const b = browser({ route }), app = b.load("app.js", "model, renderTasks, renderDetail");
+  app.model.snapshot = runningData(length); app.renderTasks();
+  return { b, app, list: b.nodes.get("task-list") };
+}
+
+test("task selection and unchanged search preserve card nodes without remounting the list", t => {
+  const { b, app, list } = runningPage(), cards = [...list.children];
+  const before = [b.createdNodes(), list.replacements, list.insertions, list.removals];
+  for (let i = 1; i <= 3; i++) { app.model.selected = `ACP:running-${i}`; app.renderTasks(); }
+  const selectionChanges = [b.createdNodes(), list.replacements, list.insertions, list.removals].map((value, i) => value - before[i]);
+  t.diagnostic(`3 selections among 40 tasks: created nodes/replacements/insertions/removals = ${selectionChanges.join("/")}`);
+  assert.deepEqual(selectionChanges, [0, 0, 0, 0]);
+  assert.ok(list.children.every((card, i) => card === cards[i]));
+  assert.equal(cards[0].classList.contains("selected"), false); assert.equal(cards[0]["aria-pressed"], "false");
+  assert.equal(cards[3].classList.contains("selected"), true); assert.equal(cards[3]["aria-pressed"], "true");
+  assert.match(treeText(cards[3]), /正在查看历史/); assert.match(treeText(cards[0]), /查看使用历史/);
+  for (const search of ["running", "shared", ""]) { app.model.search = search; app.renderTasks(); }
+  assert.equal(b.createdNodes(), before[0]); assert.equal(list.insertions, before[2]); assert.equal(list.replacements, before[1]);
+});
+
+test("task filtering evicts hidden cards and retains visible nodes across removal, addition and reorder", () => {
+  const { b, app, list } = runningPage(4), original = [...list.children];
+  app.model.search = "running-1"; app.renderTasks();
+  assert.equal(list.children.length, 1); assert.equal(list.children[0], original[1]);
+  app.model.search = ""; app.renderTasks();
+  assert.equal(list.children[1], original[1]); assert.notEqual(list.children[0], original[0], "hidden cards must be evicted");
+  const current = [...list.children]; app.model.snapshot.tasks.reverse(); app.renderTasks();
+  assert.deepEqual(list.children, current.slice().reverse());
+  app.model.snapshot.tasks = app.model.snapshot.tasks.filter(task => task.id !== "ACP:running-2"); app.renderTasks();
+  assert.deepEqual(list.children, [current[3], current[1], current[0]]);
+  app.model.snapshot.tasks.push({ ...runningData(1).tasks[0], id: "CCI:new", kind: "CCI", name: "new task" }); app.renderTasks();
+  assert.equal(list.children.length, 4); assert.match(treeText(list.children[3]), /new task/);
+  assert.equal(list.children[0], current[3]);
+});
+
+test("task metrics and warnings replace only affected cards while current source warnings stay accurate", () => {
+  const { app, list } = runningPage(3), original = [...list.children];
+  app.model.snapshot.tasks[0].metrics.gpu = 88; app.model.snapshot.tasks[0].metric_error = "metric failed";
+  app.model.snapshot.tasks[0].failed_metrics = ["gpu"]; app.model.snapshot.tasks[0].metric_updated_at = { gpu: "2026-10-05T00:00:00Z" };
+  const insertions = list.insertions; app.renderTasks();
+  assert.notEqual(list.children[0], original[0]); assert.equal(list.children[1], original[1]); assert.equal(list.children[2], original[2]);
+  assert.equal(list.insertions - insertions, 1);
+  assert.match(treeText(list.children[0]), /88/); assert.match(treeText(list.children[0]), /metric failed/); assert.match(treeText(list.children[0]), /旧采样/);
+  app.model.snapshot.source_status.ACP.status = "error"; app.renderTasks(); assert.match(treeText(list.children[1]), /任务列表采集失败/);
+  app.model.snapshot.source_status.ACP.status = "ok"; app.model.snapshot.tasks[0].metric_error = null;
+  app.renderTasks(); assert.doesNotMatch(treeText(list), /任务列表采集失败|metric failed/);
+});
+
+test("reused task clicks preserve selection details and retry failed history reads", async () => {
+  const { b, app, list } = runningPage(2, "tasks"), card = list.children[1], selections = [];
+  b.document.addEventListener("monitor-selection", event => selections.push(event.detail));
+  card.click(); const history = () => b.requests.filter(request => request.url.startsWith("/api/history"));
+  assert.equal(app.model.selected, "ACP:running-1"); assert.equal(selections.at(-1).id, "ACP:running-1");
+  assert.equal(b.nodes.get("detail-title").textContent, "Running 1"); assert.equal(history().length, 1);
+  history()[0].reject(new Error("offline")); await settle();
+  assert.equal(list.children[1], card); card.click(); assert.equal(history().length, 2);
+  app.model.snapshot.tasks[1].name = "updated name"; app.renderTasks(); list.children[1].click();
+  assert.equal(b.nodes.get("detail-title").textContent, "updated name"); assert.equal(history().length, 2);
+});
+
+test("task empty states update, cancel selection and discard previously visible cards", () => {
+  const { b, app, list } = runningPage(2), old = [...list.children], selections = [];
+  b.document.addEventListener("monitor-selection", event => selections.push(event.detail));
+  app.model.search = "absent"; app.renderTasks(); assert.equal(app.model.selected, null); assert.equal(selections.at(-1), null);
+  assert.equal(b.nodes.get("detail-panel").hidden, true); assert.match(treeText(list), /没有符合条件/);
+  const before = [b.createdNodes(), list.replacements]; app.renderTasks();
+  assert.deepEqual([b.createdNodes(), list.replacements], before);
+  app.model.search = ""; app.renderTasks(); assert.notEqual(list.children[0], old[0]); assert.equal(app.model.selected, "ACP:running-0");
+  app.model.snapshot.tasks = []; app.model.snapshot.source_status.ACP.status = "error"; app.renderTasks(); assert.match(treeText(list), /任务数量暂时未知/);
+  app.model.snapshot.source_status.ACP.status = "ok"; app.renderTasks(); assert.match(treeText(list), /当前没有运行任务/);
+  app.model.snapshot = null; app.model.unavailable = true; app.renderTasks(); assert.match(treeText(list), /暂时无法读取任务/);
+});
+
+test("poll refreshes task warnings for source-only changes and recovers from failed reads", async () => {
+  const b = browser(), app = b.load("app.js", "model"), data = runningData(2);
+  b.requests[0].respond(clone(data)); await settle(); const list = b.nodes.get("task-list"), card = list.children[0];
+  data.source_status.ACP.status = "error";
+  b.emit("monitor-refresh"); b.requests.at(-1).respond(clone(data)); await settle();
+  assert.match(treeText(list), /任务列表采集失败/); assert.notEqual(list.children[0], card);
+  const failedCard = list.children[0]; b.emit("monitor-refresh"); b.requests.at(-1).reject(new Error("offline")); await settle();
+  assert.equal(list.children[0], failedCard); assert.equal(app.model.unavailable, true);
+  data.source_status.ACP.status = "ok";
+  b.emit("monitor-refresh"); b.requests.at(-1).respond(clone(data)); await settle();
+  assert.doesNotMatch(treeText(list), /任务列表采集失败/); assert.equal(app.model.unavailable, false);
+});
 
 test("unchanged storage polling reuses rows, summary and zone options while metadata updates", async t => {
   const b = browser({ route: "storage" }), data = storageData(); b.load("storage.js");

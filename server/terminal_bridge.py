@@ -18,6 +18,7 @@ from .cci_terminal import VerifiedCCITargets
 
 MAX_SESSIONS=8
 MAX_BUFFER=1024*1024
+OUTPUT_CHUNK_BYTES=64*1024
 IDLE_SECONDS=15*60
 LIFETIME_SECONDS=8*3600
 READ_TIMEOUT=20
@@ -235,8 +236,11 @@ class TerminalBridge:
             try:await asyncio.wait_for(s.event.wait(),READ_TIMEOUT)
             except asyncio.TimeoutError:pass
         frames=[(seq,data) for seq,data in s.frames if seq>cursor]
+        # Only response encoding is batched; retained frames and ACK cursors stay intact.
+        output=b''.join(data for _,data in frames)
         return {'type':'output','cursor':frames[-1][0] if frames else cursor,
-                'chunks':[base64.b64encode(data).decode('ascii') for _,data in frames],
+                'chunks':[base64.b64encode(output[start:start+OUTPUT_CHUNK_BYTES]).decode('ascii')
+                          for start in range(0,len(output),OUTPUT_CHUNK_BYTES)],
                 'closed':s.ended,'error':s.error,'sequence':s.sequence}
 
     async def write(self,key,sequence,data,size,owner):
