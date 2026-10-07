@@ -1,0 +1,79 @@
+{
+  "method": "Offline mocked HTTP reads: 20 ms delay each; five measured samples after two warmups. These are not live cloud latency measurements.",
+  "before": [
+    {
+      "kind": "CCI",
+      "callers": 1,
+      "mock_latency_ms": 20,
+      "median_batch_ms": 43.52,
+      "upstream_requests": [
+        2
+      ]
+    },
+    {
+      "kind": "CCI",
+      "callers": 8,
+      "mock_latency_ms": 20,
+      "median_batch_ms": 88.68,
+      "upstream_requests": [
+        16
+      ]
+    },
+    {
+      "kind": "ACP",
+      "callers": 1,
+      "mock_latency_ms": 20,
+      "median_batch_ms": 44.79,
+      "upstream_requests": [
+        2
+      ]
+    },
+    {
+      "kind": "ACP",
+      "callers": 8,
+      "mock_latency_ms": 20,
+      "median_batch_ms": 91.48,
+      "upstream_requests": [
+        16
+      ]
+    }
+  ],
+  "after": [
+    {
+      "kind": "CCI",
+      "callers": 1,
+      "mock_latency_ms": 20,
+      "median_batch_ms": 42.91,
+      "upstream_requests": [
+        2
+      ]
+    },
+    {
+      "kind": "CCI",
+      "callers": 8,
+      "mock_latency_ms": 20,
+      "median_batch_ms": 42.99,
+      "upstream_requests": [
+        2
+      ]
+    },
+    {
+      "kind": "ACP",
+      "callers": 1,
+      "mock_latency_ms": 20,
+      "median_batch_ms": 42.43,
+      "upstream_requests": [
+        2
+      ]
+    },
+    {
+      "kind": "ACP",
+      "callers": 8,
+      "mock_latency_ms": 20,
+      "median_batch_ms": 43.02,
+      "upstream_requests": [
+        2
+      ]
+    }
+  ]
+}

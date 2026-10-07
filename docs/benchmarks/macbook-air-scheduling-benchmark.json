@@ -1,0 +1,197 @@
+{
+  "runtime": "Installed pre-tuning Air runtime, internal SSD",
+  "rounds": 5,
+  "samples": [
+    {
+      "process_type": "Background",
+      "round": 1,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 381.394,
+      "state_api_median_ms": 4.787,
+      "state_api_bytes": 9127,
+      "history_api_median_ms": 45.053
+    },
+    {
+      "process_type": "Standard",
+      "round": 1,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 68.259,
+      "state_api_median_ms": 1.03,
+      "state_api_bytes": 9127,
+      "history_api_median_ms": 2.546
+    },
+    {
+      "process_type": "Interactive",
+      "round": 1,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 62.821,
+      "state_api_median_ms": 0.957,
+      "state_api_bytes": 9127,
+      "history_api_median_ms": 2.326
+    },
+    {
+      "process_type": "Interactive",
+      "round": 2,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 71.72,
+      "state_api_median_ms": 1.14,
+      "state_api_bytes": 9127,
+      "history_api_median_ms": 2.294
+    },
+    {
+      "process_type": "Standard",
+      "round": 2,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 63.585,
+      "state_api_median_ms": 0.996,
+      "state_api_bytes": 9127,
+      "history_api_median_ms": 2.839
+    },
+    {
+      "process_type": "Background",
+      "round": 2,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 365.883,
+      "state_api_median_ms": 5.283,
+      "state_api_bytes": 9127,
+      "history_api_median_ms": 14.27
+    },
+    {
+      "process_type": "Background",
+      "round": 3,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 358.02,
+      "state_api_median_ms": 5.204,
+      "state_api_bytes": 9127,
+      "history_api_median_ms": 13.281
+    },
+    {
+      "process_type": "Standard",
+      "round": 3,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 73.18,
+      "state_api_median_ms": 0.994,
+      "state_api_bytes": 9127,
+      "history_api_median_ms": 2.627
+    },
+    {
+      "process_type": "Interactive",
+      "round": 3,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 69.297,
+      "state_api_median_ms": 0.911,
+      "state_api_bytes": 9127,
+      "history_api_median_ms": 2.261
+    },
+    {
+      "process_type": "Interactive",
+      "round": 4,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 66.342,
+      "state_api_median_ms": 1.1,
+      "state_api_bytes": 9127,
+      "history_api_median_ms": 2.357
+    },
+    {
+      "process_type": "Standard",
+      "round": 4,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 69.008,
+      "state_api_median_ms": 1.027,
+      "state_api_bytes": 9127,
+      "history_api_median_ms": 2.607
+    },
+    {
+      "process_type": "Background",
+      "round": 4,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 344.588,
+      "state_api_median_ms": 4.53,
+      "state_api_bytes": 9127,
+      "history_api_median_ms": 43.89
+    },
+    {
+      "process_type": "Background",
+      "round": 5,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 468.518,
+      "state_api_median_ms": 3.808,
+      "state_api_bytes": 9127,
+      "history_api_median_ms": 44.942
+    },
+    {
+      "process_type": "Standard",
+      "round": 5,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 70.315,
+      "state_api_median_ms": 0.921,
+      "state_api_bytes": 9127,
+      "history_api_median_ms": 2.268
+    },
+    {
+      "process_type": "Interactive",
+      "round": 5,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 63.767,
+      "state_api_median_ms": 1.056,
+      "state_api_bytes": 9127,
+      "history_api_median_ms": 2.3
+    }
+  ],
+  "medians": {
+    "Background": {
+      "repeat_save_median_ms": 365.883,
+      "state_api_median_ms": 4.787,
+      "history_api_median_ms": 43.89
+    },
+    "Standard": {
+      "repeat_save_median_ms": 69.008,
+      "state_api_median_ms": 0.996,
+      "history_api_median_ms": 2.607
+    },
+    "Interactive": {
+      "repeat_save_median_ms": 66.342,
+      "state_api_median_ms": 1.056,
+      "history_api_median_ms": 2.3
+    }
+  },
+  "hardware": {
+    "model": "Mac16,12",
+    "chip": "Apple M4",
+    "performance_cores": 4,
+    "efficiency_cores": 6,
+    "memory_gib": 16,
+    "power": "AC",
+    "battery_low_power_mode": true
+  }
+}

@@ -159,3 +159,34 @@ def test_legacy_manual_profile_keeps_background_scheduling_on_mini(tmp_path, mon
     selected = deploy.select_runtime_profile(tmp_path)
     assert selected == legacy
     assert deploy.launchagent_payload(tmp_path/'python',selected)['ProcessType'] == 'Background'
+
+
+@pytest.mark.parametrize('bad_name', [[], {}])
+def test_malformed_saved_profile_name_falls_back_before_deployment(tmp_path, monkeypatch, bad_name):
+    import json
+    from scripts import deploy_launchagent as deploy
+    hardware = {'model':'Mac16,12','machine':'arm64','ncpu':10,'memory_gb':16}
+    monkeypatch.setattr('server.runtime_profile.detect_hardware', lambda:hardware)
+    (tmp_path/'runtime-profile.json').write_text(json.dumps({'name':bad_name}))
+    selected = deploy.select_runtime_profile(tmp_path)
+    assert selected['selection'] == 'auto'
+    assert selected['hardware'] == hardware
+
+
+def test_saved_air_profile_survives_redeployment_without_affecting_mini(tmp_path, monkeypatch):
+    import json
+    from scripts import deploy_launchagent as deploy
+    hardware = {'model':'Mac16,12','machine':'arm64','ncpu':10,'memory_gb':16}
+    monkeypatch.setattr('server.runtime_profile.detect_hardware', lambda:hardware)
+    saved = deploy.SOURCE/'config/runtime-profiles/macbook-air-current.json'
+    selected = deploy.write_runtime_profile(tmp_path, saved)
+    assert selected == json.loads(saved.read_text())
+    assert selected['queue_concurrency'] == 3
+    assert deploy.launchagent_payload(tmp_path/'python', selected)['ProcessType'] == 'Standard'
+    assert deploy.select_runtime_profile(tmp_path) == selected
+    monkeypatch.setattr('server.runtime_profile.detect_hardware', lambda: {
+        'model':'Mac16,10','machine':'arm64','ncpu':10,'memory_gb':24})
+    mini = deploy.select_runtime_profile(tmp_path)
+    assert mini['selection'] == 'auto'
+    assert mini['queue_concurrency'] == 6
+    assert mini['web_process_type'] == 'Interactive'

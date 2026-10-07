@@ -1,0 +1,20 @@
+{
+  "busy_state_poll_seconds": 10,
+  "collector_concurrency": 6,
+  "error_state_poll_seconds": 10,
+  "hardware": {
+    "machine": "arm64",
+    "memory_gb": 16.0,
+    "model": "Mac16,12",
+    "ncpu": 10
+  },
+  "metric_concurrency": 4,
+  "name": "m4-balanced",
+  "provenance": "Mac16,12 / 16 GiB measured on AC power, 2026-10-07. Original queue concurrency 3 and polling 10/10/10 retained; battery energy use not measured.",
+  "queue_concurrency": 3,
+  "selection": "manual",
+  "state_poll_seconds": 10,
+  "target_cache_seconds": 8,
+  "terminal_max_sessions": 8,
+  "web_process_type": "Standard"
+}

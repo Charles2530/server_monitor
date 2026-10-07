@@ -1,0 +1,3958 @@
+{
+  "method": "20 interleaved measurements per local route per batch, identity encoding; Standard/deployed batches wait for demand-loaded snapshots. Background 1 used existing warm snapshots. Percentile is nearest-rank. Cloud target reads are separate from local endpoint samples.",
+  "phases": {
+    "background_1": {
+      "measured_at": "2026-10-07T12:56:42+0800",
+      "requests_per_route": 20,
+      "summary": {
+        "state": {
+          "median_ms": 9.326,
+          "p95_ms": 11.61,
+          "errors": 0,
+          "bytes": [
+            8678
+          ]
+        },
+        "history": {
+          "median_ms": 46.094,
+          "p95_ms": 51.421,
+          "errors": 0,
+          "bytes": [
+            5790
+          ]
+        },
+        "task-history": {
+          "median_ms": 31.35,
+          "p95_ms": 34.819,
+          "errors": 0,
+          "bytes": [
+            150524
+          ]
+        },
+        "queue": {
+          "median_ms": 7.522,
+          "p95_ms": 11.114,
+          "errors": 0,
+          "bytes": [
+            8397,
+            8612
+          ]
+        }
+      },
+      "samples": {
+        "state": [
+          {
+            "ms": 11.61,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.732,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 11.088,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.322,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.183,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.331,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.798,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.157,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.082,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.232,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.689,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.396,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.067,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.206,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 11.513,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.519,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.848,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.917,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 16.675,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.404,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          }
+        ],
+        "history": [
+          {
+            "ms": 22.201,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 21.182,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 19.123,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 74.173,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 49.784,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 48.327,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 47.489,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 51.421,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 48.967,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 33.857,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 50.533,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 49.92,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 49.364,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 44.699,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.541,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 17.721,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 22.832,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 16.328,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 33.604,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 49.211,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          }
+        ],
+        "task-history": [
+          {
+            "ms": 30.771,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 31.124,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 28.122,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 31.064,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 33.687,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 33.344,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 27.149,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 32.522,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 33.643,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 31.576,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 33.197,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 33.714,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 34.819,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 32.365,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 28.546,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 35.593,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 30.943,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 29.708,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 28.885,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          },
+          {
+            "ms": 23.879,
+            "status": 200,
+            "bytes": 150524,
+            "loading": true,
+            "status_field": null
+          }
+        ],
+        "queue": [
+          {
+            "ms": 9.266,
+            "status": 200,
+            "bytes": 8612,
+            "loading": true,
+            "status_field": "partial"
+          },
+          {
+            "ms": 9.489,
+            "status": 200,
+            "bytes": 8612,
+            "loading": true,
+            "status_field": "partial"
+          },
+          {
+            "ms": 11.114,
+            "status": 200,
+            "bytes": 8612,
+            "loading": true,
+            "status_field": "partial"
+          },
+          {
+            "ms": 7.469,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.162,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 155.833,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 6.533,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.346,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 6.163,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.426,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.575,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 6.978,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 5.432,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 6.667,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.57,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.454,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.371,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.161,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.541,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          },
+          {
+            "ms": 6.687,
+            "status": 200,
+            "bytes": 8397,
+            "loading": true,
+            "status_field": "ok"
+          }
+        ]
+      },
+      "cloud_targets": {
+        "cci": [
+          {
+            "ms": 3100.288,
+            "status": 200,
+            "bytes": 552,
+            "loading": null,
+            "status_field": null,
+            "target_count": 1
+          },
+          {
+            "ms": 3003.83,
+            "status": 200,
+            "bytes": 552,
+            "loading": null,
+            "status_field": null,
+            "target_count": 1
+          }
+        ],
+        "acp": [
+          {
+            "ms": 2958.077,
+            "status": 200,
+            "bytes": 863,
+            "loading": null,
+            "status_field": null,
+            "target_count": 2
+          },
+          {
+            "ms": 3039.635,
+            "status": 200,
+            "bytes": 863,
+            "loading": null,
+            "status_field": null,
+            "target_count": 2
+          }
+        ]
+      },
+      "process": "  PID  %CPU %MEM    RSS  ELAPSED PRI NI\n43423   0.8  0.5  86336 12:45:26   4  0\n",
+      "spawn_type": "spawn type = background (5)"
+    },
+    "standard_1": {
+      "measured_at": "2026-10-07T12:59:47+0800",
+      "requests_per_route": 20,
+      "warmup": {
+        "/api/task-history": {
+          "seconds": 0.022,
+          "loading": false,
+          "task_count": 180
+        },
+        "/api/utilization-queue": {
+          "seconds": 0.005,
+          "loading": false,
+          "task_count": 11
+        }
+      },
+      "summary": {
+        "state": {
+          "median_ms": 7.913,
+          "p95_ms": 10.61,
+          "errors": 0,
+          "bytes": [
+            8679
+          ]
+        },
+        "history": {
+          "median_ms": 16.916,
+          "p95_ms": 36.733,
+          "errors": 0,
+          "bytes": [
+            5790
+          ]
+        },
+        "task-history": {
+          "median_ms": 20.818,
+          "p95_ms": 24.511,
+          "errors": 0,
+          "bytes": [
+            150525
+          ]
+        },
+        "queue": {
+          "median_ms": 4.163,
+          "p95_ms": 6.419,
+          "errors": 0,
+          "bytes": [
+            8705
+          ]
+        }
+      },
+      "samples": {
+        "state": [
+          {
+            "ms": 7.108,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.43,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.61,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.682,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.679,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 5.612,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.311,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.698,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.202,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 6.151,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 5.16,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.989,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 5.233,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.356,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.838,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 6.965,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.436,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.794,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 6.875,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.154,
+            "status": 200,
+            "bytes": 8679,
+            "loading": null,
+            "status_field": "ok"
+          }
+        ],
+        "history": [
+          {
+            "ms": 15.608,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 17.053,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 16.575,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 17.727,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 16.778,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.659,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.929,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 16.038,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 20.601,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 28.652,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 13.274,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 35.269,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 36.733,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 39.219,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 36.334,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 11.89,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 17.532,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 18.281,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.856,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.247,
+            "status": 200,
+            "bytes": 5790,
+            "loading": null,
+            "status_field": null
+          }
+        ],
+        "task-history": [
+          {
+            "ms": 18.739,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 19.742,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 19.438,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 21.612,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 18.612,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 19.898,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 20.253,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 24.429,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 19.778,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 20.697,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.484,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 22.845,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 17.084,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 22.791,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.383,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 24.242,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 24.511,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 24.588,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 17.841,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 20.939,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          }
+        ],
+        "queue": [
+          {
+            "ms": 3.69,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 12.611,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.203,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 4.57,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.215,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.098,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 6.114,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 4.341,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 4.159,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 4.168,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.75,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.802,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 4.024,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.021,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 6.419,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 4.294,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.632,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.842,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.295,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.741,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          }
+        ]
+      },
+      "cloud_targets": {
+        "cci": [
+          {
+            "ms": 2995.442,
+            "status": 200,
+            "bytes": 552,
+            "loading": null,
+            "status_field": null,
+            "target_count": 1
+          },
+          {
+            "ms": 3023.242,
+            "status": 200,
+            "bytes": 552,
+            "loading": null,
+            "status_field": null,
+            "target_count": 1
+          }
+        ],
+        "acp": [
+          {
+            "ms": 2993.286,
+            "status": 200,
+            "bytes": 863,
+            "loading": null,
+            "status_field": null,
+            "target_count": 2
+          },
+          {
+            "ms": 3005.245,
+            "status": 200,
+            "bytes": 863,
+            "loading": null,
+            "status_field": null,
+            "target_count": 2
+          }
+        ]
+      },
+      "process": "  PID  %CPU %MEM    RSS ELAPSED PRI NI\n94918  32.1  0.5  89536   01:03  20  0\n",
+      "spawn_type": "spawn type = daemon (3)"
+    },
+    "background_2": {
+      "measured_at": "2026-10-07T13:01:28+0800",
+      "requests_per_route": 20,
+      "warmup": {
+        "/api/task-history": {
+          "seconds": 13.377,
+          "loading": false,
+          "task_count": 180
+        },
+        "/api/utilization-queue": {
+          "seconds": 14.039,
+          "loading": false,
+          "task_count": 11
+        }
+      },
+      "summary": {
+        "state": {
+          "median_ms": 9.764,
+          "p95_ms": 17.324,
+          "errors": 0,
+          "bytes": [
+            8678
+          ]
+        },
+        "history": {
+          "median_ms": 44.631,
+          "p95_ms": 99.785,
+          "errors": 0,
+          "bytes": [
+            5811
+          ]
+        },
+        "task-history": {
+          "median_ms": 31.146,
+          "p95_ms": 40.79,
+          "errors": 0,
+          "bytes": [
+            150525
+          ]
+        },
+        "queue": {
+          "median_ms": 7.862,
+          "p95_ms": 15.805,
+          "errors": 0,
+          "bytes": [
+            8704
+          ]
+        }
+      },
+      "samples": {
+        "state": [
+          {
+            "ms": 10.176,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.991,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.744,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 17.324,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.527,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.928,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.032,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.227,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.174,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.684,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.398,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.555,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.09,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.783,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.706,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.457,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.81,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 14.833,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 12.165,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 18.55,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          }
+        ],
+        "history": [
+          {
+            "ms": 22.048,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 20.041,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 16.329,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 17.311,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 35.418,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 42.259,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 47.663,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 47.332,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 55.64,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 49.846,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 18.833,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 51.088,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 23.342,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 48.02,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 47.003,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 38.024,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.415,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 59.933,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 99.785,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 1027.087,
+            "status": 200,
+            "bytes": 5811,
+            "loading": null,
+            "status_field": null
+          }
+        ],
+        "task-history": [
+          {
+            "ms": 22.235,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 27.845,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 25.332,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 30.86,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 26.182,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 25.96,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 24.88,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 40.79,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 30.386,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 34.581,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 37.111,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 35.636,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 32.415,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 35.203,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 31.432,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 29.976,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 32.538,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 49.401,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 35.735,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 24.671,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          }
+        ],
+        "queue": [
+          {
+            "ms": 8.277,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 7.685,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 8.546,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 8.342,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.786,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 7.753,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 9.263,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 6.525,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 7.455,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 7.203,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 6.294,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 7.997,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 6.872,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 7.971,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 7.689,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 8.05,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 8.156,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 18.148,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 15.805,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.032,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          }
+        ]
+      },
+      "process": "  PID  %CPU %MEM    RSS ELAPSED PRI NI\n95289  10.4  0.5  84048   00:42   4  0\n",
+      "spawn_type": "spawn type = background (5)"
+    },
+    "standard_2": {
+      "measured_at": "2026-10-07T13:02:29+0800",
+      "requests_per_route": 20,
+      "warmup": {
+        "/api/task-history": {
+          "seconds": 13.817,
+          "loading": false,
+          "task_count": 180
+        },
+        "/api/utilization-queue": {
+          "seconds": 13.858,
+          "loading": false,
+          "task_count": 11
+        }
+      },
+      "summary": {
+        "state": {
+          "median_ms": 8.571,
+          "p95_ms": 10.041,
+          "errors": 0,
+          "bytes": [
+            8678
+          ]
+        },
+        "history": {
+          "median_ms": 16.087,
+          "p95_ms": 38.016,
+          "errors": 0,
+          "bytes": [
+            5820
+          ]
+        },
+        "task-history": {
+          "median_ms": 23.875,
+          "p95_ms": 27.374,
+          "errors": 0,
+          "bytes": [
+            150525
+          ]
+        },
+        "queue": {
+          "median_ms": 5.219,
+          "p95_ms": 8.127,
+          "errors": 0,
+          "bytes": [
+            8705
+          ]
+        }
+      },
+      "samples": {
+        "state": [
+          {
+            "ms": 8.058,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.433,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.83,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.09,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.524,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.645,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.041,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.19,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.874,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.185,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 6.946,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.497,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.116,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.61,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.875,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.657,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.651,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.611,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.547,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.351,
+            "status": 200,
+            "bytes": 8678,
+            "loading": null,
+            "status_field": "ok"
+          }
+        ],
+        "history": [
+          {
+            "ms": 15.287,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 14.898,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 16.13,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.353,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 18.656,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 17.716,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.568,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.217,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.363,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 14.583,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 16.35,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 17.408,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.455,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 16.383,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 16.043,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.935,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 18.408,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 40.8,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 38.016,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 37.401,
+            "status": 200,
+            "bytes": 5820,
+            "loading": null,
+            "status_field": null
+          }
+        ],
+        "task-history": [
+          {
+            "ms": 20.625,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 24.237,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 22.446,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.832,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 25.205,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 19.51,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 25.017,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 26.463,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 22.175,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 20.152,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 24.562,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 26.849,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 22.37,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.918,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.147,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.648,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.494,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 27.374,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 26.171,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 29.434,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          }
+        ],
+        "queue": [
+          {
+            "ms": 6.446,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 4.061,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.319,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.306,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.922,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 4.484,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 6.132,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.203,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.397,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.235,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.062,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.2,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 8.127,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 6.531,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 7.265,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 6.865,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 8.373,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 4.868,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.029,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.971,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          }
+        ]
+      },
+      "process": "  PID  %CPU %MEM    RSS ELAPSED PRI NI\n95503  33.0  0.5  80752   00:32  20  0\n",
+      "spawn_type": "spawn type = daemon (3)"
+    },
+    "deployed_1": {
+      "measured_at": "2026-10-07T13:06:55+0800",
+      "requests_per_route": 20,
+      "warmup": {
+        "/api/task-history": {
+          "seconds": 14.345,
+          "loading": false,
+          "task_count": 180
+        },
+        "/api/utilization-queue": {
+          "seconds": 14.407,
+          "loading": false,
+          "task_count": 11
+        }
+      },
+      "summary": {
+        "state": {
+          "median_ms": 9.97,
+          "p95_ms": 11.794,
+          "errors": 0,
+          "bytes": [
+            9212
+          ]
+        },
+        "history": {
+          "median_ms": 17.657,
+          "p95_ms": 34.839,
+          "errors": 0,
+          "bytes": [
+            5888
+          ]
+        },
+        "task-history": {
+          "median_ms": 23.421,
+          "p95_ms": 26.821,
+          "errors": 0,
+          "bytes": [
+            150525
+          ]
+        },
+        "queue": {
+          "median_ms": 5.606,
+          "p95_ms": 8.657,
+          "errors": 0,
+          "bytes": [
+            8705
+          ]
+        }
+      },
+      "samples": {
+        "state": [
+          {
+            "ms": 11.682,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.898,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 5.248,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.583,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.707,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.166,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.179,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 12.348,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.561,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 11.794,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 11.299,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.885,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.123,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.983,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.806,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.957,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 6.751,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.976,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 11.48,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.521,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          }
+        ],
+        "history": [
+          {
+            "ms": 15.772,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 17.951,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 12.009,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 16.725,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 17.455,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.847,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 16.793,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 16.491,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 17.858,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 14.985,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 19.481,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 18.68,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 20.457,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 16.068,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 19.744,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 39.279,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 34.839,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 20.823,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.352,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 18.217,
+            "status": 200,
+            "bytes": 5888,
+            "loading": null,
+            "status_field": null
+          }
+        ],
+        "task-history": [
+          {
+            "ms": 20.708,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 25.686,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 25.661,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 25.766,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.285,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 27.646,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 20.709,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.957,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 22.209,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.175,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 22.526,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.556,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 22.573,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.747,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 25.218,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 25.685,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 26.821,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 21.551,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 21.13,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 18.452,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          }
+        ],
+        "queue": [
+          {
+            "ms": 3.106,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.528,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.224,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.607,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 4.747,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.528,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.97,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.604,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.425,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 4.665,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 7.839,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 8.657,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.749,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 7.655,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 7.92,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 7.387,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 6.71,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.642,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 11.146,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.193,
+            "status": 200,
+            "bytes": 8705,
+            "loading": false,
+            "status_field": "partial"
+          }
+        ]
+      },
+      "cloud_targets": {
+        "cci": [
+          {
+            "ms": 3133.37,
+            "status": 200,
+            "bytes": 552,
+            "loading": null,
+            "status_field": null,
+            "target_count": 1
+          },
+          {
+            "ms": 3179.047,
+            "status": 200,
+            "bytes": 552,
+            "loading": null,
+            "status_field": null,
+            "target_count": 1
+          }
+        ],
+        "acp": [
+          {
+            "ms": 3067.389,
+            "status": 200,
+            "bytes": 863,
+            "loading": null,
+            "status_field": null,
+            "target_count": 2
+          },
+          {
+            "ms": 2958.797,
+            "status": 200,
+            "bytes": 863,
+            "loading": null,
+            "status_field": null,
+            "target_count": 2
+          }
+        ]
+      },
+      "process": "  PID  %CPU %MEM    RSS ELAPSED PRI NI\n96487   0.4  0.5  87584   00:45  20  0\n",
+      "spawn_type": "spawn type = daemon (3)"
+    },
+    "deployed_2": {
+      "measured_at": "2026-10-07T13:09:51+0800",
+      "requests_per_route": 20,
+      "warmup": {
+        "/api/task-history": {
+          "seconds": 15.06,
+          "loading": false,
+          "task_count": 180
+        },
+        "/api/utilization-queue": {
+          "seconds": 11.387,
+          "loading": false,
+          "task_count": 11
+        }
+      },
+      "summary": {
+        "state": {
+          "median_ms": 9.257,
+          "p95_ms": 11.041,
+          "errors": 0,
+          "bytes": [
+            9212
+          ]
+        },
+        "history": {
+          "median_ms": 18.423,
+          "p95_ms": 40.787,
+          "errors": 0,
+          "bytes": [
+            5881
+          ]
+        },
+        "task-history": {
+          "median_ms": 23.951,
+          "p95_ms": 28.523,
+          "errors": 0,
+          "bytes": [
+            150525
+          ]
+        },
+        "queue": {
+          "median_ms": 5.588,
+          "p95_ms": 8.3,
+          "errors": 0,
+          "bytes": [
+            8704
+          ]
+        }
+      },
+      "samples": {
+        "state": [
+          {
+            "ms": 8.43,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.996,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.741,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 7.848,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.176,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.491,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.338,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.579,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.944,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.8,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 12.235,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.503,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 10.757,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 6.395,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 6.761,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.687,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 9.571,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.862,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 8.81,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          },
+          {
+            "ms": 11.041,
+            "status": 200,
+            "bytes": 9212,
+            "loading": null,
+            "status_field": "ok"
+          }
+        ],
+        "history": [
+          {
+            "ms": 15.296,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.101,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 19.197,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 40.533,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 40.787,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 42.961,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 16.649,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 18.605,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 19.195,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 18.394,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.591,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.812,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 20.783,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 16.594,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 24.788,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 19.872,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 17.477,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 18.127,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 15.133,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          },
+          {
+            "ms": 18.452,
+            "status": 200,
+            "bytes": 5881,
+            "loading": null,
+            "status_field": null
+          }
+        ],
+        "task-history": [
+          {
+            "ms": 22.42,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 26.203,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 24.889,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 28.523,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 22.856,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 28.535,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 27.713,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 27.879,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.433,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 22.003,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 22.829,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.814,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 24.089,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.066,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 25.707,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 22.291,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 26.532,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 19.441,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 24.437,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          },
+          {
+            "ms": 23.238,
+            "status": 200,
+            "bytes": 150525,
+            "loading": false,
+            "status_field": null
+          }
+        ],
+        "queue": [
+          {
+            "ms": 6.548,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 6.496,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.689,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 8.213,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.486,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 6.679,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 8.3,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 5.858,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.529,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.985,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 4.988,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.845,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.849,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 4.918,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 7.006,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.859,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.515,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 3.33,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 8.764,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          },
+          {
+            "ms": 6.181,
+            "status": 200,
+            "bytes": 8704,
+            "loading": false,
+            "status_field": "partial"
+          }
+        ]
+      },
+      "cloud_targets": {
+        "cci": [
+          {
+            "ms": 3145.847,
+            "status": 200,
+            "bytes": 552,
+            "loading": null,
+            "status_field": null,
+            "target_count": 1
+          },
+          {
+            "ms": 3072.626,
+            "status": 200,
+            "bytes": 552,
+            "loading": null,
+            "status_field": null,
+            "target_count": 1
+          }
+        ],
+        "acp": [
+          {
+            "ms": 3061.659,
+            "status": 200,
+            "bytes": 863,
+            "loading": null,
+            "status_field": null,
+            "target_count": 2
+          },
+          {
+            "ms": 3012.85,
+            "status": 200,
+            "bytes": 863,
+            "loading": null,
+            "status_field": null,
+            "target_count": 2
+          }
+        ]
+      },
+      "process": "  PID  %CPU %MEM    RSS ELAPSED PRI NI\n96487   0.3  0.5  86224   03:42  20  0\n",
+      "spawn_type": "spawn type = daemon (3)"
+    }
+  },
+  "aggregates": {
+    "before": {
+      "state": {
+        "count": 40,
+        "median_ms": 9.397,
+        "p95_ms": 16.675,
+        "errors": 0
+      },
+      "history": {
+        "count": 40,
+        "median_ms": 45.851,
+        "p95_ms": 74.173,
+        "errors": 0
+      },
+      "task-history": {
+        "count": 40,
+        "median_ms": 31.278,
+        "p95_ms": 37.111,
+        "errors": 0
+      },
+      "queue": {
+        "count": 40,
+        "median_ms": 7.721,
+        "p95_ms": 15.805,
+        "errors": 0
+      }
+    },
+    "scheduling_only": {
+      "state": {
+        "count": 40,
+        "median_ms": 8.271,
+        "p95_ms": 10.524,
+        "errors": 0
+      },
+      "history": {
+        "count": 40,
+        "median_ms": 16.367,
+        "p95_ms": 38.016,
+        "errors": 0
+      },
+      "task-history": {
+        "count": 40,
+        "median_ms": 22.996,
+        "p95_ms": 26.849,
+        "errors": 0
+      },
+      "queue": {
+        "count": 40,
+        "median_ms": 4.719,
+        "p95_ms": 8.127,
+        "errors": 0
+      }
+    },
+    "deployed": {
+      "state": {
+        "count": 40,
+        "median_ms": 9.629,
+        "p95_ms": 11.794,
+        "errors": 0
+      },
+      "history": {
+        "count": 40,
+        "median_ms": 18.039,
+        "p95_ms": 40.533,
+        "errors": 0
+      },
+      "task-history": {
+        "count": 40,
+        "median_ms": 23.651,
+        "p95_ms": 27.879,
+        "errors": 0
+      },
+      "queue": {
+        "count": 40,
+        "median_ms": 5.606,
+        "p95_ms": 8.657,
+        "errors": 0
+      }
+    }
+  }
+}

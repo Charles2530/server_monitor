@@ -1,0 +1,327 @@
+{
+  "standard_before_code": {
+    "pid": 95503,
+    "duration_seconds": 60,
+    "samples": [
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 37472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 37472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 37472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 37472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 37472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 9.4,
+        "rss_kib": 40816,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 2.6,
+        "rss_kib": 48128,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.4,
+        "rss_kib": 48160,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 2.4,
+        "rss_kib": 48160,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 3.6,
+        "rss_kib": 48176,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 1.5,
+        "rss_kib": 48208,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 2.8,
+        "rss_kib": 48208,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 48208,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 48208,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 48208,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.4,
+        "rss_kib": 48208,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.3,
+        "rss_kib": 48256,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 48256,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 48256,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 48256,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 48256,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.3,
+        "rss_kib": 48256,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 48256,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 48256,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 48256,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 48256,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 48256,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 48256,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.3,
+        "rss_kib": 48256,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 48256,
+        "priority": 20
+      }
+    ],
+    "cpu_sample_median_percent": 0.1,
+    "cpu_sample_max_percent": 9.4,
+    "rss_median_mib": 47.08,
+    "rss_max_mib": 47.12,
+    "memory_pressure": "The system has 17179869184 (1048576 pages with a page size of 16384).\nSystem-wide memory free percentage: 47%\n",
+    "thermal": "Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded\n"
+  },
+  "deployed": {
+    "pid": 96487,
+    "duration_seconds": 60,
+    "samples": [
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.3,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.3,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 20.9,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 1.1,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.7,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 1.5,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 4.6,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 1.9,
+        "rss_kib": 87472,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.7,
+        "rss_kib": 87488,
+        "priority": 20
+      }
+    ],
+    "cpu_sample_median_percent": 0.2,
+    "cpu_sample_max_percent": 20.9,
+    "rss_median_mib": 85.42,
+    "rss_max_mib": 85.44,
+    "memory_pressure": "The system has 17179869184 (1048576 pages with a page size of 16384).\nSystem-wide memory free percentage: 49%\n",
+    "thermal": "Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded\n"
+  },
+  "limitations": "60-second samples are observational: before-code sample did not include terminal-target warmup, after-code did. RSS and CPU differences must not be interpreted as a paired performance or energy regression. Original Background process after target reads had RSS 86336 KiB; final deployed process after target reads had RSS 86224 KiB."
+}

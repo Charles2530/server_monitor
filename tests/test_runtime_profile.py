@@ -31,6 +31,33 @@ def test_only_detected_mini_receives_new_poll_tuning():
         assert other.get('web_process_type', 'Background') == 'Background'
 
 
+def test_measured_m4_air_preserves_queue_capacity_and_uses_standard_scheduling():
+    result = profile.choose_profile({
+        'model': 'Mac16,12',
+        'machine': 'arm64',
+        'ncpu': 10,
+        'memory_gb': 16,
+    })
+    assert result['name'] == 'm4-balanced'
+    assert result['collector_concurrency'] == 6
+    assert result['metric_concurrency'] == 4
+    assert result['queue_concurrency'] == 3
+    assert result['terminal_max_sessions'] == 8
+    assert result['target_cache_seconds'] == 8
+    assert result['web_process_type'] == 'Standard'
+    assert result.get('state_poll_seconds', 10) == 10
+
+
+@pytest.mark.parametrize('change', [
+    {'model':'Mac16,13'}, {'machine':'x86_64'}, {'ncpu':8}, {'memory_gb':24},
+])
+def test_unmeasured_air_configurations_keep_existing_defaults(change):
+    hardware = {'model':'Mac16,12','machine':'arm64','ncpu':10,'memory_gb':16}
+    result = profile.choose_profile({**hardware, **change})
+    assert result.get('web_process_type', 'Background') == 'Background'
+    assert result['queue_concurrency'] == 6
+
+
 @pytest.mark.parametrize('value', ['Background', 'Standard', 'Interactive'])
 def test_valid_explicit_web_scheduling_profiles(value):
     settings = profile.choose_profile({'model':'Mac16,10', 'ncpu':10, 'memory_gb':24})
