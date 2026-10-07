@@ -200,7 +200,10 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
 
     @app.get('/api/task-history')
     async def task_history(runtime=Depends(current_site)):
-        return await perform(runtime.task_history.snapshot)
+        async def snapshot_response():
+            # History is already normalized to JSON values, like state and queue.
+            return JSONResponse(await runtime.task_history.snapshot())
+        return await perform(snapshot_response)
 
     @app.get('/api/storage')
     async def storage(runtime=Depends(current_site)):

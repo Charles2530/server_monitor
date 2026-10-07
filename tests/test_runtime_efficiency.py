@@ -91,6 +91,70 @@ async def test_queue_response_skips_redundant_framework_encoding(tmp_path, monke
     assert not calls
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize('site_id', ['maoshanwang', 'sensecore'])
+async def test_history_response_skips_framework_encoding_and_preserves_snapshot(tmp_path, monkeypatch, site_id):
+    import time
+    import fastapi.routing
+    from server.main import SiteRuntime
+    from server.sites import SITES
+    from server.task_history import history_task
+    from tests.test_task_history import job
+    runtimes = {key: SiteRuntime(Monitor(Store(tmp_path/key), None), None, None, site=site)
+                for key, site in SITES.items()}
+    app = create_app(runtimes=runtimes, background=False)
+    for key, runtime in runtimes.items():
+        history = runtime.task_history
+        history.records['ACP'] = [history_task(job(runtime.site, name=key, state='FAILED', start=None),
+                                              'ACP', runtime.site, set())]
+        history.records['ACP'][0]['name'] = '中文历史 ' + key
+        history.checked_at = time.monotonic()
+        history.sources['ACP'] = {'status': 'error', 'updated_at': '2026-10-07T00:00:00Z'}
+    history = runtimes[site_id].task_history
+    expected = await history.snapshot()
+    original_records = copy.deepcopy(history.records)
+    calls = []
+    original = fastapi.routing.jsonable_encoder
+    def encode(value, *args, **kwargs):
+        calls.append(1)
+        return original(value, *args, **kwargs)
+    monkeypatch.setattr(fastapi.routing, 'jsonable_encoder', encode)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://localhost') as client:
+        result = await client.get('/api/task-history', headers={'X-Monitor-Site': site_id})
+    assert result.status_code == 200
+    assert result.json() == expected
+    assert result.json()['site'] == site_id
+    assert result.json()['tasks'][0]['id'] == 'ACP:' + site_id
+    assert result.json()['tasks'][0]['started_at'] is None
+    assert result.json()['warnings']
+    assert history.records == original_records
+    assert result.headers['cache-control'] == 'no-store'
+    assert not calls
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure,status,code', [
+    ('auth', 403, 'auth_required'), ('source', 503, 'source_unavailable'),
+    ('action', 409, 'history_changed'), ('encoding', 503, 'source_unavailable'),
+])
+async def test_history_response_preserves_sanitized_failures(tmp_path, monkeypatch, failure, status, code):
+    from server.auth import AuthRequired
+    from server.acp_actions import ActionError
+    app = create_app(Monitor(Store(tmp_path/'db'), None), background=False)
+    async def snapshot():
+        if failure == 'encoding': return {'unexpected': object()}
+        if failure == 'auth': raise AuthRequired('PRIVATE token')
+        if failure == 'action': raise ActionError('历史状态已变化。', 'history_changed', 409)
+        raise RuntimeError('PRIVATE source URL')
+    monkeypatch.setattr(app.state.runtimes['maoshanwang'].task_history, 'snapshot', snapshot)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://localhost') as client:
+        result = await client.get('/api/task-history')
+    assert result.status_code == status
+    assert result.json()['code'] == code
+    assert 'PRIVATE' not in result.text
+    assert result.headers['cache-control'] == 'no-store'
+
+
 def test_state_response_skips_curves_without_mutating_monitor(tmp_path):
     monitor = Monitor(Store(tmp_path / 'db'), None)
     series = NoCopySeries([{'metric': 'gpu', 'points': [[1, 2]]}])
