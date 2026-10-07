@@ -32,6 +32,9 @@
     else if (setup.codex?.configured === false) parts.push('此容器尚未配置 Codex');
     else if (setup.codex?.installed === false && !setup.optional_pending) parts.push('Codex 安装未完成，下次打开时重试');
     if (setup.appearance?.installed === false && !setup.optional_pending) parts.push('外观配置未完成，下次打开时重试');
+    if (connection.historyState === 'ready') parts.push('当前项目聊天已过滤 · ' + (connection.historyCount || 0) + ' 条');
+    else if (connection.historyState === 'empty') parts.push('当前项目暂无历史聊天');
+    else if (connection.historyState === 'unavailable') parts.push('项目聊天过滤暂不可用，已保留 Codex 原列表');
     if (setupFailures) parts.push('配置状态暂不可用，稍后重试');
     $("ide-setup-status").textContent = parts.join(' · ');
     $("ide-setup-status").hidden = !parts.length;
@@ -246,6 +249,30 @@
     select.append(option(`恢复前 ${preservedFrames.length} · ${new Date().toLocaleTimeString('zh-CN', {hour12:false})}`));
     select.selectedIndex = 0; preservedFrames.forEach(frame => { frame.hidden = true; });
   }
+  function sendHistoryToFrame(current = connection) {
+    if (!current?.origin || !current.historyPayload) return;
+    $("ide-frame").contentWindow?.postMessage({ type: 'ilab-codex-history', ...current.historyPayload }, current.origin);
+  }
+  async function refreshHistory(gen, current = connection) {
+    if (!current?.workspace || current.entryExpired || document.hidden) return;
+    try {
+      const result = await api('history', { task_id: taskId, instance: current.instance, container: current.container }, gen);
+      identity(result);
+      if (connection !== current || result.workspace !== current.workspace) return;
+      current.historyPayload = { workspace: result.workspace, records: Array.isArray(result.records) ? result.records : [], error: null };
+      current.historyState = current.historyPayload.records.length ? 'ready' : 'empty';
+      current.historyCount = current.historyPayload.records.length;
+      sendHistoryToFrame(current);
+      setupStatus();
+      window.MonitorConnectionLog?.note('Codex 项目历史 · ' + current.historyCount + ' 条', 'ready');
+    } catch (error) {
+      if (gen !== generation || connection !== current) return;
+      current.historyPayload = { workspace: current.workspace, records: [], error: 'history_unavailable' };
+      current.historyState = 'unavailable'; current.historyCount = 0;
+      sendHistoryToFrame(current); setupStatus();
+      window.MonitorConnectionLog?.note('Codex 项目历史读取失败，已保留原生列表。', 'error');
+    }
+  }
   async function open(target, gen, preserve = false) {
     busy = true; controls(); if (!connection) resetFrame();
     status(preserve ? "正在重建编辑器连接，请稍候…" : "正在检查已有编辑器并建立连接，请稍候…");
@@ -261,8 +288,10 @@
       const alive = await workbenchAlive(gen); active(gen);
       if (alive) {
         connection.entryExpired = false; recoveryFailures = 0; initializationFailed = false;
+        connection.workspace = typeof result.workspace === 'string' ? result.workspace : connection.workspace;
         nextCheck = Date.now() + 30000;
         setupStatus(result); busy = false; controls();
+        void refreshHistory(gen, connection);
         status('连接已恢复；编辑器页面正常，当前编辑内容已保留。', 'ready');
         return;
       }
@@ -277,7 +306,9 @@
       try { localStorage.setItem(recentKey, JSON.stringify({ task_id: taskId, instance: target.instance, container: target.container, saved_at: Date.now() })); } catch (_) {}
     }
     $("ide-task").textContent = `${result.name || taskId} · ${taskId}`;
-    connection = { instance: target.instance, container: target.container, port: result.port, origin: destination.origin, entry: destination.pathname, ready: false, loadDeadline: Date.now() + 60000 };
+    connection = { instance: target.instance, container: target.container, port: result.port, origin: destination.origin, entry: destination.pathname,
+      workspace: typeof result.workspace === 'string' ? result.workspace : null, historyState: 'loading', historyCount: 0,
+      historyPayload: null, ready: false, loadDeadline: Date.now() + 60000 };
     nextCheck = Date.now() + 30000;
     $("ide-frame").src = destination.href;
     $("ide-frame").hidden = false;
@@ -375,6 +406,10 @@
     if (event.data?.type === 'ilab-editor-codex' && ['loading', 'ready', 'hidden'].includes(event.data.state)) {
       connection.codexPanel = event.data.state; setupStatus(); return;
     }
+    if (event.data?.type === 'ilab-editor-codex-history-state' && ['ready', 'empty', 'unavailable'].includes(event.data.state)) {
+      if (event.data.state === 'unavailable' && connection.historyState !== 'unavailable') connection.historyState = 'unavailable';
+      setupStatus(); return;
+    }
     if (event.data?.type === "ilab-editor-entry-expired") {
       // Only the failed entry document may be replaced. A ready workbench may
       // contain unsaved edits and must keep its existing iframe during recovery.
@@ -387,9 +422,11 @@
     if (connection.ready) return;
     connection.entryExpired = false;
     connection.ready = true; recoveryFailures = 0; clearTimeout(retryTimer); retryTimer = null;
+    sendHistoryToFrame(connection);
     const seconds = ((performance.now() - loadingStarted) / 1000).toFixed(1);
     $("ide-status").dataset.readySeconds = seconds;
     status(`${connection.instance} / ${connection.container} · 编辑器已就绪 · ${seconds} 秒`, "ready");
+    void refreshHistory(generation, connection);
   });
   // A desktop window crossing the layout breakpoint must not unload the editor.
   mobileMedia.addEventListener("change", () => { if (!connection) load(); });

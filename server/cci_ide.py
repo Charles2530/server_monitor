@@ -19,6 +19,7 @@ from .ide_bootstrap import bootstrap_script
 from .ide_appearance import APPEARANCE_VERSION
 from .ide_proxy import EditorProxy
 from .ide_origins import EditorOriginRegistry
+from .ide_history import history_script, sanitize_history_result
 from .sites import MAOSHANWANG
 from .cci_terminal import VerifiedCCITargets
 
@@ -395,9 +396,33 @@ class CCIEditor:
         job = self.optional_jobs.get(identity)
         codex, appearance = session.get('codex', {}), session.get('appearance', {})
         return {'site': self.site.id, **data, 'port': session['proxy'].port,
+                'workspace': session.get('workspace'),
                 'codex': {key: codex[key] for key in ('configured', 'installed') if key in codex},
                 'appearance': {key: appearance[key] for key in ('installed', 'version') if key in appearance},
                 'optional_pending': bool(job and not job.done())}
+
+    async def history(self, data, origin):
+        """Read only filtered Codex session metadata from the active CCI container."""
+        identity = (data['task_id'], data['instance'], data['container'], origin)
+        session = self.sessions.get(identity)
+        if not session:
+            raise ActionError('编辑器会话已过期，请重新打开。', 'ide_expired', 404)
+        workspace = session.get('workspace')
+        if not isinstance(workspace, str) or not workspace.startswith('/'):
+            raise ActionError('容器工作区路径暂不可用。', 'history_unavailable', 503)
+        cached = session.get('history_cache')
+        if cached and time.monotonic() - cached.get('created', 0) < 15:
+            return dict(cached['result'])
+        try:
+            raw = await run_python(self.bridge, data, history_script(workspace), timeout=45, cleanup_jobs=self.cleanup_jobs)
+        except Exception:
+            raise ActionError('容器 Codex 历史暂不可用。', 'history_unavailable', 503) from None
+        if not isinstance(raw, dict) or raw.get('error'):
+            raise ActionError('容器 Codex 历史暂不可用。', 'history_unavailable', 503)
+        result = sanitize_history_result(raw, workspace)
+        result = {'site': self.site.id, **data, **result, 'source': 'container'}
+        session['history_cache'] = {'created': time.monotonic(), 'result': result}
+        return dict(result)
 
     def prepare_optional(self, identity, session, data):
         codex, appearance = session.get('codex', {}), session.get('appearance', {})
@@ -412,7 +437,8 @@ class CCIEditor:
             try:
                 prepared = await run_python(self.bridge, data, bootstrap_script(data['instance'], session['address']), cleanup_jobs=self.cleanup_jobs)
                 if 'error' not in prepared and self.sessions.get(identity) is session:
-                    session.update(codex=prepared.get('codex', {}), appearance=prepared.get('appearance', {}))
+                    session.update(codex=prepared.get('codex', {}), appearance=prepared.get('appearance', {}),
+                                  workspace=prepared.get('workspace') or session.get('workspace'))
                     if session['proxy'].assets is not None:
                         roots = prepared.get('asset_roots', [])
                         session['proxy'].assets.resource_roots = roots if isinstance(roots, list) else []
@@ -428,8 +454,9 @@ class CCIEditor:
         proxy = session['proxy']; proxy.touched = time.monotonic()
         job = self.optional_jobs.get(identity)
         return {'site': self.site.id, **data, 'name': session.get('name', data['task_id']),
-                'port': proxy.port, 'ticket': proxy.ticket(), 'codex': session.get('codex', {}),
-                'appearance': session.get('appearance', {}), 'optional_pending': bool(job and not job.done())}
+                'port': proxy.port, 'ticket': proxy.ticket(), 'workspace': session.get('workspace'),
+                'codex': session.get('codex', {}), 'appearance': session.get('appearance', {}),
+                'optional_pending': bool(job and not job.done())}
 
     async def open(self, data, origin, progress=None):
         notify = progress or (lambda value: None)
@@ -482,7 +509,8 @@ class CCIEditor:
                         warming.cancel()
                         await asyncio.gather(warming, return_exceptions=True)
                     if warmed: await warmed.close()
-                session.update(codex=prepared.get('codex', {}), appearance=prepared.get('appearance', {}), name=result['name'])
+                session.update(codex=prepared.get('codex', {}), appearance=prepared.get('appearance', {}),
+                               workspace=prepared.get('workspace'), name=result['name'])
                 if session['proxy'].assets is not None:
                     roots = prepared.get('asset_roots', [])
                     session['proxy'].assets.resource_roots = roots if isinstance(roots, list) else []
