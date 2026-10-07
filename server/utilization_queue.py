@@ -84,47 +84,54 @@ class UtilizationQueue:
         async with httpx.AsyncClient(headers=self.session_loader()['headers'], timeout=20,
                                      transport=self.transport, follow_redirects=False) as client:
             # All creation dates: do not inherit the console's recent-month filter.
-            raw_rows = await self.reader.paginate(client, 'AEC2', '/compute/acp/data/v2' + self.site.workspace
-                                                  + '/trainingJobs', 'training_jobs',
-                                                  {'page_size': 20, 'filter': "state='RUNNING'"})
-            tasks = {}
-            for raw in raw_rows:
-                if (not isinstance(raw, dict) or raw.get('state') != 'RUNNING'
-                        or not isinstance(raw.get('name'), str)
-                        or raw.get('id') != self.site.workspace + '/trainingJobs/' + raw['name']):
-                    continue
-                task = task_from_raw(raw, 'ACP', time.time())
-                url = task_console_url(task, self.site)
-                if not url:
-                    continue
-                owner = (raw.get('ownership') or {}).get('user_name')
-                now = time.time()
-                created, started = timestamp(raw.get('create_time')), timestamp(raw.get('start_time'))
-                if created is not None and created > now:
-                    created = None
-                if started is not None and (started > now or (created is not None and started < created)):
-                    started = None
-                row = {key: task[key] for key in ('id', 'kind', 'name', 'cluster', 'gpu_count', 'replicas')}
-                row.update(owner=owner if isinstance(owner, str) else None, url=url,
-                           created_at=iso(created) if created is not None else None,
-                           started_at=iso(started) if started is not None else None,
-                           is_mine=is_charles(task['name']),
-                           gpu_utilization=None, metric_updated_at=None,
-                           metric_status='no_gpu' if task['gpu_count'] == 0 else 'unknown')
-                tasks[task['id']] = (task, row)
-            # Publish the list before slower telemetry reads, without stale utilization.
-            self.records = [row for _, row in tasks.values()]
-            self.updated_at = iso(time.time())
-            self.status = 'ok'
-            if any(row['gpu_count'] != 0 for row in self.records):
-                try:
-                    await self.reader.metadata(client)
-                except Exception:
+            listing = asyncio.create_task(self.reader.paginate(
+                client, 'AEC2', '/compute/acp/data/v2' + self.site.workspace + '/trainingJobs',
+                'training_jobs', {'page_size': 100, 'filter': "state='RUNNING'"}))
+            metadata = asyncio.create_task(self.reader.metadata(client))
+            try:
+                raw_rows = await listing
+                tasks = {}
+                for raw in raw_rows:
+                    if (not isinstance(raw, dict) or raw.get('state') != 'RUNNING'
+                            or not isinstance(raw.get('name'), str)
+                            or raw.get('id') != self.site.workspace + '/trainingJobs/' + raw['name']):
+                        continue
+                    task = task_from_raw(raw, 'ACP', time.time())
+                    url = task_console_url(task, self.site)
+                    if not url:
+                        continue
+                    owner = (raw.get('ownership') or {}).get('user_name')
+                    now = time.time()
+                    created, started = timestamp(raw.get('create_time')), timestamp(raw.get('start_time'))
+                    if created is not None and created > now:
+                        created = None
+                    if started is not None and (started > now or (created is not None and started < created)):
+                        started = None
+                    row = {key: task[key] for key in ('id', 'kind', 'name', 'cluster', 'gpu_count', 'replicas')}
+                    row.update(owner=owner if isinstance(owner, str) else None, url=url,
+                               created_at=iso(created) if created is not None else None,
+                               started_at=iso(started) if started is not None else None,
+                               is_mine=is_charles(task['name']),
+                               gpu_utilization=None, metric_updated_at=None,
+                               metric_status='no_gpu' if task['gpu_count'] == 0 else 'unknown')
+                    tasks[task['id']] = (task, row)
+                # Publish the list before slower telemetry reads, without stale utilization.
+                self.records = [row for _, row in tasks.values()]
+                self.updated_at = iso(time.time())
+                self.status = 'ok'
+                if any(row['gpu_count'] != 0 for row in self.records):
+                    try:
+                        await metadata
+                    except Exception:
+                        self.status = 'partial'
+                        return
+                    await asyncio.gather(*(self.gpu(client, task, row) for task, row in tasks.values()))
+                if any(row['metric_status'] not in ('ok', 'no_gpu') for row in self.records):
                     self.status = 'partial'
-                    return
-                await asyncio.gather(*(self.gpu(client, task, row) for task, row in tasks.values()))
-            if any(row['metric_status'] not in ('ok', 'no_gpu') for row in self.records):
-                self.status = 'partial'
+            finally:
+                if not metadata.done():
+                    metadata.cancel()
+                await asyncio.gather(metadata, return_exceptions=True)
 
     async def refresh(self):
         previous_update = self.updated_at

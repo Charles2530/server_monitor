@@ -24,15 +24,26 @@ class Collector:
         self.workspace = site.workspace if site else WORKSPACE
         self.services = site.services if site else SERVICES
         profile = get_runtime_profile()
-        self.semaphore = asyncio.Semaphore(profile['collector_concurrency'])
+        self.request_limit = profile['collector_concurrency']
+        self.metric_limit = profile['metric_concurrency']
+        self.semaphore = None
         # Leave request slots for node inventory/allocation;
         # otherwise queued metric panels can exhaust its short timeout before
         # an observation request even reaches the cloud.
-        self.metric_semaphore = asyncio.Semaphore(profile['metric_concurrency'])
+        self.metric_semaphore = None
         self.workspace_uid = None
         self.station = None
 
+    def prepare_semaphores(self):
+        # Python 3.9 binds these to the current loop at construction. Collectors
+        # are created during app import, before uvicorn starts its serving loop.
+        if self.semaphore is None:
+            self.semaphore = asyncio.Semaphore(self.request_limit)
+        if self.metric_semaphore is None:
+            self.metric_semaphore = asyncio.Semaphore(self.metric_limit)
+
     async def request(self, client, service, path, *, body=None, params=None):
+        self.prepare_semaphores()
         for attempt in range(3):
             try:
                 async with self.semaphore:
@@ -97,6 +108,7 @@ class Collector:
             await asyncio.gather(*(read for _,read in reads),return_exceptions=True)
 
     async def task_metrics(self, client, task, now):
+        self.prepare_semaphores()
         kind = task['kind']
         errors = []
         failed_metrics = set()

@@ -67,6 +67,30 @@ class NoCopySeries(list):
         raise AssertionError('Private curves must not be copied only to discard them')
 
 
+@pytest.mark.asyncio
+async def test_queue_response_skips_redundant_framework_encoding(tmp_path, monkeypatch):
+    import fastapi.routing
+    app = create_app(Monitor(Store(tmp_path/'db'), None), background=False)
+    queue = app.state.runtimes['maoshanwang'].utilization_queue
+    queue.records = [{'id':'ACP:one','gpu_utilization':0,'metric_status':'ok'}]
+    import time
+    queue.checked_at = time.monotonic()
+    queue.status = 'ok'
+    calls = []
+    original = fastapi.routing.jsonable_encoder
+    def encode(value, *args, **kwargs):
+        calls.append(1)
+        return original(value, *args, **kwargs)
+    monkeypatch.setattr(fastapi.routing, 'jsonable_encoder', encode)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://localhost') as client:
+        result = await client.get('/api/utilization-queue')
+    assert result.status_code == 200
+    assert result.json()['site'] == 'maoshanwang'
+    assert result.json()['tasks'][0]['id'] == 'ACP:one'
+    assert result.headers['cache-control'] == 'no-store'
+    assert not calls
+
+
 def test_state_response_skips_curves_without_mutating_monitor(tmp_path):
     monitor = Monitor(Store(tmp_path / 'db'), None)
     series = NoCopySeries([{'metric': 'gpu', 'points': [[1, 2]]}])

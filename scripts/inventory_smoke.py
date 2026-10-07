@@ -38,7 +38,7 @@ async def main():
             row=page.locator('#cluster-body tr').filter(has=page.get_by_text(c['name'],exact=True))
             assert await row.count()==1
             assert await row.locator('td').nth(1).inner_text()==str(c['inventory']['total_gpus'])+(('\n含异常节点 '+str(c['inventory']['abnormal_node_gpus'])+' 张') if c['inventory']['abnormal_node_gpus'] else '')
-            assert await row.locator('td').nth(2).inner_text()==str(int(c['available_gpus']))
+            assert await row.locator('td').nth(2).locator('.resource-value').inner_text()==str(int(c['available_gpus']))
             assert str(c['inventory']['node_count'])+' 节点' in await row.inner_text()
         assert await page.locator('#inventory-notice').is_visible()
         await page.locator('#clusters-section').scroll_into_view_if_needed()

@@ -19,6 +19,7 @@ async def main():
         body=req.post_data_json if req.method=='POST' else None
         calls.append((path,body))
         if path=='/api/state':data={'status':'ok','connected':True,'updated_at':now,'tasks':[],'waiting_tasks':[],'clusters':[],'source_status':{}}
+        elif path=='/api/tokenhub/state':data={'status':'disconnected','connected':False,'sections':{}}
         elif path=='/api/acp/options':
             key=query.get('partition_id',['a'])[0]
             if key=='b' and slow_b:await asyncio.sleep(1)
