@@ -82,4 +82,117 @@ def sanitize_history_result(value: Any, workspace: str) -> dict[str, Any]:
 def history_script(workspace: str) -> str:
     """Return a self-contained script executed by ``run_python`` in the CCI shell."""
     encoded_workspace = json.dumps(workspace)
-    return f'''\nimport glob\nimport json\nimport os\nimport pathlib\nimport sqlite3\n\nROOT = {encoded_workspace}\nMAX_RECORDS = {MAX_HISTORY_RECORDS}\nMAX_TITLE = {MAX_TITLE_LENGTH}\nMAX_ID = {MAX_ID_LENGTH}\nMAX_CWD = {MAX_CWD_LENGTH}\n\ndef normal(value):\n    if not isinstance(value, str):\n        return None\n    value = value.replace("\\\\", "/").strip()\n    if not value.startswith("/"):\n        return None\n    try:\n        value = os.path.realpath(value)\n    except Exception:\n        return None\n    if not value.startswith("/") or len(value) > MAX_CWD:\n        return None\n    return value.rstrip("/") or "/"\n\ndef inside(root, cwd):\n    root, cwd = normal(root), normal(cwd)\n    return bool(root and cwd and (cwd == root or cwd.startswith(root.rstrip("/") + "/")))\n\ndef add(records, row):\n    if not isinstance(row, dict):\n        return\n    thread_id = row.get("thread_id")\n    cwd = normal(row.get("cwd"))\n    if not isinstance(thread_id, str) or not thread_id or len(thread_id) > MAX_ID or not inside(ROOT, cwd):\n        return\n    title = row.get("display_title")\n    if not isinstance(title, str):\n        title = "未命名聊天"\n    title = " ".join(title.split())[:MAX_TITLE] or "未命名聊天"\n    updated = row.get("updated_at")\n    if isinstance(updated, bool) or not isinstance(updated, (int, float, str)):\n        updated = ""\n    if isinstance(updated, str):\n        updated = updated[:80]\n    records[thread_id] = {{"thread_id": thread_id, "display_title": title, "updated_at": updated, "cwd": cwd}}\n\nrecords = {{}}\nhome = pathlib.Path(os.environ.get("CODEX_HOME", str(pathlib.Path.home() / ".codex")))\nif not home.is_absolute():\n    raise RuntimeError("CODEX_HOME must be absolute")\ndef quoted_identifier(value):\n    return chr(34) + value.replace(chr(34), chr(34) * 2) + chr(34)\n\ndef read_table(db, table):\n    try:\n        if not db.is_file() or db.stat().st_size > 256 * 1024 * 1024:\n            return\n        with sqlite3.connect("file:" + str(db) + "?mode=ro", uri=True) as connection:\n            columns = {{row[1] for row in connection.execute("pragma table_info(" + quoted_identifier(table) + ")")}}\n            id_column = "id" if "id" in columns else "thread_id" if "thread_id" in columns else None\n            title_column = "title" if "title" in columns else "display_title" if "display_title" in columns else None\n            updated_column = "updated_at" if "updated_at" in columns else "source_updated_at" if "source_updated_at" in columns else None\n            if not id_column or not title_column or not updated_column or "cwd" not in columns:\n                return\n            query = (\n                "select " + ", ".join(quoted_identifier(column) for column in (id_column, title_column, updated_column, "cwd"))\n                + " from " + quoted_identifier(table)\n                + " where " + quoted_identifier("cwd") + " is not null"\n                + " order by " + quoted_identifier(updated_column) + " desc limit 5000"\n            )\n            for thread_id, title, updated, cwd in connection.execute(query):\n                add(records, {{"thread_id": thread_id, "display_title": title, "updated_at": updated, "cwd": cwd}})\n    except Exception:\n        pass\n\ntry:\n    # Codex Desktop's thread index records the cwd at task creation time.\n    read_table(home / "state_5.sqlite", "threads")\n    if not records:\n        read_table(home / "sqlite" / "codex-dev.db", "local_thread_catalog")\nexcept Exception:\n    pass\n\nif not records:\n    files = sorted(glob.iglob(str(home / "sessions" / "**" / "rollout-*.jsonl"), recursive=True), reverse=True)[:1000]\n    for filename in files:\n        try:\n            if os.path.getsize(filename) > 128 * 1024 * 1024:\n                continue\n            with open(filename, "r", encoding="utf-8", errors="ignore") as stream:\n                for line in stream:\n                    try:\n                        event = json.loads(line)\n                    except Exception:\n                        continue\n                    if event.get("type") != "session_meta" or not isinstance(event.get("payload"), dict):\n                        continue\n                    payload = event["payload"]\n                    add(records, {{"thread_id": payload.get("id") or payload.get("session_id"), "display_title": payload.get("thread_name") or "未命名聊天", "updated_at": payload.get("timestamp"), "cwd": payload.get("cwd")}})\n                    break\n        except Exception:\n            continue\n\nitems = list(records.values())\ndef sort_key(item):\n    value = item.get("updated_at")\n    return (0, value) if isinstance(value, (int, float)) and not isinstance(value, bool) else (1, str(value)[:80])\nitems.sort(key=sort_key, reverse=True)\nRESULT = {{"workspace": normal(ROOT), "records": items[:MAX_RECORDS], "error": None}}\n'''
+    return f'''
+import glob
+from functools import lru_cache
+import json
+import os
+import pathlib
+import sqlite3
+
+ROOT = {encoded_workspace}
+MAX_RECORDS = {MAX_HISTORY_RECORDS}
+MAX_TITLE = {MAX_TITLE_LENGTH}
+MAX_ID = {MAX_ID_LENGTH}
+MAX_CWD = {MAX_CWD_LENGTH}
+
+@lru_cache(maxsize=4096)
+def normal(value):
+    if not isinstance(value, str):
+        return None
+    value = value.replace("\\\\", "/").strip()
+    if not value.startswith("/"):
+        return None
+    try:
+        value = os.path.realpath(value)
+    except Exception:
+        return None
+    if not value.startswith("/") or len(value) > MAX_CWD:
+        return None
+    return value.rstrip("/") or "/"
+
+def inside(root, cwd):
+    root, cwd = normal(root), normal(cwd)
+    return bool(root and cwd and (cwd == root or cwd.startswith(root.rstrip("/") + "/")))
+
+def add(records, row):
+    if not isinstance(row, dict):
+        return
+    thread_id = row.get("thread_id")
+    cwd = normal(row.get("cwd"))
+    if not isinstance(thread_id, str) or not thread_id or len(thread_id) > MAX_ID or not inside(ROOT, cwd):
+        return
+    title = row.get("display_title")
+    if not isinstance(title, str):
+        title = "未命名聊天"
+    title = " ".join(title.split())[:MAX_TITLE] or "未命名聊天"
+    updated = row.get("updated_at")
+    if isinstance(updated, bool) or not isinstance(updated, (int, float, str)):
+        updated = ""
+    if isinstance(updated, str):
+        updated = updated[:80]
+    records[thread_id] = {{"thread_id": thread_id, "display_title": title, "updated_at": updated, "cwd": cwd}}
+
+records = {{}}
+home = pathlib.Path(os.environ.get("CODEX_HOME", str(pathlib.Path.home() / ".codex")))
+if not home.is_absolute():
+    raise RuntimeError("CODEX_HOME must be absolute")
+def quoted_identifier(value):
+    return chr(34) + value.replace(chr(34), chr(34) * 2) + chr(34)
+
+def read_table(db, table):
+    try:
+        if not db.is_file() or db.stat().st_size > 256 * 1024 * 1024:
+            return
+        with sqlite3.connect("file:" + str(db) + "?mode=ro", uri=True) as connection:
+            columns = {{row[1] for row in connection.execute("pragma table_info(" + quoted_identifier(table) + ")")}}
+            id_column = "id" if "id" in columns else "thread_id" if "thread_id" in columns else None
+            title_column = "title" if "title" in columns else "display_title" if "display_title" in columns else None
+            updated_column = "updated_at" if "updated_at" in columns else "source_updated_at" if "source_updated_at" in columns else None
+            if not id_column or not title_column or not updated_column or "cwd" not in columns:
+                return
+            connection.create_function("ilab_inside", 1, lambda cwd: inside(ROOT, cwd))
+            query = (
+                "select " + ", ".join(quoted_identifier(column) for column in (id_column, title_column, updated_column, "cwd"))
+                + " from " + quoted_identifier(table)
+                + " where ilab_inside(" + quoted_identifier("cwd") + ")"
+                + " order by " + quoted_identifier(updated_column) + " desc limit " + str(MAX_RECORDS)
+            )
+            for thread_id, title, updated, cwd in connection.execute(query):
+                add(records, {{"thread_id": thread_id, "display_title": title, "updated_at": updated, "cwd": cwd}})
+        return True
+    except Exception:
+        return False
+
+# A valid empty index is authoritative; do not scan rollouts for other projects.
+indexed = read_table(home / "state_5.sqlite", "threads")
+if not indexed:
+    indexed = read_table(home / "sqlite" / "codex-dev.db", "local_thread_catalog")
+
+if not indexed:
+    files = sorted(glob.iglob(str(home / "sessions" / "**" / "rollout-*.jsonl"), recursive=True), reverse=True)[:1000]
+    for filename in files:
+        try:
+            if os.path.getsize(filename) > 128 * 1024 * 1024:
+                continue
+            with open(filename, "r", encoding="utf-8", errors="ignore") as stream:
+                for line in stream:
+                    try:
+                        event = json.loads(line)
+                    except Exception:
+                        continue
+                    if event.get("type") != "session_meta" or not isinstance(event.get("payload"), dict):
+                        continue
+                    payload = event["payload"]
+                    add(records, {{"thread_id": payload.get("id") or payload.get("session_id"), "display_title": payload.get("thread_name") or "未命名聊天", "updated_at": payload.get("timestamp"), "cwd": payload.get("cwd")}})
+                    break
+        except Exception:
+            continue
+
+items = list(records.values())
+def sort_key(item):
+    value = item.get("updated_at")
+    return (0, value) if isinstance(value, (int, float)) and not isinstance(value, bool) else (1, str(value)[:80])
+items.sort(key=sort_key, reverse=True)
+RESULT = {{"workspace": normal(ROOT), "records": items[:MAX_RECORDS], "error": None}}
+'''

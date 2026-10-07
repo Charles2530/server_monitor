@@ -410,19 +410,28 @@ class CCIEditor:
         workspace = _normal_path(data.get('workspace')) or _normal_path(session.get('workspace'))
         if not isinstance(workspace, str) or not workspace.startswith('/'):
             raise ActionError('容器工作区路径暂不可用。', 'history_unavailable', 503)
-        cached = session.get('history_cache')
-        if cached and cached.get('workspace') == workspace and time.monotonic() - cached.get('created', 0) < 15:
-            return dict(cached['result'])
-        try:
-            raw = await run_python(self.bridge, data, history_script(workspace), timeout=45, cleanup_jobs=self.cleanup_jobs)
-        except Exception:
-            raise ActionError('容器 Codex 历史暂不可用。', 'history_unavailable', 503) from None
-        if not isinstance(raw, dict) or raw.get('error'):
-            raise ActionError('容器 Codex 历史暂不可用。', 'history_unavailable', 503)
-        result = sanitize_history_result(raw, workspace)
-        result = {'site': self.site.id, **data, **result, 'source': 'container'}
-        session['history_cache'] = {'created': time.monotonic(), 'workspace': workspace, 'result': result}
-        return dict(result)
+        # Same-project callers share the result after the first read completes.
+        # Separate workspaces do not block each other or evict each other immediately.
+        async with self.session_lock((*identity, 'history', workspace)):
+            if self.sessions.get(identity) is not session:
+                raise ActionError('编辑器会话已过期，请重新打开。', 'ide_expired', 404)
+            caches = session.setdefault('history_caches', {})
+            cached = caches.get(workspace)
+            if cached and time.monotonic() - cached['created'] < 15:
+                return dict(cached['result'])
+            try:
+                raw = await run_python(self.bridge, data, history_script(workspace), timeout=45, cleanup_jobs=self.cleanup_jobs)
+            except Exception:
+                raise ActionError('容器 Codex 历史暂不可用。', 'history_unavailable', 503) from None
+            if not isinstance(raw, dict) or raw.get('error'):
+                raise ActionError('容器 Codex 历史暂不可用。', 'history_unavailable', 503)
+            result = sanitize_history_result(raw, workspace)
+            result = {'site': self.site.id, **data, **result, 'source': 'container'}
+            caches.pop(workspace, None)
+            if len(caches) >= 4:
+                caches.pop(next(iter(caches)))
+            caches[workspace] = {'created': time.monotonic(), 'result': result}
+            return dict(result)
 
     def prepare_optional(self, identity, session, data):
         codex, appearance = session.get('codex', {}), session.get('appearance', {})

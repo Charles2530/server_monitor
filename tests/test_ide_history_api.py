@@ -71,3 +71,73 @@ def test_history_route_has_same_local_and_payload_guards(tmp_path):
         headers = {'X-Monitor-Request': '1'}
         assert client.post('/api/cci/ide/history', json={'task_id': 'CCI:job'}).status_code == 403
         assert client.post('/api/cci/ide/history', json={'task_id': 'CCI:job', 'instance': 'pod', 'container': 'main', 'extra': 1}, headers=headers).status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_parallel_history_reads_share_container_work_and_cache_workspaces(monkeypatch):
+    import asyncio
+    import server.cci_ide as module
+    from server.sites import MAOSHANWANG
+    editor = module.CCIEditor(MAOSHANWANG, object(), object())
+    data = {'task_id': 'CCI:job', 'instance': 'pod', 'container': 'main'}
+    origin = 'http://localhost:8766'
+    class Closeable:
+        async def close(self): pass
+    editor.sessions[('CCI:job', 'pod', 'main', origin)] = {
+        'workspace': '/workspace/project', 'proxy': Closeable(), 'forward': Closeable()}
+    calls = []
+    async def run(*args, **kwargs):
+        calls.append(args[1].get('workspace'))
+        await asyncio.sleep(.01)
+        return {'records': []}
+    monkeypatch.setattr(module, 'run_python', run)
+    try:
+        a = {**data, 'workspace': '/workspace/project'}
+        b = {**data, 'workspace': '/workspace/other'}
+        results = await asyncio.gather(*(editor.history(a, origin) for _ in range(6)))
+        assert calls == ['/workspace/project']
+        assert all(r == results[0] for r in results)
+        await editor.history(b, origin)
+        await editor.history(a, origin)
+        assert calls == ['/workspace/project', '/workspace/other']
+        assert not editor.locks
+    finally:
+        await editor.close()
+
+
+@pytest.mark.asyncio
+async def test_history_cache_expires_bounds_memory_and_retries_failures(monkeypatch):
+    import server.cci_ide as module
+    from server.sites import MAOSHANWANG
+    editor = module.CCIEditor(MAOSHANWANG, object(), object())
+    data = {'task_id': 'CCI:job', 'instance': 'pod', 'container': 'main', 'workspace': '/project'}
+    origin = 'http://localhost:8766'
+    class Closeable:
+        async def close(self): pass
+    session = {'workspace': '/project', 'proxy': Closeable(), 'forward': Closeable()}
+    editor.sessions[('CCI:job', 'pod', 'main', origin)] = session
+    calls = []
+    async def run(*args, **kwargs):
+        calls.append(args[1]['workspace'])
+        return {'records': []}
+    monkeypatch.setattr(module, 'run_python', run)
+    try:
+        await editor.history(data, origin)
+        session['history_caches']['/project']['created'] -= 16
+        await editor.history(data, origin)
+        assert calls == ['/project', '/project']
+        for i in range(5):
+            await editor.history({**data, 'workspace': f'/other/{i}'}, origin)
+        assert len(session['history_caches']) == 4
+        assert '/project' not in session['history_caches']
+        async def failure(*args, **kwargs): raise RuntimeError('private detail')
+        monkeypatch.setattr(module, 'run_python', failure)
+        with pytest.raises(module.ActionError, match='历史暂不可用'):
+            await editor.history(data, origin)
+        assert '/project' not in session['history_caches']
+        assert not editor.locks
+        monkeypatch.setattr(module, 'run_python', run)
+        await editor.history(data, origin)
+        assert calls[-1] == '/project'
+    finally:
+        await editor.close()

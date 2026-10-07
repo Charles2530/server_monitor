@@ -91,3 +91,94 @@ def test_sanitize_uses_container_canonical_workspace_path():
     }, '/workspace')
     assert result['workspace'] == '/mnt/project'
     assert [row['thread_id'] for row in result['records']] == ['t1']
+
+
+def _history_index(tmp_path, monkeypatch, rows):
+    home = tmp_path / '.codex'
+    home.mkdir()
+    with sqlite3.connect(home / 'state_5.sqlite') as db:
+        db.execute('create table threads (id text, cwd text, title text, updated_at integer)')
+        db.executemany('insert into threads values (?, ?, ?, ?)', rows)
+    monkeypatch.setenv('CODEX_HOME', str(home))
+    return home
+
+
+def test_empty_valid_index_does_not_scan_rollouts(tmp_path, monkeypatch):
+    import glob
+    from server.ide_history import history_script
+    _history_index(tmp_path, monkeypatch, [('other', '/other', 'Other', 10)])
+    scans = []
+    monkeypatch.setattr(glob, 'iglob', lambda *a, **kw: scans.append(a) or iter(()))
+    ns = {}
+    exec(history_script('/workspace/project'), ns)
+    assert ns['RESULT']['records'] == []
+    assert scans == []
+
+
+def test_history_resolves_repeated_paths_once(tmp_path, monkeypatch):
+    import os
+    from server.ide_history import history_script
+    _history_index(tmp_path, monkeypatch, [(str(i), '/workspace/project', 'Task', i) for i in range(250)])
+    original = os.path.realpath
+    calls = []
+    def tracked(path):
+        calls.append(path)
+        return original(path)
+    monkeypatch.setattr(os.path, 'realpath', tracked)
+    ns = {}
+    exec(history_script('/workspace/project'), ns)
+    assert len(ns['RESULT']['records']) == 200
+    assert calls.count('/workspace/project') == 1
+
+
+def test_project_filter_precedes_global_history_limit(tmp_path, monkeypatch):
+    from server.ide_history import history_script
+    _history_index(tmp_path, monkeypatch,
+        [('mine', '/workspace/project', 'Older project task', 1)] +
+        [(str(i), '/other', 'Other', i + 2) for i in range(5100)])
+    ns = {}
+    exec(history_script('/workspace/project'), ns)
+    assert [r['thread_id'] for r in ns['RESULT']['records']] == ['mine']
+
+
+def test_missing_index_keeps_jsonl_metadata_fallback(tmp_path, monkeypatch):
+    from server.ide_history import history_script
+    home = tmp_path / '.codex'
+    sessions = home / 'sessions'
+    sessions.mkdir(parents=True)
+    (sessions / 'rollout-test.jsonl').write_text(json.dumps({'type': 'session_meta', 'payload': {
+        'id': 'fallback', 'cwd': '/workspace/project', 'timestamp': '2026-10-07'}}) + '\n')
+    monkeypatch.setenv('CODEX_HOME', str(home))
+    ns = {}
+    exec(history_script('/workspace/project'), ns)
+    assert ns['RESULT']['records'][0]['thread_id'] == 'fallback'
+
+
+def test_cached_paths_preserve_symlink_and_directory_boundaries(tmp_path, monkeypatch):
+    from server.ide_history import history_script
+    project = tmp_path / 'project'
+    project.mkdir()
+    alias = tmp_path / 'alias'
+    alias.symlink_to(project, target_is_directory=True)
+    _history_index(tmp_path, monkeypatch, [
+        ('alias', str(alias / 'src'), 'Alias child', 3),
+        ('root', str(project), 'Root', 2),
+        ('similar', str(project) + '-old', 'Other', 4),
+    ])
+    ns = {}
+    exec(history_script(str(alias)), ns)
+    assert ns['RESULT']['workspace'] == str(project.resolve())
+    assert [row['thread_id'] for row in ns['RESULT']['records']] == ['alias', 'root']
+
+
+def test_legacy_index_remains_supported(tmp_path, monkeypatch):
+    from server.ide_history import history_script
+    home = tmp_path / '.codex'
+    (home / 'sqlite').mkdir(parents=True)
+    with sqlite3.connect(home / 'sqlite' / 'codex-dev.db') as db:
+        db.execute('create table local_thread_catalog (thread_id text, cwd text, display_title text, source_updated_at integer)')
+        db.execute('insert into local_thread_catalog values (?, ?, ?, ?)', ('old', '/workspace/project', 'Old', 1))
+    monkeypatch.setenv('CODEX_HOME', str(home))
+    ns = {}
+    exec(history_script('/workspace/project'), ns)
+    assert ns['RESULT']['records'][0]['thread_id'] == 'old'
