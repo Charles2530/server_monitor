@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import zipfile
 
-APPEARANCE_VERSION = '1.2.0'
+APPEARANCE_VERSION = '1.3.1'
 
 
 def appearance_bundle():
@@ -24,7 +24,7 @@ def appearance_bundle():
         archive.writestr(zipfile.ZipInfo('[Content_Types].xml', (2026, 1, 1, 0, 0, 0)), '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="json" ContentType="application/json"/><Default Extension="svg" ContentType="image/svg+xml"/><Default Extension="vsixmanifest" ContentType="text/xml"/></Types>')
         archive.writestr(zipfile.ZipInfo('extension.vsixmanifest', (2026, 1, 1, 0, 0, 0)), '''<?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011"><Metadata>
-<Identity Language="en-US" Id="workspace-appearance" Version="1.2.0" Publisher="ilab"/><DisplayName>iLab Workspace Appearance</DisplayName><Description xml:space="preserve">Code typography and Material file icons.</Description><Tags>theme,icons</Tags><Categories>Themes</Categories><GalleryFlags>Public</GalleryFlags><Properties><Property Id="Microsoft.VisualStudio.Code.Engine" Value="^1.80.0"/></Properties></Metadata><Installation><InstallationTarget Id="Microsoft.VisualStudio.Code"/></Installation><Dependencies/><Assets><Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true"/></Assets></PackageManifest>''')
+<Identity Language="en-US" Id="workspace-appearance" Version="1.3.1" Publisher="ilab"/><DisplayName>iLab Workspace Appearance</DisplayName><Description xml:space="preserve">Code typography and Material file icons.</Description><Tags>theme,icons</Tags><Categories>Themes</Categories><GalleryFlags>Public</GalleryFlags><Properties><Property Id="Microsoft.VisualStudio.Code.Engine" Value="^1.80.0"/></Properties></Metadata><Installation><InstallationTarget Id="Microsoft.VisualStudio.Code"/></Installation><Dependencies/><Assets><Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true"/></Assets></PackageManifest>''')
     raw = output.getvalue()
     return {'version': APPEARANCE_VERSION, 'sha256': hashlib.sha256(raw).hexdigest(), 'payload': base64.b64encode(raw).decode()}
 
@@ -33,7 +33,7 @@ def appearance_installed(base, bundle):
     try:
         marker = json.loads((base / 'appearance.json').read_text())
         if marker != {'version': bundle['version'], 'sha256': bundle['sha256']}: return False
-        obsolete = json.loads((base / 'extensions/.obsolete').read_text()) if (base / 'extensions/.obsolete').is_file() else {}
+        obsolete = json.loads((base / 'extensions/.obsolete').read_text().strip() or '{}') if (base / 'extensions/.obsolete').is_file() else {}
         for path in (base / 'extensions').glob('ilab.workspace-appearance-*/package.json'):
             if obsolete.get(path.parent.name): continue
             package = json.loads(path.read_text())

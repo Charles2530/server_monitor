@@ -2,11 +2,17 @@
 (() => {
   const parentOrigin = document.currentScript?.dataset.parentOrigin;
   const embedded = parentOrigin && window.parent !== window;
+  function openedWorkspace() {
+    try {
+      const value = new URL(location.href).searchParams.get('folder');
+      return typeof value === 'string' && value.startsWith('/') && value.length <= 4096 ? value : null;
+    } catch (_) { return null; }
+  }
   function ready() {
     if (!embedded) return true;
     const workbench = document.querySelector(".monaco-workbench");
     if (!workbench || !workbench.getClientRects().length) return false;
-    window.parent.postMessage({ type: "ilab-editor-ready" }, parentOrigin);
+    window.parent.postMessage({ type: "ilab-editor-ready", workspace: openedWorkspace() }, parentOrigin);
     return true;
   }
   const observer = new MutationObserver(() => { if (ready()) observer.disconnect(); });
@@ -30,6 +36,115 @@
     const box = element.getBoundingClientRect();
     return style.visibility === 'visible' && style.opacity !== '0' && box.width > 0 && box.height > 0;
   }
+  let historyPayload = null, historyState = 'idle', showUnclassified = false, historyTimer = null, historyRevision = 0;
+  const observedHistoryPanels = new WeakSet(), historySignatures = new WeakMap();
+  function normalizeText(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
+  function codexPanels() {
+    const panels = [];
+    for (const frame of document.querySelectorAll('iframe.webview')) {
+      try {
+        const url = new URL(frame.src, location.href);
+        if (url.origin !== location.origin || url.searchParams.get('extensionId') !== 'openai.chatgpt' || !visible(frame)) continue;
+        const activeFrame = frame.contentDocument?.querySelector('#active-frame');
+        const panel = activeFrame && visible(activeFrame) ? activeFrame.contentDocument : null;
+        if (panel) panels.push(panel);
+      } catch (_) { /* Keep the editor usable when a webview is not accessible. */ }
+    }
+    return panels;
+  }
+  function historyRows(panel) {
+    const legacy = [...panel.querySelectorAll('button')].filter(row =>
+      [...row.querySelectorAll('button')].some(child => /archive chat/i.test(normalizeText(child.textContent)))
+      && !/^archive chat$/i.test(normalizeText(row.textContent)));
+    const current = [...panel.querySelectorAll('[role="button"][aria-label]')].filter(row =>
+      [...row.querySelectorAll('button,[role="button"]')].some(child => /archive chat/i.test(child.getAttribute('aria-label') || child.textContent || ''))
+      && !/^(new chat|view all|recent chats)/i.test(row.getAttribute('aria-label') || ''));
+    return [...new Set([...legacy, ...current])];
+  }
+  function rowTitle(row) {
+    const label = normalizeText(row.getAttribute('aria-label'));
+    if (label) return label;
+    const direct = [...row.childNodes].filter(node => node.nodeType === Node.TEXT_NODE).map(node => normalizeText(node.textContent)).filter(Boolean).join(' ');
+    if (direct) return direct;
+    return normalizeText(row.innerText).split(' Archive chat ')[0].split('\n')[0];
+  }
+  function rowThreadId(row) {
+    for (const name of ['data-thread-id', 'data-conversation-id', 'data-session-id', 'data-chat-id']) {
+      const value = row.getAttribute(name);
+      if (value) return value;
+    }
+    return '';
+  }
+  function historyBanner(panel, visibleCount, rowCount) {
+    let banner = panel.querySelector('[data-ilab-history-filter]');
+    if (!banner) {
+      banner = panel.createElement ? panel.createElement('div') : document.createElement('div');
+      banner.dataset.ilabHistoryFilter = '';
+      banner.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 10px;margin:6px 8px;border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:7px;font:12px/1.4 system-ui,sans-serif;opacity:.86';
+      const label = banner.ownerDocument.createElement('span'); label.dataset.ilabHistoryLabel = ''; banner.append(label);
+      const toggle = banner.ownerDocument.createElement('button'); toggle.type = 'button'; toggle.dataset.ilabHistoryToggle = ''; toggle.style.cssText = 'margin-left:auto;border:0;background:transparent;color:inherit;cursor:pointer;font:inherit;text-decoration:underline';
+      toggle.addEventListener('click', () => { showUnclassified = !showUnclassified; applyProjectHistory(); });
+      banner.append(toggle);
+      panel.body?.prepend(banner);
+    }
+    const label = banner.querySelector('[data-ilab-history-label]');
+    const toggle = banner.querySelector('[data-ilab-history-toggle]');
+    if (historyPayload?.error) {
+      label.textContent = '项目聊天过滤暂不可用，已保留原生列表'; toggle.hidden = true;
+    } else if (!rowCount) {
+      label.textContent = historyPayload?.records?.length ? '项目聊天过滤已准备，等待历史列表加载' : '当前项目暂无历史聊天'; toggle.hidden = true;
+    } else {
+      label.textContent = showUnclassified ? `显示全部聊天 · 当前项目 ${visibleCount} 条` : `当前项目聊天 · ${visibleCount} 条`;
+      toggle.hidden = false; toggle.textContent = showUnclassified ? '仅当前项目' : '显示未归类';
+    }
+  }
+  function historySignature(rows) {
+    return rows.map(row => [rowThreadId(row), row.getAttribute('aria-label') || rowTitle(row)].join('\u001f')).join('\u001e');
+  }
+  function observeHistoryPanel(panel) {
+    if (observedHistoryPanels.has(panel)) return;
+    const root = panel.body || panel.documentElement;
+    if (!root) return;
+    observedHistoryPanels.add(panel);
+    new MutationObserver(scheduleProjectHistory).observe(root, {childList: true, subtree: true});
+  }
+  function applyProjectHistory() {
+    if (!historyPayload) return;
+    let reported = false;
+    for (const panel of codexPanels()) {
+      const rows = historyRows(panel);
+      observeHistoryPanel(panel);
+      const signature = `${historyRevision}\u0000${showUnclassified ? 1 : 0}\u0000${historySignature(rows)}`;
+      if (historySignatures.get(panel) === signature) { reported = true; continue; }
+      historySignatures.set(panel, signature);
+      const allowedIds = new Set((historyPayload.records || []).map(row => row.thread_id).filter(Boolean));
+      const allowedTitles = new Set((historyPayload.records || []).map(row => normalizeText(row.display_title)).filter(Boolean));
+      const hasIds = rows.some(row => rowThreadId(row));
+      let visibleCount = 0;
+      for (const row of rows) {
+        const id = rowThreadId(row), title = normalizeText(rowTitle(row));
+        const keep = !!historyPayload.error || showUnclassified || (hasIds ? allowedIds.has(id) : allowedTitles.has(title));
+        row.hidden = !keep;
+        row.dataset.ilabHistoryMatch = keep ? '1' : '0';
+        if (keep && !showUnclassified && !historyPayload.error) visibleCount += 1;
+      }
+      historyBanner(panel, visibleCount, rows.length);
+      const state = historyPayload.error ? 'unavailable' : (visibleCount || !rows.length ? 'ready' : 'empty');
+      if (embedded && state !== historyState) { historyState = state; window.parent.postMessage({type:'ilab-editor-codex-history-state', state}, parentOrigin); }
+      reported = true;
+    }
+    return reported;
+  }
+  function scheduleProjectHistory() {
+    clearTimeout(historyTimer); historyTimer = setTimeout(applyProjectHistory, 180);
+  }
+  if (embedded) window.addEventListener('message', event => {
+    if (event.source !== window.parent || event.origin !== parentOrigin || event.data?.type !== 'ilab-codex-history') return;
+    const records = Array.isArray(event.data.records) ? event.data.records.filter(row => row && typeof row.thread_id === 'string' && typeof row.display_title === 'string') : [];
+    historyPayload = {workspace: typeof event.data.workspace === 'string' ? event.data.workspace : '', records, error: event.data.error || null};
+    historyRevision += 1;
+    scheduleProjectHistory();
+  });
   const continuedPanels = new WeakSet();
   const welcomeText = [
     'Decide how much autonomy you want to grant',
@@ -59,24 +174,17 @@
   function inspectCodex() {
     if (document.hidden) return;
     let state = 'hidden';
-    for (const frame of document.querySelectorAll('iframe.webview')) {
-      try {
-        const url = new URL(frame.src, location.href);
-        if (url.origin !== location.origin || url.searchParams.get('extensionId') !== 'openai.chatgpt' || !visible(frame)) continue;
-        state = 'loading';
-        const activeFrame = frame.contentDocument?.querySelector('#active-frame');
-        const panel = activeFrame && visible(activeFrame) ? activeFrame.contentDocument : null;
-        // A webview host (or splash logo) is not a loaded Codex interface.
-        // Status uses control presence; welcome matching is limited to its static notice.
-        if (panel) continueWelcome(panel);
-        if (panel && [...panel.querySelectorAll('button,textarea,[role="textbox"],[contenteditable="true"]')].some(visible)) state = 'ready';
-      } catch (_) { /* Inaccessible webviews remain loading; never bypass isolation. */ }
+    for (const panel of codexPanels()) {
+      state = 'loading';
+      continueWelcome(panel);
+      if ([...panel.querySelectorAll('button,textarea,[role="textbox"],[contenteditable="true"]')].some(visible)) state = 'ready';
     }
+    applyProjectHistory();
     if (embedded && state !== codexState) {
       codexState = state;
       window.parent.postMessage({type: 'ilab-editor-codex', state}, parentOrigin);
     }
   }
-  setInterval(inspectCodex, 2000);
+  setInterval(inspectCodex, 4000);
   document.addEventListener('visibilitychange', inspectCodex);
 })();

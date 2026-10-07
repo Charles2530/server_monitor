@@ -2,7 +2,7 @@
   "name": "workspace-appearance",
   "displayName": "iLab Workspace Appearance",
   "description": "Readable code typography and Material file icons for iLab Server Monitor. User settings take precedence.",
-  "version": "1.2.0",
+  "version": "1.3.1",
   "publisher": "ilab",
   "license": "MIT",
   "engines": {
@@ -129,6 +129,15 @@
         "**/.mypy_cache/**": true,
         "**/*.{safetensors,ckpt,pt,pth,onnx}": true
       }
+    },
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "chatgpt.addFileToThread",
+          "group": "codex@1",
+          "when": "resourceScheme == file || resourceScheme == vscode-remote"
+        }
+      ]
     }
   }
 }

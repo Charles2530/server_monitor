@@ -1,16 +1,32 @@
 #queue-view { display: grid; gap: 24px; }
 #queue-view > .waiting-panel { margin: 0; }
-.utilization-status { padding: 0 24px 14px; margin: 0; color: #708978; font-size: 12px; }
-.utilization-table .utilization-value { display: block; color: #287c62; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.utilization-table .utilization-unknown { color: #839087; font-size: 13px; font-weight: 400; }
-.utilization-table .utilization-rank { display: inline-block; min-width: 24px; margin-right: 6px; color: #81988c; font-size: 11px; font-weight: 400; }
+#utilization-section .section-heading { gap: 16px; flex-wrap: wrap; }
+.utilization-status { padding: 12px 14px; margin: 0 24px 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-raised); color: var(--muted); font-size: 12px; line-height: 1.8; font-variant-numeric: tabular-nums; }
+.utilization-table .utilization-value { display: inline-block; min-width: 76px; padding: 5px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-size: 20px; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+#utilization-section .utilization-unknown { min-width: 0; background: var(--surface-raised); color: var(--muted); font-size: 12px; font-weight: 400; letter-spacing: normal; }
+.utilization-table .utilization-rank { display: inline-grid; place-items: center; min-width: 26px; min-height: 26px; margin-right: 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-raised); color: var(--muted); font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; }
+#utilization-section .waiting-identity strong { color: var(--ink); font-size: 13px; }
+#utilization-section .waiting-identity small { display: block; margin-top: 5px; color: var(--muted); }
 .utilization-table .utilization-time { font-variant-numeric: tabular-nums; }
-.utilization-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.utilization-mine { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: inherit; cursor: pointer; white-space: nowrap; }
-.utilization-mine input { width: 15px; height: 15px; margin: 0; accent-color: #287c62; }
-.utilization-table .utilization-duration { display: block; margin-top: 5px; }
+.utilization-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.utilization-mine { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 8px 11px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); font-size: 12px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.utilization-mine:hover { border-color: var(--accent-line); background: var(--surface-hover); }
+.utilization-mine:has(input:checked) { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
+.utilization-mine input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+.utilization-table .utilization-duration { display: block; margin-top: 5px; color: var(--muted); }
+#utilization-section .text-link { color: var(--accent); text-underline-offset: 3px; }
+#utilization-section td.table-empty { color: var(--muted); background: var(--surface-raised); }
+#utilization-section td.table-empty::before { color: var(--accent); background: var(--accent-soft); }
 @media (max-width: 760px) {
   #queue-view { gap: 16px; }
-  .utilization-status { padding: 0 14px 12px; font-size: 11px; }
+  .utilization-status { margin: 0 14px 14px; padding: 10px 12px; font-size: 11px; }
   #utilization-section .section-heading { gap: 12px; flex-wrap: wrap; }
+  .utilization-actions { width: 100%; justify-content: space-between; gap: 8px; }
+  .utilization-mine { min-height: 44px; }
+  #utilization-section .waiting-identity { padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  #utilization-section .utilization-value { font-size: 23px; }
+  #utilization-section .utilization-unknown { font-size: 12px; }
+  #utilization-section td[data-label]::before { color: var(--muted); }
+  #utilization-section td:last-child:not(.table-empty) { color: var(--muted); border-color: var(--line); }
+  #utilization-section .text-link { min-height: 44px; margin-left: auto; padding: 8px 12px; border-radius: 8px; background: var(--accent-soft); }
 }

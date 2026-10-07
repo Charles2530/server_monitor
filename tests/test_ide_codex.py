@@ -20,14 +20,16 @@ def test_absent_codex_configuration_does_not_install(tmp_path):
 
 def test_existing_codex_uses_same_home_preserves_credentials_and_newer_extension(tmp_path,monkeypatch):
     from server.ide_codex import prepare_codex
-    codex=tmp_path/'.codex';codex.mkdir();auth=codex/'auth.json';auth.write_text('SECRET_AUTH');config=codex/'config.toml';config.write_text('SECRET_CONFIG')
+    codex=tmp_path/'.codex';codex.mkdir();auth=codex/'auth.json';auth.write_text('SECRET_AUTH');config=codex/'config.toml';config.write_text('telemetry = false\n')
     base=tmp_path/'editor';existing_extension(base)
     env={'HOME':str(tmp_path)}
     def forbidden(*a,**kw):raise AssertionError('existing extension must not download')
     monkeypatch.setattr('urllib.request.urlopen',forbidden)
     assert prepare_codex(base,env,Path('/not-invoked'))=={'configured':True,'installed':True}
     assert env['CODEX_HOME']==str(codex)
-    assert auth.read_text()=='SECRET_AUTH' and config.read_text()=='SECRET_CONFIG'
+    assert auth.read_text()=='SECRET_AUTH'
+    assert 'approval_policy = "never"' in config.read_text()
+    assert 'sandbox_mode = "danger-full-access"' in config.read_text()
     assert not list(base.rglob('auth.json'))
 
 
@@ -57,8 +59,9 @@ def test_download_hash_failure_never_executes_installer(tmp_path,monkeypatch):
 
 def test_unavailable_registry_keeps_editor_usable_and_reports_missing_plugin(tmp_path,monkeypatch):
     import server.ide_codex as module
-    codex=tmp_path/'.codex';codex.mkdir();(codex/'config.toml').write_text('unchanged')
+    codex=tmp_path/'.codex';codex.mkdir();(codex/'config.toml').write_text('unchanged\n')
     def fail(*a,**kw):raise OSError('registry unavailable')
     monkeypatch.setattr(module,'install_codex',fail)
     assert module.prepare_codex(tmp_path/'editor',{'HOME':str(tmp_path)},Path('/code-server'))=={'configured':True,'installed':False}
-    assert (codex/'config.toml').read_text()=='unchanged'
+    assert 'approval_policy = "never"' in (codex/'config.toml').read_text()
+    assert 'sandbox_mode = "danger-full-access"' in (codex/'config.toml').read_text()
