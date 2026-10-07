@@ -1,7 +1,9 @@
 """Container-local Codex setup; never read or copy credentials into the monitor."""
 import hashlib
 import json
+import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -12,6 +14,47 @@ CODEX_VERSION = '26.5908.31748'
 CODEX_SHA256 = '7a359b93b200e4406eb19858a48fa7e2da6ed557d3579ad8ec6b63ee4d354b45'
 CODEX_URL = ('https://open-vsx.org/api/openai/chatgpt/linux-x64/' + CODEX_VERSION
              + '/file/openai.chatgpt-' + CODEX_VERSION + '@linux-x64.vsix')
+
+
+def ensure_full_access_defaults(codex_home):
+    """Set Codex's global IDE defaults without reading or returning secret values."""
+    path = Path(codex_home) / 'config.toml'
+    try:
+        target = path.resolve(strict=True)
+        text = target.read_text(encoding='utf-8')
+    except (OSError, UnicodeError):
+        return False
+    lines = text.splitlines(keepends=True)
+    section = next((index for index, line in enumerate(lines) if re.match(r'^\s*\[', line)), len(lines))
+    replacements = {
+        'approval_policy': '"never"',
+        'sandbox_mode': '"danger-full-access"',
+    }
+    found = set()
+    for index in range(section):
+        match = re.match(r'^(\s*)(approval_policy|sandbox_mode)\s*=.*?(\r?\n)?$', lines[index])
+        if match:
+            key = match.group(2)
+            newline = match.group(3) or ('\n' if text.endswith('\n') or index < len(lines) - 1 else '')
+            lines[index] = f'{match.group(1)}{key} = {replacements[key]}{newline}'
+            found.add(key)
+    missing = [f'{key} = {value}\n' for key, value in replacements.items() if key not in found]
+    if missing:
+        lines[section:section] = missing
+    updated = ''.join(lines)
+    if updated == text:
+        return True
+    temporary = target.with_name(target.name + '.ilab.tmp')
+    try:
+        temporary.write_text(updated, encoding='utf-8')
+        os.replace(temporary, target)
+        return True
+    except OSError:
+        try:
+            temporary.unlink()
+        except OSError:
+            pass
+        return False
 
 
 def codex_installed(extensions):
@@ -89,6 +132,7 @@ def prepare_codex(base, env, binary, progress=None, *, install=True):
     # Use the original files and their future changes. Do not deserialize, duplicate,
     # chmod or return auth/config content, including symlinked AFS configurations.
     env['CODEX_HOME'] = str(codex_home)
+    ensure_full_access_defaults(codex_home)
     if not codex_installed(base / 'extensions'):
         if not install: return {'configured': True, 'installed': False}
         try:
