@@ -1,0 +1,652 @@
+{
+  "verified_code_commit": "c8bdb5ed554ac887f4eb848c742572eaf266ecaf",
+  "hardware": {
+    "machine": "arm64",
+    "memory_gb": 16.0,
+    "model": "Mac16,12",
+    "ncpu": 10
+  },
+  "profile": {
+    "busy_state_poll_seconds": 10,
+    "collector_concurrency": 6,
+    "error_state_poll_seconds": 10,
+    "hardware": {
+      "machine": "arm64",
+      "memory_gb": 16.0,
+      "model": "Mac16,12",
+      "ncpu": 10
+    },
+    "metric_concurrency": 4,
+    "name": "m4-balanced",
+    "provenance": "Mac16,12 / 16 GiB measured on AC power, 2026-10-07. Original queue concurrency 3 and polling 10/10/10 retained; battery energy use not measured.",
+    "queue_concurrency": 3,
+    "selection": "manual",
+    "state_poll_seconds": 10,
+    "target_cache_seconds": 8,
+    "terminal_max_sessions": 8,
+    "web_process_type": "Standard"
+  },
+  "python_tests": 834,
+  "javascript_tests": 64,
+  "fixture_browser_suites": [
+    {
+      "script": "cci_ide_smoke.py",
+      "exit": 0,
+      "seconds": 29.83,
+      "final_exit": 0
+    },
+    {
+      "script": "cci_terminal_smoke.py",
+      "exit": 0,
+      "seconds": 11.84,
+      "final_exit": 0
+    },
+    {
+      "script": "command_logs_smoke.py",
+      "exit": 0,
+      "seconds": 6.37,
+      "final_exit": 0
+    },
+    {
+      "script": "connection_log_smoke.py",
+      "exit": 0,
+      "seconds": 2.84,
+      "final_exit": 0
+    },
+    {
+      "script": "design_smoke.py",
+      "exit": 0,
+      "seconds": 5.07,
+      "final_exit": 0
+    },
+    {
+      "script": "history_smoke.py",
+      "exit": 0,
+      "seconds": 5.43,
+      "final_exit": 0
+    },
+    {
+      "script": "ide_auto_repair_smoke.py",
+      "exit": 0,
+      "seconds": 14.59,
+      "final_exit": 0
+    },
+    {
+      "script": "ide_continue_smoke.py",
+      "exit": 0,
+      "seconds": 17.75,
+      "final_exit": 0
+    },
+    {
+      "script": "ide_entry_smoke.py",
+      "exit": 0,
+      "seconds": 1.63,
+      "final_exit": 0
+    },
+    {
+      "script": "ide_experience_smoke.py",
+      "exit": 0,
+      "seconds": 43.86,
+      "final_exit": 0
+    },
+    {
+      "script": "ide_network_smoke.py",
+      "exit": 0,
+      "seconds": 6.59,
+      "final_exit": 0
+    },
+    {
+      "script": "mobile_recovery_smoke.py",
+      "exit": 0,
+      "seconds": 7.8,
+      "final_exit": 0
+    },
+    {
+      "script": "mobile_task_workspace_smoke.py",
+      "exit": 0,
+      "seconds": 9.71,
+      "final_exit": 0
+    },
+    {
+      "script": "mobile_terminal_smoke.py",
+      "exit": 0,
+      "seconds": 9.78,
+      "final_exit": 0
+    },
+    {
+      "script": "mobile_ui_smoke.py",
+      "exit": 0,
+      "seconds": 6.14,
+      "final_exit": 0
+    },
+    {
+      "script": "navigation_smoke.py",
+      "exit": 0,
+      "seconds": 4.09,
+      "final_exit": 0
+    },
+    {
+      "script": "partitions_smoke.py",
+      "exit": 1,
+      "seconds": 4.9,
+      "final_exit": 0,
+      "retest_log": "partitions-smoke-fixed.log"
+    },
+    {
+      "script": "release_restart_smoke.py",
+      "exit": 0,
+      "seconds": 7.49,
+      "final_exit": 0
+    },
+    {
+      "script": "restart_smoke.py",
+      "exit": 0,
+      "seconds": 6.44,
+      "final_exit": 0
+    },
+    {
+      "script": "session_theme_smoke.py",
+      "exit": 0,
+      "seconds": 6.34,
+      "final_exit": 0
+    },
+    {
+      "script": "sites_smoke.py",
+      "exit": 0,
+      "seconds": 3.24,
+      "final_exit": 0
+    },
+    {
+      "script": "storage_smoke.py",
+      "exit": 0,
+      "seconds": 5.19,
+      "final_exit": 0
+    },
+    {
+      "script": "task_cards_efficiency_smoke.py",
+      "exit": 0,
+      "seconds": 1.9,
+      "final_exit": 0
+    },
+    {
+      "script": "task_config_smoke.py",
+      "exit": 0,
+      "seconds": 2.33,
+      "final_exit": 0
+    },
+    {
+      "script": "task_rename_smoke.py",
+      "exit": 0,
+      "seconds": 3.1,
+      "final_exit": 0
+    },
+    {
+      "script": "terminal_pty_smoke.py",
+      "exit": 0,
+      "seconds": 53.0,
+      "final_exit": 0
+    },
+    {
+      "script": "theme_smoke.py",
+      "exit": 0,
+      "seconds": 13.91,
+      "final_exit": 0
+    },
+    {
+      "script": "tokenhub_hourly_smoke.py",
+      "exit": 0,
+      "seconds": 3.3,
+      "final_exit": 0
+    },
+    {
+      "script": "tokenhub_smoke.py",
+      "exit": 0,
+      "seconds": 6.22,
+      "final_exit": 0
+    },
+    {
+      "script": "v2_browser_smoke.py",
+      "exit": 1,
+      "seconds": 11.61,
+      "final_exit": 0,
+      "retest_log": "v2-fixed.log"
+    },
+    {
+      "script": "waiting_links_smoke.py",
+      "exit": 0,
+      "seconds": 2.33,
+      "final_exit": 0
+    }
+  ],
+  "live_health": {
+    "checked_at": "2026-10-07T15:28:12+0800",
+    "checks": [
+      {
+        "site": "maoshanwang",
+        "api": "state",
+        "http": 200,
+        "status": "ok",
+        "loading": null,
+        "updated_at": "2026-10-07T07:23:57.966230+00:00",
+        "warnings": null,
+        "counts": {
+          "tasks": 4,
+          "waiting_tasks": 0,
+          "clusters": 5
+        },
+        "source_status": {
+          "CCI": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:23:57.966230+00:00"
+          },
+          "ACP": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:23:57.966230+00:00"
+          },
+          "CCI_queue": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:23:57.966230+00:00"
+          },
+          "ACP_queue": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:23:57.966230+00:00"
+          },
+          "resources": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:23:57.966230+00:00"
+          },
+          "inventory": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:23:57.966230+00:00",
+            "error": null
+          }
+        },
+        "warmup_seconds": 0.02
+      },
+      {
+        "site": "maoshanwang",
+        "api": "task-history",
+        "http": 200,
+        "loading": true,
+        "counts": {
+          "tasks": 180
+        },
+        "source_status": {
+          "CCI": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:25:04.867082+00:00"
+          },
+          "ACP": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:25:49.454693+00:00"
+          }
+        },
+        "warnings": []
+      },
+      {
+        "site": "maoshanwang",
+        "api": "utilization-queue",
+        "http": 200,
+        "status": "partial",
+        "loading": false,
+        "updated_at": "2026-10-07T07:25:54.236254+00:00",
+        "warnings": [
+          "部分任务 GPU 指标未获取、Worker 不完整或超过 5 分钟未更新，已标为未知并排在末尾。"
+        ],
+        "counts": {
+          "tasks": 11,
+          "warnings": 1
+        },
+        "source_status": null,
+        "warmup_seconds": 29.09
+      },
+      {
+        "site": "maoshanwang",
+        "api": "storage",
+        "http": 200,
+        "status": "ok",
+        "loading": null,
+        "updated_at": "2026-10-07T07:26:26.141235+00:00",
+        "warnings": [],
+        "counts": {
+          "volumes": 6,
+          "warnings": 0
+        },
+        "source_status": null,
+        "warmup_seconds": 13.3
+      },
+      {
+        "site": "sensecore",
+        "api": "state",
+        "http": 200,
+        "status": "ok",
+        "loading": null,
+        "updated_at": "2026-10-07T07:25:57.993225+00:00",
+        "warnings": null,
+        "counts": {
+          "tasks": 4,
+          "waiting_tasks": 0,
+          "clusters": 8
+        },
+        "source_status": {
+          "CCI": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:25:57.993225+00:00"
+          },
+          "ACP": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:25:57.993225+00:00"
+          },
+          "CCI_queue": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:25:57.993225+00:00"
+          },
+          "ACP_queue": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:25:57.993225+00:00"
+          },
+          "resources": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:25:57.993225+00:00"
+          },
+          "inventory": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:25:57.993225+00:00",
+            "error": null
+          }
+        },
+        "warmup_seconds": 0.01
+      },
+      {
+        "site": "sensecore",
+        "api": "task-history",
+        "http": 200,
+        "loading": true,
+        "counts": {
+          "tasks": 216
+        },
+        "source_status": {
+          "CCI": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:25:15.175168+00:00"
+          },
+          "ACP": {
+            "status": "ok",
+            "updated_at": "2026-10-07T07:25:27.212557+00:00"
+          }
+        },
+        "warnings": []
+      },
+      {
+        "site": "sensecore",
+        "api": "utilization-queue",
+        "http": 200,
+        "status": "partial",
+        "loading": false,
+        "updated_at": "2026-10-07T07:25:15.152666+00:00",
+        "warnings": [
+          "部分任务 GPU 指标未获取、Worker 不完整或超过 5 分钟未更新，已标为未知并排在末尾。"
+        ],
+        "counts": {
+          "tasks": 16,
+          "warnings": 1
+        },
+        "source_status": null,
+        "warmup_seconds": 0.01
+      },
+      {
+        "site": "sensecore",
+        "api": "storage",
+        "http": 200,
+        "status": "ok",
+        "loading": null,
+        "updated_at": "2026-10-07T07:26:29.739438+00:00",
+        "warnings": [],
+        "counts": {
+          "volumes": 38,
+          "warnings": 0
+        },
+        "source_status": null,
+        "warmup_seconds": 3.63
+      },
+      {
+        "api": "tokenhub/state",
+        "http": 200,
+        "connected": true,
+        "status": "ok",
+        "sections": {
+          "account": "ok",
+          "quotas": "ok",
+          "account_quotas": "ok",
+          "subscriptions": "ok",
+          "stats": "ok"
+        }
+      }
+    ],
+    "deployment_differences": [],
+    "air_profile_sha256": "91e233b4dd06ebed94c1bc35ad1a6b4dfb52537de217e81f2e4db4f2ff5e500b",
+    "git_head": "c8bdb5ed554ac887f4eb848c742572eaf266ecaf"
+  },
+  "live_browser": [
+    {
+      "site": "maoshanwang",
+      "task_cards": 4,
+      "routes": [
+        "overview",
+        "tokenhub",
+        "tasks",
+        "acp",
+        "waiting",
+        "storage",
+        "history"
+      ],
+      "mobile_overflow": false,
+      "js_errors": [],
+      "http_errors": [],
+      "rename_button_present": true
+    },
+    {
+      "site": "sensecore",
+      "task_cards": 4,
+      "routes": [
+        "overview",
+        "tokenhub",
+        "tasks",
+        "acp",
+        "waiting",
+        "storage",
+        "history"
+      ],
+      "mobile_overflow": false,
+      "js_errors": [],
+      "http_errors": [],
+      "rename_button_present": true
+    },
+    {
+      "entry": "terminal",
+      "missing_task_handled": true,
+      "js_errors": []
+    },
+    {
+      "entry": "ide",
+      "missing_task_handled": true,
+      "js_errors": []
+    }
+  ],
+  "live_terminals": [
+    {
+      "site": "maoshanwang",
+      "kind": "CCI",
+      "result": "passed",
+      "input_ack": true,
+      "command_output": true,
+      "pty_dimensions": true,
+      "ide_target_read": true,
+      "closed": true,
+      "seconds": 14.17
+    },
+    {
+      "site": "maoshanwang",
+      "kind": "ACP",
+      "result": "passed",
+      "input_ack": true,
+      "command_output": true,
+      "pty_dimensions": true,
+      "closed": true,
+      "seconds": 11.7
+    },
+    {
+      "site": "sensecore",
+      "kind": "CCI",
+      "result": "passed",
+      "input_ack": true,
+      "command_output": true,
+      "pty_dimensions": true,
+      "ide_target_read": true,
+      "closed": true,
+      "seconds": 9.07
+    },
+    {
+      "site": "sensecore",
+      "kind": "ACP",
+      "result": "passed",
+      "input_ack": true,
+      "command_output": true,
+      "pty_dimensions": true,
+      "closed": true,
+      "seconds": 7.85
+    }
+  ],
+  "action_reads": [
+    {
+      "site": "maoshanwang",
+      "kind": "CCI",
+      "action": "same-name readback; no PATCH",
+      "http": 200,
+      "verified": true
+    },
+    {
+      "site": "maoshanwang",
+      "kind": "ACP",
+      "action": "same-name readback; no PATCH",
+      "http": 200,
+      "verified": true
+    },
+    {
+      "site": "maoshanwang",
+      "action": "preview only; no create",
+      "http": 200,
+      "preview_available": true,
+      "code": null
+    },
+    {
+      "site": "sensecore",
+      "kind": "CCI",
+      "action": "same-name readback; no PATCH",
+      "http": 200,
+      "verified": true
+    },
+    {
+      "site": "sensecore",
+      "kind": "ACP",
+      "action": "same-name readback; no PATCH",
+      "http": 200,
+      "verified": true
+    },
+    {
+      "site": "sensecore",
+      "action": "preview only; no create",
+      "http": 200,
+      "preview_available": true,
+      "code": null
+    }
+  ],
+  "renewal_reproduction": [
+    {
+      "site": "maoshanwang",
+      "context": "expired_saved_context",
+      "authenticated": true,
+      "seconds": 26.0
+    },
+    {
+      "site": "maoshanwang",
+      "context": "fresh_context",
+      "authenticated": true,
+      "seconds": 24.78
+    }
+  ],
+  "local_http_before_common_code_sync": {
+    "state": {
+      "median_ms": 8.823,
+      "p95_ms": 12.545,
+      "errors": 0,
+      "bytes": [
+        9221
+      ]
+    },
+    "history": {
+      "median_ms": 14.092,
+      "p95_ms": 35.826,
+      "errors": 0,
+      "bytes": [
+        5777
+      ]
+    },
+    "task-history": {
+      "median_ms": 22.726,
+      "p95_ms": 25.737,
+      "errors": 0,
+      "bytes": [
+        150525
+      ]
+    },
+    "queue": {
+      "median_ms": 5.772,
+      "p95_ms": 6.743,
+      "errors": 0,
+      "bytes": [
+        8703
+      ]
+    }
+  },
+  "local_http_after_common_code_sync": {
+    "state": {
+      "median_ms": 6.932,
+      "p95_ms": 8.595,
+      "errors": 0,
+      "bytes": [
+        9212
+      ]
+    },
+    "history": {
+      "median_ms": 8.989,
+      "p95_ms": 31.22,
+      "errors": 0,
+      "bytes": [
+        5864
+      ]
+    },
+    "task-history": {
+      "median_ms": 23.537,
+      "p95_ms": 26.545,
+      "errors": 0,
+      "bytes": [
+        150525
+      ]
+    },
+    "queue": {
+      "median_ms": 5.708,
+      "p95_ms": 7.58,
+      "errors": 0,
+      "bytes": [
+        8702
+      ]
+    }
+  },
+  "limitations": [
+    "SenseCore first-time IDE bootstrap did not reach a usable workbench; slow pinned package download (3 MiB of 222167474 bytes observed).",
+    "No real GPU job create/stop/restart or changed-name PATCH was submitted.",
+    "Mobile gateway tested in a temporary authenticated fixture; no installed gateway or real Android device acceptance.",
+    "No battery energy or three-hour unattended renewal test."
+  ]
+}
