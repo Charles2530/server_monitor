@@ -197,9 +197,11 @@ async def main():
                 before = copy.deepcopy(snapshot)
                 snapshot.update(conditions)
                 await page.locator("#refresh-button").click()
+                await expect(page.locator("#acp-stop-selected")).to_be_disabled()
+                await page.locator('.nav-item[href="#waiting"]').click()
                 await expect(page.locator("#waiting-notice")).to_contain_text("旧")
                 await expect(page.locator("#waiting-body button")).to_be_disabled()
-                await expect(page.locator("#acp-stop-selected")).to_be_disabled()
+                await page.locator('.nav-item[href="#tasks"]').click()
                 snapshot.clear()
                 snapshot.update(before)
             await page.locator("#refresh-button").click()
@@ -207,8 +209,9 @@ async def main():
             snapshot["waiting_tasks"] = []
             snapshot["tasks"].append({**waiting, "state": "running"})
             await page.locator("#refresh-button").click()
-            await expect(page.locator("#waiting-body")).to_contain_text("当前没有等待或启动中的 CCI / ACP 任务")
             await expect(page.locator(".task-card").filter(has_text="charles waiting")).to_be_visible()
+            await page.locator('.nav-item[href="#waiting"]').click()
+            await expect(page.locator("#waiting-body")).to_contain_text("当前没有等待或启动中的 CCI / ACP 任务")
             snapshot["source_status"]["ACP_queue"]["status"] = "error"
             await page.locator("#refresh-button").click()
             await expect(page.locator("#waiting-body")).to_contain_text("等待任务数量暂时未知")

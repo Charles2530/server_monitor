@@ -2,6 +2,7 @@
 (() => {
   const $ = id => document.getElementById(id), site = window.MonitorSite;
   let active = false, timer = null, controller = null, serial = 0, snapshot = null;
+  let renderedSignature = null, renderedRows = new Map();
   const node = (tag, text, className) => {
     const element = document.createElement(tag);
     if (text !== undefined) element.textContent = text;
@@ -32,6 +33,19 @@
     const showWarnings = !mineOnly || data.status === "error" || tasks.some(task => !["ok", "no_gpu"].includes(task.metric_status));
     $("utilization-warning").hidden = !showWarnings || !data.warnings?.length;
     $("utilization-warning").textContent = (data.warnings || []).join(" ");
+    const signature = JSON.stringify([data.status, data.loading, data.updated_at, data.warnings, mineOnly,
+      tasks.map(task => [task.id, task.name, task.owner, task.cluster, task.gpu_count, task.replicas,
+        task.is_mine, task.gpu_utilization, task.metric_updated_at, task.metric_status,
+        task.created_at, task.started_at, task.url])]);
+    if (signature === renderedSignature) {
+      for (const task of tasks) {
+        const row = renderedRows.get(task.id);
+        if (row?._durationNode) row._durationNode.textContent = `${data.status === "error" ? "上次观测已运行" : "已运行"} ${duration(task.duration_seconds)}`;
+      }
+      return;
+    }
+    renderedSignature = signature;
+    renderedRows = new Map();
     const fragment = document.createDocumentFragment();
     for (const [index, task] of tasks.entries()) {
       const row = node("tr"), identity = node("td", undefined, "waiting-identity");
@@ -53,17 +67,21 @@
         }
       } catch { /* Invalid cloud links stay read-only text. */ }
       const timing = node("td", undefined, "utilization-time");
-      timing.append(node("span", date(task.created_at)), node("small", `${data.status === "error" ? "上次观测已运行" : "已运行"} ${duration(task.duration_seconds)}`, "utilization-duration"));
+      const durationNode = node("small", `${data.status === "error" ? "上次观测已运行" : "已运行"} ${duration(task.duration_seconds)}`, "utilization-duration");
+      timing.append(node("span", date(task.created_at)), durationNode);
       timing.title = `启动时间 ${date(task.started_at)}`;
       const cells = [identity, node("td", task.owner || "—"), node("td", task.cluster || "—"), utilization,
         node("td", `${task.gpu_count ?? "—"} GPU / ${task.replicas ?? "—"} 副本`), timing, action];
       const labels = ["任务 / ID", "提交者", "集群", "实时 GPU 利用率", "GPU / 副本", "创建时间 / 已运行", "操作"];
       cells.forEach((cell, i) => { cell.dataset.label = labels[i]; });
+      row._durationNode = durationNode;
+      renderedRows.set(task.id, row);
       row.append(...cells); fragment.append(row);
     }
     if (!tasks.length) {
       const cell = node("td", data.loading ? "正在读取运行中的 ACP 任务…" : data.status === "error" ? "ACP 列表暂不可用，请稍后重试" : mineOnly ? "当前没有我的运行中 ACP 任务（名称包含 charles）" : "当前没有运行中的 ACP 任务", "table-empty");
       cell.colSpan = 7; const row = node("tr"); row.append(cell); fragment.append(row);
+      renderedRows.clear();
     }
     $("utilization-body").replaceChildren(fragment);
   }
@@ -81,7 +99,7 @@
       if (data.site !== site.id || !Array.isArray(data.tasks)) throw new Error("利用率数据与站点不一致");
       if (!active || request !== serial) return;
       snapshot = data; render();
-      if (data.loading) delay = 2000;
+      if (data.loading) delay = data.tasks.length ? 2000 : 500;
     } catch (error) {
       if (!active || request !== serial) return;
       if (snapshot) {

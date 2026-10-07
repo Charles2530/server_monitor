@@ -656,6 +656,41 @@ test("waiting table renders only visible changes and still invalidates expired a
   b.hide(false); assert.equal(table.replacements, 4, "visible queue must catch up immediately");
 });
 
+test("utilization queue reuses the table for unchanged polling snapshots", async () => {
+  const b = browser({ route: "waiting" });
+  b.load("utilization-queue.js");
+  const data = { site: "maoshanwang", status: "ok", loading: false, updated_at: "2026-10-06T00:00:00Z", warnings: [],
+    tasks: [{ id: "ACP:running", name: "running", owner: "alice", cluster: "shared", gpu_count: 8, replicas: 1,
+      is_mine: false, gpu_utilization: 12, metric_updated_at: "2026-10-06T00:00:00Z", metric_status: "ok",
+      created_at: "2026-10-06T00:00:00Z", started_at: "2026-10-06T00:00:00Z", duration_seconds: 60,
+      url: "https://console.ms-sc-01.maoshanwangtech.com/task/running" }] };
+  const first = b.requests[0];
+  first.respond(clone(data)); await settle();
+  const table = b.nodes.get("utilization-body");
+  assert.equal(table.replacements, 1);
+  b.tick(60000);
+  const second = b.requests.at(-1);
+  second.respond(clone(data)); await settle();
+  assert.equal(table.replacements, 1);
+  const durationUpdated = clone(data); durationUpdated.tasks[0].duration_seconds = 120;
+  b.tick(60000);
+  b.requests.at(-1).respond(durationUpdated); await settle();
+  assert.equal(table.replacements, 1);
+  assert.match(treeText(table), /已运行 2 分钟/);
+  const changed = clone(data); changed.tasks[0].gpu_utilization = 18;
+  b.tick(60000);
+  b.requests.at(-1).respond(changed); await settle();
+  assert.equal(table.replacements, 2);
+});
+
+test("utilization queue polls cold starts faster until the first task list arrives", async () => {
+  const b = browser({ route: "waiting" });
+  b.load("utilization-queue.js");
+  const loading = { site: "maoshanwang", status: "ok", loading: true, updated_at: null, warnings: [], tasks: [] };
+  b.requests[0].respond(loading); await settle();
+  assert.equal([...b.timers.values()].find(timer => timer.delay === 500)?.delay, 500);
+});
+
 test("chart preparation scales linearly with worker series and preserves labels/styles", t => {
   const b = browser({ route: "tasks" }); const app = b.load("app.js", "model, renderChart");
   app.model.selected = "ACP:one"; app.model.chart = b.window.echarts.init();

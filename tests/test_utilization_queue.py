@@ -31,7 +31,7 @@ def manager(site=MAOSHANWANG, rows=None, values=None, *, fail=False):
         if request.url.path.endswith('/trainingJobs'):
             assert request.method == 'GET'
             assert request.url.params['filter'] == "state='RUNNING'"
-            assert request.url.params['page_size'] == '20'
+            assert request.url.params['page_size'] == '100'
             assert site.workspace in request.url.path
             if fail: return httpx.Response(403, json={'secret': 'private'})
             token = request.url.params['page_token']
@@ -112,7 +112,7 @@ async def test_all_creation_dates_include_old_jobs_and_rank_latest_samples(site)
         assert [request.url.params['page_token'] for request in listing] == ['1', '2']
         for request in listing:
             assert dict(request.url.params) == {
-                'page_size': '20', 'page_token': request.url.params['page_token'],
+                'page_size': '100', 'page_token': request.url.params['page_token'],
                 'filter': "state='RUNNING'"}
     finally: await obj.close()
 
@@ -293,6 +293,86 @@ def test_construct_before_server_loop_supports_more_than_three_jobs():
             assert data['status'] == 'ok'
             assert [task['gpu_utilization'] for task in data['tasks']] == [0, 0, 0, 0]
         finally: await obj.close()
+    try:
+        asyncio.run(run())
+    finally:
+        setup_loop.close()
+        asyncio.set_event_loop_policy(previous_policy)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("slots", [3, 4, 6, 8])
+async def test_gpu_collection_respects_machine_concurrency(monkeypatch, slots):
+    monkeypatch.setattr("server.utilization_queue.get_runtime_profile", lambda: {"queue_concurrency": slots})
+    obj, _ = manager(rows=[job(name='job-' + str(index)) for index in range(7)])
+    active = 0
+    maximum = 0
+
+    async def measured_gpu(*args):
+        nonlocal active, maximum
+        active += 1
+        maximum = max(maximum, active)
+        await asyncio.sleep(.01)
+        active -= 1
+
+    obj.read_gpu = measured_gpu
+    try:
+        data = await completed(obj)
+        assert maximum == min(slots, 7)
+    finally:
+        await obj.close()
+
+
+@pytest.mark.asyncio
+async def test_training_list_and_metadata_start_in_parallel():
+    obj, _ = manager(rows=[job(name='parallel')])
+    listing_started = asyncio.Event()
+    metadata_started = asyncio.Event()
+
+    async def listing(*args, **kwargs):
+        listing_started.set()
+        await metadata_started.wait()
+        return [job(name='parallel')]
+
+    async def metadata(*args, **kwargs):
+        metadata_started.set()
+        await listing_started.wait()
+        obj.reader.workspace_uid = 'workspace-uid'
+        obj.reader.station = '/station'
+
+    obj.reader.paginate = listing
+    obj.reader.metadata = metadata
+    obj.gpu = lambda *args: asyncio.sleep(0)
+    try:
+        await asyncio.wait_for(obj.collect(), .2)
+    finally:
+        await obj.close()
+
+
+def test_performance_queue_constructed_before_server_loop_handles_request_contention(monkeypatch):
+    previous_policy = asyncio.get_event_loop_policy()
+    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+    setup_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(setup_loop)
+    monkeypatch.setattr('server.utilization_queue.get_runtime_profile', lambda: {'queue_concurrency': 8})
+    monkeypatch.setattr('server.collector.get_runtime_profile', lambda: {'collector_concurrency': 6, 'metric_concurrency': 4})
+    names = ['job-' + str(index) for index in range(8)]
+    now = int(time.time())
+    obj, _ = manager(rows=[job(name=name) for name in names],
+                     values={name: [('worker-0', 0, now)] for name in names})
+    handler = obj.transport.handler
+    async def delayed(request):
+        if request.url.path.endswith('/workers'):
+            await asyncio.sleep(.03)
+        return await handler(request)
+    obj.transport = httpx.MockTransport(delayed)
+    async def run():
+        try:
+            data = await completed(obj)
+            assert data['status'] == 'ok', [(row['id'], row['metric_status']) for row in data['tasks']]
+            assert [row['gpu_utilization'] for row in data['tasks']] == [0] * 8
+        finally:
+            await obj.close()
     try:
         asyncio.run(run())
     finally:

@@ -208,7 +208,10 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
 
     @app.get('/api/utilization-queue')
     async def utilization_queue(runtime=Depends(current_site)):
-        return await perform(runtime.utilization_queue.snapshot)
+        async def snapshot_response():
+            # The queue already produces normalized, redacted JSON values.
+            return JSONResponse(await runtime.utilization_queue.snapshot())
+        return await perform(snapshot_response)
 
     @app.get('/api/logs/targets')
     async def log_targets(task_id: str=Query(max_length=100),runtime=Depends(current_site)):
