@@ -1,0 +1,1997 @@
+{
+  "measured_at": "2026-10-08T00:02:28.129138+08:00",
+  "code_commit": "c250e878bf00e95475e0dee2ae1eaf7523b396d3",
+  "hardware": {
+    "model": "Mac16,12",
+    "chip": "Apple M4",
+    "performance_cores": 4,
+    "efficiency_cores": 6,
+    "memory_gib": 16,
+    "architecture": "arm64"
+  },
+  "paired_local_http": {
+    "scope": "same local ASGI HTTP stack, captured real normalized history; no cloud waits or browser rendering included",
+    "response_bytes_identical": true,
+    "samples": [
+      {
+        "dataset": "maoshanwang",
+        "round": 1,
+        "variant": "after",
+        "median_ms": 2.153,
+        "cpu_ms_per_request": 2.054,
+        "bytes": 150525,
+        "tasks": 180
+      },
+      {
+        "dataset": "maoshanwang",
+        "round": 1,
+        "variant": "before",
+        "median_ms": 5.509,
+        "cpu_ms_per_request": 5.418,
+        "bytes": 150525,
+        "tasks": 180
+      },
+      {
+        "dataset": "maoshanwang",
+        "round": 2,
+        "variant": "before",
+        "median_ms": 5.636,
+        "cpu_ms_per_request": 5.544,
+        "bytes": 150525,
+        "tasks": 180
+      },
+      {
+        "dataset": "maoshanwang",
+        "round": 2,
+        "variant": "after",
+        "median_ms": 2.24,
+        "cpu_ms_per_request": 2.181,
+        "bytes": 150525,
+        "tasks": 180
+      },
+      {
+        "dataset": "maoshanwang",
+        "round": 3,
+        "variant": "after",
+        "median_ms": 2.302,
+        "cpu_ms_per_request": 2.24,
+        "bytes": 150525,
+        "tasks": 180
+      },
+      {
+        "dataset": "maoshanwang",
+        "round": 3,
+        "variant": "before",
+        "median_ms": 5.76,
+        "cpu_ms_per_request": 5.665,
+        "bytes": 150525,
+        "tasks": 180
+      },
+      {
+        "dataset": "maoshanwang",
+        "round": 4,
+        "variant": "before",
+        "median_ms": 5.695,
+        "cpu_ms_per_request": 5.587,
+        "bytes": 150525,
+        "tasks": 180
+      },
+      {
+        "dataset": "maoshanwang",
+        "round": 4,
+        "variant": "after",
+        "median_ms": 2.178,
+        "cpu_ms_per_request": 2.122,
+        "bytes": 150525,
+        "tasks": 180
+      },
+      {
+        "dataset": "maoshanwang",
+        "round": 5,
+        "variant": "after",
+        "median_ms": 2.285,
+        "cpu_ms_per_request": 2.243,
+        "bytes": 150525,
+        "tasks": 180
+      },
+      {
+        "dataset": "maoshanwang",
+        "round": 5,
+        "variant": "before",
+        "median_ms": 5.629,
+        "cpu_ms_per_request": 5.58,
+        "bytes": 150525,
+        "tasks": 180
+      },
+      {
+        "dataset": "sensecore",
+        "round": 1,
+        "variant": "after",
+        "median_ms": 2.749,
+        "cpu_ms_per_request": 2.655,
+        "bytes": 181330,
+        "tasks": 216
+      },
+      {
+        "dataset": "sensecore",
+        "round": 1,
+        "variant": "before",
+        "median_ms": 6.744,
+        "cpu_ms_per_request": 6.649,
+        "bytes": 181330,
+        "tasks": 216
+      },
+      {
+        "dataset": "sensecore",
+        "round": 2,
+        "variant": "before",
+        "median_ms": 6.648,
+        "cpu_ms_per_request": 6.519,
+        "bytes": 181330,
+        "tasks": 216
+      },
+      {
+        "dataset": "sensecore",
+        "round": 2,
+        "variant": "after",
+        "median_ms": 2.514,
+        "cpu_ms_per_request": 2.436,
+        "bytes": 181330,
+        "tasks": 216
+      },
+      {
+        "dataset": "sensecore",
+        "round": 3,
+        "variant": "after",
+        "median_ms": 2.503,
+        "cpu_ms_per_request": 2.414,
+        "bytes": 181330,
+        "tasks": 216
+      },
+      {
+        "dataset": "sensecore",
+        "round": 3,
+        "variant": "before",
+        "median_ms": 6.53,
+        "cpu_ms_per_request": 6.437,
+        "bytes": 181330,
+        "tasks": 216
+      },
+      {
+        "dataset": "sensecore",
+        "round": 4,
+        "variant": "before",
+        "median_ms": 6.657,
+        "cpu_ms_per_request": 6.56,
+        "bytes": 181330,
+        "tasks": 216
+      },
+      {
+        "dataset": "sensecore",
+        "round": 4,
+        "variant": "after",
+        "median_ms": 2.628,
+        "cpu_ms_per_request": 2.602,
+        "bytes": 181330,
+        "tasks": 216
+      },
+      {
+        "dataset": "sensecore",
+        "round": 5,
+        "variant": "after",
+        "median_ms": 2.645,
+        "cpu_ms_per_request": 2.918,
+        "bytes": 181330,
+        "tasks": 216
+      },
+      {
+        "dataset": "sensecore",
+        "round": 5,
+        "variant": "before",
+        "median_ms": 6.603,
+        "cpu_ms_per_request": 6.517,
+        "bytes": 181330,
+        "tasks": 216
+      }
+    ],
+    "summary": {
+      "maoshanwang": {
+        "before": 5.636,
+        "after": 2.24
+      },
+      "sensecore": {
+        "before": 6.648,
+        "after": 2.628
+      }
+    }
+  },
+  "production_before": {
+    "measured_at": "2026-10-07T23:52:40+0800",
+    "requests_per_route": 20,
+    "warmup": {
+      "/api/task-history": {
+        "seconds": 17.54,
+        "loading": false,
+        "task_count": 180
+      },
+      "/api/utilization-queue": {
+        "seconds": 0.006,
+        "loading": false,
+        "task_count": 11
+      }
+    },
+    "summary": {
+      "state": {
+        "median_ms": 7.12,
+        "p95_ms": 8.589,
+        "errors": 0,
+        "bytes": [
+          9178
+        ]
+      },
+      "history": {
+        "median_ms": 9.53,
+        "p95_ms": 10.568,
+        "errors": 0,
+        "bytes": [
+          5757
+        ]
+      },
+      "task-history": {
+        "median_ms": 23.122,
+        "p95_ms": 26.109,
+        "errors": 0,
+        "bytes": [
+          150525
+        ]
+      },
+      "queue": {
+        "median_ms": 5.904,
+        "p95_ms": 7.238,
+        "errors": 0,
+        "bytes": [
+          8703
+        ]
+      }
+    },
+    "samples": {
+      "state": [
+        {
+          "ms": 6.817,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 5.639,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 6.527,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 6.539,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 7.896,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 6.745,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 7.071,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 6.821,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 5.764,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 7.918,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 7.17,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 8.589,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 7.974,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 7.586,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 4.674,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 7.716,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 8.333,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 8.71,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 6.693,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 7.463,
+          "status": 200,
+          "bytes": 9178,
+          "loading": null,
+          "status_field": "ok"
+        }
+      ],
+      "history": [
+        {
+          "ms": 10.28,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 7.316,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 6.943,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 7.665,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 9.371,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 10.093,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 9.246,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 9.175,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 8.098,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 9.175,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 9.97,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 11.464,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 10.324,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 9.573,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 7.979,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 10.221,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 10.02,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 9.488,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 9.796,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 10.568,
+          "status": 200,
+          "bytes": 5757,
+          "loading": null,
+          "status_field": null
+        }
+      ],
+      "task-history": [
+        {
+          "ms": 21.098,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 22.204,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 24.042,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 22.816,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 21.231,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 22.056,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 25.77,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 22.651,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 24.774,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 23.732,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 30.765,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 22.322,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 23.472,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 22.919,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 23.325,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 23.781,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 22.838,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 20.066,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 23.683,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 26.109,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        }
+      ],
+      "queue": [
+        {
+          "ms": 6.081,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 3.818,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 4.598,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 5.147,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 5.693,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 5.789,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 5.344,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 5.414,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 5.563,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 6.332,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 7.063,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 6.997,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 6.985,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 6.02,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 4.885,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 7.167,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 6.221,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 4.627,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 7.238,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 7.466,
+          "status": 200,
+          "bytes": 8703,
+          "loading": false,
+          "status_field": "partial"
+        }
+      ]
+    },
+    "process": "  PID  %CPU %MEM    RSS ELAPSED PRI NI\n 7462  34.9  0.6 107600   00:32  20  0\n",
+    "spawn_type": "spawn type = daemon (3)"
+  },
+  "production_after": {
+    "measured_at": "2026-10-07T23:59:17+0800",
+    "requests_per_route": 20,
+    "warmup": {
+      "/api/task-history": {
+        "seconds": 16.401,
+        "loading": false,
+        "task_count": 180
+      },
+      "/api/utilization-queue": {
+        "seconds": 1.541,
+        "loading": false,
+        "task_count": 11
+      }
+    },
+    "summary": {
+      "state": {
+        "median_ms": 7.377,
+        "p95_ms": 8.696,
+        "errors": 0,
+        "bytes": [
+          9181
+        ]
+      },
+      "history": {
+        "median_ms": 9.68,
+        "p95_ms": 12.941,
+        "errors": 0,
+        "bytes": [
+          5664
+        ]
+      },
+      "task-history": {
+        "median_ms": 15.439,
+        "p95_ms": 17.39,
+        "errors": 0,
+        "bytes": [
+          150525
+        ]
+      },
+      "queue": {
+        "median_ms": 5.964,
+        "p95_ms": 7.501,
+        "errors": 0,
+        "bytes": [
+          8704
+        ]
+      }
+    },
+    "samples": {
+      "state": [
+        {
+          "ms": 7.935,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 6.308,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 4.448,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 6.179,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 7.267,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 8.696,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 7.31,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 7.444,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 8.485,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 5.963,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 6.955,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 7.577,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 6.301,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 8.506,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 9.062,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 8.406,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 7.006,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 7.734,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 7.537,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        },
+        {
+          "ms": 6.783,
+          "status": 200,
+          "bytes": 9181,
+          "loading": null,
+          "status_field": "ok"
+        }
+      ],
+      "history": [
+        {
+          "ms": 12.941,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 15.349,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 7.52,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 9.706,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 10.061,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 10.913,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 11.064,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 11.492,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 11.886,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 9.653,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 8.551,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 7.24,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 10.236,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 8.722,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 9.311,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 9.23,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 11.425,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 9.454,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 8.102,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        },
+        {
+          "ms": 6.451,
+          "status": 200,
+          "bytes": 5664,
+          "loading": null,
+          "status_field": null
+        }
+      ],
+      "task-history": [
+        {
+          "ms": 17.068,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 11.184,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 12.423,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 13.959,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 16.648,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 15.272,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 14.209,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 15.574,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 16.263,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 12.605,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 16.016,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 14.227,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 12.506,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 17.39,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 16.893,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 15.966,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 15.957,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 15.303,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 17.441,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        },
+        {
+          "ms": 13.585,
+          "status": 200,
+          "bytes": 150525,
+          "loading": false,
+          "status_field": null
+        }
+      ],
+      "queue": [
+        {
+          "ms": 6.51,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 5.028,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 3.978,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 3.995,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 6.449,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 5.285,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 6.341,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 5.889,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 7.089,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 5.985,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 5.32,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 5.937,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 7.501,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 5.943,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 6.188,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 7.359,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 8.038,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 5.63,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 5.196,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        },
+        {
+          "ms": 6.45,
+          "status": 200,
+          "bytes": 8704,
+          "loading": false,
+          "status_field": "partial"
+        }
+      ]
+    },
+    "process": "  PID  %CPU %MEM    RSS ELAPSED PRI NI\n 9815  30.6  0.7 112752   00:39  20  0\n",
+    "spawn_type": "spawn type = daemon (3)"
+  },
+  "resources_after": {
+    "pid": 9815,
+    "duration_seconds": 60,
+    "samples": [
+      {
+        "cpu_percent": 6.8,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.9,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.2,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 0.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 11.1,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 2.0,
+        "rss_kib": 111776,
+        "priority": 20
+      },
+      {
+        "cpu_percent": 2.5,
+        "rss_kib": 111776,
+        "priority": 20
+      }
+    ],
+    "cpu_sample_median_percent": 0.1,
+    "cpu_sample_max_percent": 11.1,
+    "rss_median_mib": 109.16,
+    "rss_max_mib": 109.16,
+    "memory_pressure": "The system has 17179869184 (1048576 pages with a page size of 16384).\nSystem-wide memory free percentage: 76%\n",
+    "thermal": "Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded\n",
+    "power": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=22675555)\t98%; charging; 0:23 remaining present: true\n"
+  },
+  "verification": {
+    "python_passed": 843,
+    "javascript_passed": 64,
+    "browser": [
+      {
+        "site": "maoshanwang",
+        "task_cards": 4,
+        "routes": [
+          "overview",
+          "tokenhub",
+          "tasks",
+          "acp",
+          "waiting",
+          "storage",
+          "history"
+        ],
+        "mobile_overflow": false,
+        "js_errors": [],
+        "http_errors": [],
+        "rename_button_present": true
+      },
+      {
+        "site": "sensecore",
+        "task_cards": 4,
+        "routes": [
+          "overview",
+          "tokenhub",
+          "tasks",
+          "acp",
+          "waiting",
+          "storage",
+          "history"
+        ],
+        "mobile_overflow": false,
+        "js_errors": [],
+        "http_errors": [],
+        "rename_button_present": true
+      },
+      {
+        "entry": "terminal",
+        "missing_task_handled": true,
+        "js_errors": []
+      },
+      {
+        "entry": "ide",
+        "missing_task_handled": true,
+        "js_errors": []
+      }
+    ],
+    "live_read_count": 72,
+    "expected_restart_409_count": 6,
+    "logs": [
+      {
+        "site": "sensecore",
+        "path": "/api/logs",
+        "task_kind": "CCI",
+        "http": 200,
+        "seconds": 30.964,
+        "updated_at": "2026-10-07T15:52:57.073754+00:00",
+        "entries": 0,
+        "eof": false,
+        "truncated": false,
+        "counts": {},
+        "text_length": 0
+      },
+      {
+        "site": "maoshanwang",
+        "path": "/api/logs",
+        "task_kind": "CCI",
+        "http": 200,
+        "seconds": 42.097,
+        "updated_at": "2026-10-07T15:53:25.381305+00:00",
+        "entries": 0,
+        "eof": false,
+        "truncated": false,
+        "counts": {},
+        "text_length": 0
+      },
+      {
+        "site": "sensecore",
+        "path": "/api/logs",
+        "task_kind": "ACP",
+        "http": 200,
+        "seconds": 30.8,
+        "updated_at": "2026-10-07T15:53:29.840877+00:00",
+        "entries": 0,
+        "eof": false,
+        "truncated": false,
+        "counts": {},
+        "text_length": 0
+      },
+      {
+        "site": "maoshanwang",
+        "path": "/api/logs",
+        "task_kind": "ACP",
+        "http": 200,
+        "seconds": 9.011,
+        "updated_at": "2026-10-07T15:53:51.358281+00:00",
+        "entries": 10,
+        "eof": false,
+        "truncated": false,
+        "counts": {},
+        "text_length": 810
+      },
+      {
+        "site": "sensecore",
+        "path": "/api/logs",
+        "task_kind": "ACP",
+        "http": 200,
+        "seconds": 30.84,
+        "updated_at": "2026-10-07T15:54:02.232961+00:00",
+        "entries": 0,
+        "eof": false,
+        "truncated": false,
+        "counts": {},
+        "text_length": 0
+      },
+      {
+        "site": "maoshanwang",
+        "path": "/api/logs",
+        "task_kind": "ACP",
+        "http": 200,
+        "seconds": 8.786,
+        "updated_at": "2026-10-07T15:54:16.509668+00:00",
+        "entries": 10,
+        "eof": false,
+        "truncated": false,
+        "counts": {},
+        "text_length": 810
+      },
+      {
+        "site": "sensecore",
+        "path": "/api/logs",
+        "task_kind": "ACP",
+        "http": 200,
+        "seconds": 30.832,
+        "updated_at": "2026-10-07T15:54:34.703081+00:00",
+        "entries": 0,
+        "eof": false,
+        "truncated": false,
+        "counts": {},
+        "text_length": 0
+      },
+      {
+        "site": "maoshanwang",
+        "path": "/api/logs",
+        "task_kind": "ACP",
+        "http": 200,
+        "seconds": 9.627,
+        "updated_at": "2026-10-07T15:54:43.684727+00:00",
+        "entries": 10,
+        "eof": false,
+        "truncated": false,
+        "counts": {},
+        "text_length": 810
+      }
+    ],
+    "health": {
+      "checked_at": "2026-10-07T23:59:15+0800",
+      "checks": [
+        {
+          "site": "maoshanwang",
+          "api": "state",
+          "http": 200,
+          "status": "ok",
+          "loading": null,
+          "updated_at": "2026-10-07T15:58:39.081904+00:00",
+          "warnings": null,
+          "counts": {
+            "tasks": 4,
+            "waiting_tasks": 0,
+            "clusters": 5
+          },
+          "source_status": {
+            "CCI": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:58:39.081904+00:00"
+            },
+            "ACP": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:58:39.081904+00:00"
+            },
+            "CCI_queue": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:58:39.081904+00:00"
+            },
+            "ACP_queue": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:58:39.081904+00:00"
+            },
+            "resources": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:58:39.081904+00:00"
+            },
+            "inventory": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:58:39.081904+00:00",
+              "error": null
+            }
+          },
+          "warmup_seconds": 0.01
+        },
+        {
+          "site": "maoshanwang",
+          "api": "task-history",
+          "http": 200,
+          "status": null,
+          "loading": false,
+          "updated_at": null,
+          "warnings": [],
+          "counts": {
+            "tasks": 180,
+            "warnings": 0
+          },
+          "source_status": {
+            "CCI": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:59:00.330072+00:00"
+            },
+            "ACP": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:59:13.229164+00:00"
+            }
+          },
+          "warmup_seconds": 13.74
+        },
+        {
+          "site": "maoshanwang",
+          "api": "utilization-queue",
+          "http": 200,
+          "status": "partial",
+          "loading": false,
+          "updated_at": "2026-10-07T15:59:04.945842+00:00",
+          "warnings": [
+            "部分任务 GPU 指标未获取、Worker 不完整或超过 5 分钟未更新，已标为未知并排在末尾。"
+          ],
+          "counts": {
+            "tasks": 11,
+            "warnings": 1
+          },
+          "source_status": null,
+          "warmup_seconds": 2.05
+        },
+        {
+          "site": "maoshanwang",
+          "api": "storage",
+          "http": 200,
+          "status": "ok",
+          "loading": null,
+          "updated_at": "2026-10-07T15:59:09.014147+00:00",
+          "warnings": [],
+          "counts": {
+            "volumes": 6,
+            "warnings": 0
+          },
+          "source_status": null,
+          "warmup_seconds": 0.01
+        },
+        {
+          "site": "sensecore",
+          "api": "state",
+          "http": 200,
+          "status": "ok",
+          "loading": null,
+          "updated_at": "2026-10-07T15:58:39.097609+00:00",
+          "warnings": null,
+          "counts": {
+            "tasks": 4,
+            "waiting_tasks": 0,
+            "clusters": 8
+          },
+          "source_status": {
+            "CCI": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:58:39.097609+00:00"
+            },
+            "ACP": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:58:39.097609+00:00"
+            },
+            "CCI_queue": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:58:39.097609+00:00"
+            },
+            "ACP_queue": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:58:39.097609+00:00"
+            },
+            "resources": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:58:39.097609+00:00"
+            },
+            "inventory": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:58:39.097609+00:00",
+              "error": null
+            }
+          },
+          "warmup_seconds": 0.01
+        },
+        {
+          "site": "sensecore",
+          "api": "task-history",
+          "http": 200,
+          "status": null,
+          "loading": false,
+          "updated_at": null,
+          "warnings": [],
+          "counts": {
+            "tasks": 216,
+            "warnings": 0
+          },
+          "source_status": {
+            "CCI": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:59:09.268131+00:00"
+            },
+            "ACP": {
+              "status": "ok",
+              "updated_at": "2026-10-07T15:59:11.131247+00:00"
+            }
+          },
+          "warmup_seconds": 0.02
+        },
+        {
+          "site": "sensecore",
+          "api": "utilization-queue",
+          "http": 200,
+          "status": "partial",
+          "loading": false,
+          "updated_at": "2026-10-07T15:59:07.955204+00:00",
+          "warnings": [
+            "部分任务 GPU 指标未获取、Worker 不完整或超过 5 分钟未更新，已标为未知并排在末尾。"
+          ],
+          "counts": {
+            "tasks": 16,
+            "warnings": 1
+          },
+          "source_status": null,
+          "warmup_seconds": 0.01
+        },
+        {
+          "site": "sensecore",
+          "api": "storage",
+          "http": 200,
+          "status": "ok",
+          "loading": null,
+          "updated_at": "2026-10-07T15:59:08.921921+00:00",
+          "warnings": [],
+          "counts": {
+            "volumes": 38,
+            "warnings": 0
+          },
+          "source_status": null,
+          "warmup_seconds": 0.01
+        },
+        {
+          "api": "tokenhub/state",
+          "http": 200,
+          "connected": true,
+          "status": "ok",
+          "sections": {
+            "account": "ok",
+            "quotas": "ok",
+            "subscriptions": "ok",
+            "account_quotas": "ok",
+            "stats": "ok"
+          }
+        }
+      ],
+      "deployment_differences": [],
+      "air_profile_sha256": "91e233b4dd06ebed94c1bc35ad1a6b4dfb52537de217e81f2e4db4f2ff5e500b",
+      "git_head": "c250e878bf00e95475e0dee2ae1eaf7523b396d3"
+    }
+  },
+  "rollback": {
+    "backup": "/Users/charles/Library/Application Support/CharlesCloudMonitor-backups/function-audit-20261007-235837",
+    "sha256_manifest_verified": true,
+    "isolated_rollback_rehearsal": true,
+    "files_restored": 1
+  },
+  "archive_sha256": "fccde86a20a26b9b1a0d2e689b7f1c5768e65669e57285327eda83dac3391fd8"
+}
