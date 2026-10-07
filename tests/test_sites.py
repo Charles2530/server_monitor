@@ -135,3 +135,33 @@ async def test_log_token_cannot_cross_clouds_or_reach_arbitrary_endpoint():
         requests.clear()
         with pytest.raises(ActionError):await reader.read('ACP:job-1','worker-0','pytorch')
         assert not any('/v1/polling/' in r.url.path for r in requests)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('endpoint,allowed', [
+    ('monitor-data.cn-sh-01.sensecoreapi.cn', True),
+    ('monitor-data.cn-sh-01.sensecoreapi.cn.evil.example', False),
+    ('monitor-data.cn-sh-01g.sensecoreapi.cn', False),
+])
+async def test_sensecore_regional_log_endpoint_is_explicitly_allowed(endpoint, allowed):
+    from tests.test_task_logs import LogCloud
+    cloud = LogCloud()
+    async def handler(request):
+        response = await cloud(request)
+        if request.url.path.endswith('/logLivestream/token'):
+            body = __import__('json').loads(response.content)
+            body['endpoint'] = endpoint
+            return httpx.Response(200, json=body)
+        return response
+    reader = TaskLogs(site=SENSECORE, transport=httpx.MockTransport(handler),
+                      session_loader=lambda:{'headers':{'authorization':'private'}})
+    reader.reader.workspace_uid = 'workspace-uid'
+    reader.reader.station = SENSECORE.workspace.split('/workspaces/')[0]+'/telemetryStations/tenant'
+    if allowed:
+        assert (await reader.read('ACP:job-1','worker-0','pytorch'))['entries'] == 1
+        poll = next(r for r in cloud.requests if '/v1/polling/' in r.url.path)
+        assert poll.url.host == endpoint and 'authorization' not in poll.headers
+    else:
+        with pytest.raises(ActionError):
+            await reader.read('ACP:job-1','worker-0','pytorch')
+        assert not any('/v1/polling/' in r.url.path for r in cloud.requests)

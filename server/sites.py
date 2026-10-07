@@ -29,5 +29,5 @@ SENSECORE = Site('sensecore', 'https://console.sensecore.cn/cn-sh-01', 'https://
      'AFS':'https://afs.cn-sh-01.sensecoreapi.cn'},
     '/subscriptions/65b0bc94-2cf4-42a3-b054-9900bbf51b7e/resourceGroups/default/zones/cn-sh-01z/workspaces/fdfe760c-ecd5-4466-aa6f-3d4125b17e7f',
     DATA/'sensecore', 'SENSECORE_IAM_', 'monitor-data.cn-sh-01b.sensecoreapi.cn',
-    log_endpoints=tuple('monitor-data.'+zone+'.sensecoreapi.cn' for zone in ('cn-sh-01a','cn-sh-01b','cn-sh-01e','cn-sh-01f')))
+    log_endpoints=tuple('monitor-data.'+zone+'.sensecoreapi.cn' for zone in ('cn-sh-01','cn-sh-01a','cn-sh-01b','cn-sh-01e','cn-sh-01f')))
 SITES = {s.id:s for s in (MAOSHANWANG,SENSECORE)}
