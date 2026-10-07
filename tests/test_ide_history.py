@@ -1,4 +1,5 @@
 import json
+import sqlite3
 
 
 def test_workspace_contains_exact_descendant_and_rejects_similar_prefix():
@@ -52,6 +53,34 @@ def test_history_script_is_self_contained_and_does_not_print_content():
     assert 'session_meta' in script
     assert 'auth.json' not in script
     assert 'item_json' not in script
+
+
+def test_history_script_reads_codex_ui_thread_index_by_project_path(tmp_path, monkeypatch):
+    home = tmp_path / '.codex'
+    home.mkdir()
+    db = home / 'state_5.sqlite'
+    with sqlite3.connect(db) as connection:
+        connection.execute(
+            'create table threads (id text, cwd text, title text, updated_at integer)'
+        )
+        connection.executemany(
+            'insert into threads values (?, ?, ?, ?)',
+            [
+                ('new-task', '/workspace/project', 'New task', 30),
+                ('child-task', '/workspace/project/src', 'Child task', 20),
+                ('similar-prefix', '/workspace/project-old', 'Wrong project', 40),
+            ],
+        )
+
+    from server.ide_history import history_script
+
+    monkeypatch.setenv('CODEX_HOME', str(home))
+    namespace = {}
+    exec(history_script('/workspace/project'), namespace)
+    result = namespace['RESULT']
+    assert [row['thread_id'] for row in result['records']] == ['new-task', 'child-task']
+    assert result['records'][0]['display_title'] == 'New task'
+    assert result['records'][1]['cwd'] == '/workspace/project/src'
 
 
 def test_sanitize_uses_container_canonical_workspace_path():
