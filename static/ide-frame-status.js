@@ -36,7 +36,8 @@
     const box = element.getBoundingClientRect();
     return style.visibility === 'visible' && style.opacity !== '0' && box.width > 0 && box.height > 0;
   }
-  let historyPayload = null, historyState = 'idle', showUnclassified = false, historyTimer = null;
+  let historyPayload = null, historyState = 'idle', showUnclassified = false, historyTimer = null, historyRevision = 0;
+  const observedHistoryPanels = new WeakSet(), historySignatures = new WeakMap();
   function normalizeText(value) { return String(value || '').replace(/\s+/g, ' ').trim(); }
   function codexPanels() {
     const panels = [];
@@ -97,11 +98,25 @@
       toggle.hidden = false; toggle.textContent = showUnclassified ? '仅当前项目' : '显示未归类';
     }
   }
+  function historySignature(rows) {
+    return rows.map(row => [rowThreadId(row), row.getAttribute('aria-label') || rowTitle(row)].join('\u001f')).join('\u001e');
+  }
+  function observeHistoryPanel(panel) {
+    if (observedHistoryPanels.has(panel)) return;
+    const root = panel.body || panel.documentElement;
+    if (!root) return;
+    observedHistoryPanels.add(panel);
+    new MutationObserver(scheduleProjectHistory).observe(root, {childList: true, subtree: true});
+  }
   function applyProjectHistory() {
     if (!historyPayload) return;
     let reported = false;
     for (const panel of codexPanels()) {
       const rows = historyRows(panel);
+      observeHistoryPanel(panel);
+      const signature = `${historyRevision}\u0000${showUnclassified ? 1 : 0}\u0000${historySignature(rows)}`;
+      if (historySignatures.get(panel) === signature) { reported = true; continue; }
+      historySignatures.set(panel, signature);
       const allowedIds = new Set((historyPayload.records || []).map(row => row.thread_id).filter(Boolean));
       const allowedTitles = new Set((historyPayload.records || []).map(row => normalizeText(row.display_title)).filter(Boolean));
       const hasIds = rows.some(row => rowThreadId(row));
@@ -121,12 +136,13 @@
     return reported;
   }
   function scheduleProjectHistory() {
-    clearTimeout(historyTimer); historyTimer = setTimeout(applyProjectHistory, 120);
+    clearTimeout(historyTimer); historyTimer = setTimeout(applyProjectHistory, 180);
   }
   if (embedded) window.addEventListener('message', event => {
     if (event.source !== window.parent || event.origin !== parentOrigin || event.data?.type !== 'ilab-codex-history') return;
     const records = Array.isArray(event.data.records) ? event.data.records.filter(row => row && typeof row.thread_id === 'string' && typeof row.display_title === 'string') : [];
     historyPayload = {workspace: typeof event.data.workspace === 'string' ? event.data.workspace : '', records, error: event.data.error || null};
+    historyRevision += 1;
     scheduleProjectHistory();
   });
   const continuedPanels = new WeakSet();
@@ -169,6 +185,6 @@
       window.parent.postMessage({type: 'ilab-editor-codex', state}, parentOrigin);
     }
   }
-  setInterval(inspectCodex, 2000);
+  setInterval(inspectCodex, 4000);
   document.addEventListener('visibilitychange', inspectCodex);
 })();
