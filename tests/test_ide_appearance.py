@@ -28,13 +28,17 @@ def test_bundle_contains_icons_and_defaults_without_executable_code():
         assert 'extension/LICENSE' in archive.namelist()
 
 
-def test_install_is_idempotent_and_never_rewrites_jsonc_settings(tmp_path, monkeypatch):
+@pytest.mark.parametrize('obsolete', [None, '', '  \n', '{}'])
+def test_install_is_idempotent_and_never_rewrites_jsonc_settings(tmp_path, monkeypatch, obsolete):
     from server.ide_appearance import appearance_bundle, prepare_appearance
     bundle = appearance_bundle()
     user = tmp_path / 'user-data/User/settings.json'
     user.parent.mkdir(parents=True)
     original = '// personal settings\n{"editor.fontSize": 19, "workbench.iconTheme": "seti",}\n'
     user.write_text(original)
+    if obsolete is not None:
+        (tmp_path / 'extensions').mkdir()
+        (tmp_path / 'extensions/.obsolete').write_text(obsolete)
     calls = []
     def install(command, **kwargs):
         calls.append(command)
@@ -114,3 +118,21 @@ async def test_workbench_decodes_gzip_and_preserves_unrelated_pages():
     response = httpx.Response(200, stream=Other())
     untouched = await workbench_response(response, {'content-type': 'text/html'}, 'http://localhost:8766')
     assert untouched.body == b'<html><head></head><body>other app</body></html>'
+
+
+def test_context_menus_add_explorer_files_and_folders_without_duplicating_native_menus():
+    from server.ide_appearance import appearance_bundle
+    bundle = appearance_bundle()
+    with zipfile.ZipFile(io.BytesIO(base64.b64decode(bundle['payload']))) as archive:
+        manifest = json.loads(archive.read('extension/package.json'))
+        assert manifest['version'] == bundle['version']
+        assert f'Version="{bundle["version"]}"' in archive.read('extension.vsixmanifest').decode()
+        menus = manifest['contributes'].get('menus', {})
+        explorer = menus.get('explorer/context', [])
+        assert any(item['command'] == 'chatgpt.addFileToThread'
+                   and 'file' in item['when'] and 'vscode-remote' in item['when']
+                   and 'explorerResourceIsFolder' not in item['when'] for item in explorer)
+        # code-server exposes Codex's native editor/selection and tab menus.
+        # Adding remote-scheme copies produces duplicate actions in the browser.
+        assert 'editor/context' not in menus
+        assert 'editor/title/context' not in menus
