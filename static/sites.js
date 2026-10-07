@@ -12,7 +12,7 @@
   async function siteFetch(path, options = {}) {
     const headers = new Headers(options.headers);
     headers.set("X-Monitor-Site", id);
-    const writing = options.method === "POST" && /\/(create|stop)$/.test(path);
+    const writing = options.method === "POST" && /\/(create|stop|rename)$/.test(path);
     if (writing) { writes += 1; controls().forEach((button) => { button.disabled = true; }); }
     try { return await fetch(path, { ...options, headers }); }
     finally {

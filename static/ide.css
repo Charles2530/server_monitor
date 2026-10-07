@@ -105,3 +105,11 @@ body:has(#ide-picker[hidden]) #ide-status[data-state=loading]::before { width: 1
   body:has(#ide-frame:not([hidden])) #ide-retry { min-height: 26px; padding: 3px 8px; font-size: 12px; }
   body:has(#ide-frame:not([hidden])) #ide-frame { border: 0; border-radius: 0; box-shadow: none; }
 }
+
+/* Preparation state is independent from transport heartbeats. */
+.ide-setup-status { margin: 3px 0; font-size: 11px; line-height: 1.6; color: var(--muted, #627b6e); overflow-wrap: anywhere; }
+.ide-setup-status[data-attention="true"] { color: var(--ink, #456451); }
+body.ide-focused:has(#ide-frame:not([hidden])) .ide-header > :not(#ide-focus) { display: none; }
+body.ide-focused:has(#ide-frame:not([hidden])) .ide-header { justify-content: flex-end; padding: 2px 8px; }
+body.ide-focused:has(#ide-frame:not([hidden])) #ide-focus { min-height: 24px; padding: 2px 8px; font-size: 11px; }
+body.ide-focused .ide-setup:has(#ide-status[data-state="ready"]):not(:has(#ide-setup-status[data-attention="true"])) { display: none; }

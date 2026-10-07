@@ -11,6 +11,7 @@
   const restored = window.MonitorTaskContext?.read() || {};
   const model = { snapshot: null, kind: restored.kind || "all", search: restored.search || "", selected: restored.taskId || restored.selected || null, hours: restored.hours || 1, unavailable: false, fetching: false, historyRequest: 0, chart: null };
   let taskCards = new Map(), taskEmptySignature = null, pollTimer = null;
+  const verifiedNames = new Map();
   const numberFormat = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 });
   const timeFormat = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
   const chartClock = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -494,6 +495,20 @@
     try {
       const snapshot = await request("/api/state");
       if (!snapshot || typeof snapshot.status !== "string" || !Array.isArray(snapshot.tasks) || !Array.isArray(snapshot.clusters)) throw new Error("监控快照格式无效");
+      // A collection started before the rename may still contain the old display name.
+      for (const [id, renamed] of verifiedNames) {
+        const kind = id.split(":")[0];
+        for (const [key, sourceKey] of [["tasks", kind], ["waiting_tasks", `${kind}_queue`]]) {
+          if (!renamed.pendingSources.has(key)) continue;
+          const source = snapshot.source_status?.[sourceKey];
+          const fresh = source?.status === "ok" && Date.parse(source.updated_at) > Date.parse(renamed.verified_at);
+          if (fresh) renamed.pendingSources.delete(key);
+          else {
+            for (const task of snapshot[key] || []) if (task.id === id) task.name = renamed.name;
+          }
+        }
+        if (!renamed.pendingSources.size) verifiedNames.delete(id);
+      }
       const changed = snapshot.updated_at !== model.snapshot?.updated_at;
       const taskDataChanged = JSON.stringify(snapshot.tasks) !== JSON.stringify(model.snapshot?.tasks) || snapshot.status !== model.snapshot?.status || snapshot.connected !== model.snapshot?.connected
         || ["CCI", "ACP"].some(kind => snapshot.source_status?.[kind]?.status !== model.snapshot?.source_status?.[kind]?.status);
@@ -546,6 +561,22 @@
     if (location.hash !== "#tokenhub") action("refresh-button", "/api/refresh", "已请求刷新。采集完成后，页面会自动更新。");
   });
   byId("connect-button").addEventListener("click", () => action("connect-button", "/api/connect", "自动登录已开始，连接状态将自动更新。"));
+  document.addEventListener("monitor-task-renamed", event => {
+    const renamed = event.detail;
+    if (!renamed || renamed.site !== (window.MonitorSite?.id || "maoshanwang") || typeof renamed.name !== "string"
+        || !Number.isFinite(Date.parse(renamed.verified_at))) return;
+    verifiedNames.set(renamed.task_id, { ...renamed, pendingSources: new Set(["tasks", "waiting_tasks"]) });
+    if (!model.snapshot) return;
+    for (const key of ["tasks", "waiting_tasks"]) {
+      model.snapshot[key] = (model.snapshot[key] || []).map(task => task.id === renamed.task_id ? { ...task, name: renamed.name } : task);
+    }
+    // Keep the selected task and its curves together if its old name was the search match.
+    if (model.selected === renamed.task_id && model.search && !visibleTasks().some(task => task.id === model.selected)) {
+      model.search = ""; byId("task-search").value = "";
+    }
+    renderTasks(); renderDetail();
+    document.dispatchEvent(new CustomEvent("monitor-snapshot", { detail: { snapshot: model.snapshot, unavailable: model.unavailable } }));
+  });
   document.addEventListener("monitor-refresh", () => poll());
   document.addEventListener("appearance-change", () => {
     if (model.chartSeries && model.chartTaskId === model.selected) renderChart(model.chartSeries);

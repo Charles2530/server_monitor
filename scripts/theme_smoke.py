@@ -233,6 +233,17 @@ async def main():
                 if width == 390:
                     await page.screenshot(path=str(screenshots / 'mobile-dark.png'), full_page=True, animations='disabled')
                 await page.get_by_role('button', name='浅色模式', exact=True).click()
+            # Whole-site layout sweep: the shared presentation must not break a less-used route.
+            for width in (1440, 1024, 768, 390, 320):
+                await page.set_viewport_size({'width': width, 'height': 900})
+                for theme in ('dark', 'light'):
+                    await page.locator('#theme-toggle').click()
+                    await expect(page.locator('html')).to_have_attribute('data-theme', theme)
+                    for name in ('overview', 'tasks', 'acp', 'waiting', 'storage', 'history', 'tokenhub'):
+                        await page.locator(f'.nav-item[href="#{name}"]').click()
+                        assert await page.evaluate('document.documentElement.scrollWidth <= innerWidth'), (width, theme, name)
+                        if width in (1440, 390):
+                            await page.screenshot(path=str(screenshots / f'{name}-{theme}-{width}.png'), full_page=True, animations='disabled')
             await page.add_init_script("Object.defineProperty(window, 'localStorage', {get() {throw new Error('blocked');}})")
             await page.reload(wait_until='networkidle')
             await page.get_by_role('button', name='深色模式', exact=True).click()

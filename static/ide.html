@@ -5,13 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light">
     <meta name="theme-color" content="#f1f5f3">
+    <script src="/static/appearance.js"></script>
     <title>CCI VS Code · iLab Server Monitor</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/static/ide.css">
     <script src="/static/sites.js" defer></script>
     <script src="/static/task-context.js" defer></script>
+    <script src="/static/connection-log.js" defer></script>
     <script src="/static/ide.js" defer></script>
     <link rel="stylesheet" href="/static/typography.css">
+    <link rel="stylesheet" href="/static/visual-tokens.css">
+    <link rel="stylesheet" href="/static/session-appearance.css">
+    <link rel="stylesheet" href="/static/connection-log.css">
   </head>
   <body>
     <header class="ide-header">
@@ -19,6 +24,8 @@
       <div class="ide-brand-icon"><svg class="session-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 7-5 5 5 5m10-10 5 5-5 5M14 4l-4 16"/></svg></div>
       <div class="ide-context"><h1>CCI VS Code</h1><p id="ide-task">正在读取任务…</p></div>
       <span class="site-badge" data-site-label></span>
+      <div id="ide-connection-monitor" data-connection-log></div>
+      <button id="ide-focus" class="button" type="button" aria-pressed="false" hidden>专注模式</button>
     </header>
     <div class="ide-setup">
       <div class="session-welcome"><div class="welcome-icon"><svg class="session-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 7-5 5 5 5m10-10 5 5-5 5M14 4l-4 16"/></svg></div><span class="welcome-eyebrow">ILAB WORKSPACE / EDITOR</span><h2>打开远程工作区</h2><p>在浏览器中编辑 CCI 容器内的文件，继续你的开发工作。</p><div class="welcome-tags"><span>VS Code</span><span>CCI 容器</span><span>桌面浏览器</span></div></div>
@@ -30,6 +37,7 @@
         <button id="ide-open" class="button primary" type="submit">打开编辑器</button>
       </form>
     </div>
+    <p id="ide-setup-status" class="ide-setup-status" role="status" aria-live="polite" hidden></p>
     <div id="ide-progress" class="ide-progress" hidden>
       <div class="ide-progress-heading"><span id="ide-progress-stage"></span><span id="ide-progress-value"></span></div>
       <progress id="ide-progress-bar" max="100" aria-label="编辑器准备进度" aria-describedby="ide-progress-detail"></progress>

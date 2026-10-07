@@ -38,7 +38,8 @@ async def test_proxy_ticket_origin_and_secret_boundaries():
         assert (await client.get('/_ilab_open/'+ticket,headers={'host':'attacker.test:23456'})).status_code==403
         response=await client.get('/_ilab_open/'+ticket)
         assert response.status_code==303 and 'HttpOnly' in response.headers['set-cookie']
-        assert (await client.get('/_ilab_open/'+ticket)).status_code==403
+        # Restoring the entry URL is safe only with the already-authorized cookie.
+        assert (await client.get('/_ilab_open/'+ticket)).status_code==303
         response=await client.get('/')
         assert response.text=='editor' and 'set-cookie' not in response.headers
         assert 'x-frame-options' not in response.headers
@@ -47,6 +48,7 @@ async def test_proxy_ticket_origin_and_secret_boundaries():
         assert (await client.post('/',headers={'origin':'http://evil.test'})).status_code==403
         assert (await client.get('/',headers={'origin':'http://127.0.0.1:8766'})).status_code==403
         assert 'SECRET' not in response.text
+        client.cookies.clear()
         ticket=proxy.ticket();proxy.tickets[ticket]=time.monotonic()-100
         assert (await client.get('/_ilab_open/'+ticket)).status_code==403
     await proxy.close()

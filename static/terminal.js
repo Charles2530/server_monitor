@@ -5,7 +5,7 @@
   const consoleBase = site.id === "sensecore" ? "https://console.sensecore.cn/cn-sh-01" : "https://console.ms-sc-01.maoshanwangtech.com";
   let targets = [], loading = false, term, fit, session = null, socket = null, alive = false, sequence = 0, cursor = 0;
   let inputQueue = [], sendingInput = false, inputTimer = null, outputQueue = Promise.resolve(), pending = null, ping = null, polling = null, generation = 0;
-  let recovery = null, probeTimer = null, httpTransport = false;
+  let recovery = null, probeTimer = null, httpTransport = false, networkCheckPending = false;
   const mobile = new TerminalMobile({ getTerm: () => term, isAlive: () => alive, refit: () => scheduleFit() });
   $("terminal-back").href = window.MonitorTaskContext?.returnUrl(taskId, new URL(location.href).searchParams.get("task_view")) || `/?site=${encodeURIComponent(site.id)}#tasks`;
   $("terminal-mobile-back").href = $("terminal-menu-back").href = $("terminal-back").href;
@@ -15,13 +15,22 @@
   $("terminal-container-label").hidden = $("terminal-container").hidden = isACP;
   $("terminal-container-field").hidden = isACP;
 
-  function status(text, state = "loading") { $("terminal-status").textContent = text; $("terminal-status").dataset.state = state; }
+  function status(text, state = "loading", logState = state) { $("terminal-status").textContent = text; $("terminal-status").dataset.state = state; window.MonitorConnectionLog?.update(window.navigator?.onLine === false ? "offline" : logState, text); }
+  function connectionNote(message, state) { window.MonitorConnectionLog?.note(message, state); }
+  function confirmNetwork() {
+    if (networkCheckPending && alive && window.navigator?.onLine !== false) { networkCheckPending = false; window.MonitorConnectionLog?.update("ready", "终端已连接。"); }
+  }
   async function api(path, data, timeout = 30000, signal = null) {
+    const startedAt = Date.now();
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeout);
     const abort = () => controller.abort(); signal?.addEventListener("abort", abort, { once: true });
     try {
       const response = await site.fetch(path, { method: data === undefined ? "GET" : "POST", headers: { "X-Monitor-Request": "1", "Content-Type": "application/json" },
         body: data === undefined ? undefined : JSON.stringify(data), cache: "no-store", signal: controller.signal });
+      const action = path.split("/").at(-1);
+      if (["targets", "open", "status"].includes(action) && (action !== "status" || !response.ok)) {
+        connectionNote(`API ${action} · HTTP ${response.status} · ${Math.min(999999, Math.max(0, Date.now() - startedAt))}ms`, response.ok ? "loading" : "error");
+      }
       const result = await response.json();
       if (!response.ok) { const error = new Error(result.error || "终端请求未完成，请重试。"); error.code = result.code; error.status = response.status; throw error; }
       return result;
@@ -119,6 +128,7 @@
     if (used) await new Promise(resolve => term.write(batch.subarray(0, used), resolve));
     if (gen !== generation) return;
     cursor = data.cursor;
+    if (!data.closed) confirmNetwork();
     if (data.closed) await disconnect(data.error || "终端会话已结束。", gen);
   }
   function enqueue(data, size = null) {
@@ -150,10 +160,11 @@
     finally { if (gen === generation) sendingInput = false; }
   }
   async function useSocket(gen) {
+    connectionNote("正在建立 WebSocket 连接。", recovery ? "reconnecting" : "loading");
     return await new Promise(resolve => {
       const ws = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/api/terminal/socket`);
       let ready = false, settled = false;
-      const finish = ok => { if (settled) return; settled = true; clearTimeout(timer); resolve(ok); };
+      const finish = ok => { if (settled) return; settled = true; clearTimeout(timer); if (gen === generation) connectionNote(ok ? "WebSocket 握手成功。" : "WebSocket 暂不可用，切换兼容连接。", ok ? "ready" : "loading"); resolve(ok); };
       const timer = setTimeout(() => { if (!ready) { ws.close(); finish(false); } }, 1500);
       ws.onopen = () => ws.send(JSON.stringify({ site: site.id, session_id: session, cursor }));
       ws.onmessage = event => {
@@ -167,12 +178,15 @@
           await renderOutput(data, gen);
           if (gen === generation && socket === ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "output-ack", cursor: data.cursor }));
         }).catch(() => disconnect("终端输出读取失败，请重新连接。", gen));
-        else if (data.type === "pong") { clearTimeout(probeTimer); probeTimer = null; }
+        else if (data.type === "pong") { clearTimeout(probeTimer); probeTimer = null; confirmNetwork(); }
         else if (data.type === "ack" && pending?.sequence === data.sequence) pending.resolve();
         else if (data.type === "error") { if (ready) recover(data.error); else { ws.close(); finish(false); } }
       };
       ws.onerror = () => { if (!ready) { ws.close(); finish(false); } };
-      ws.onclose = () => { if (!ready) finish(false); else if (gen === generation && socket === ws) recover("连接暂时中断，正在恢复原 Shell…"); };
+      ws.onclose = event => {
+        if (gen === generation && (!ready || socket === ws)) connectionNote(`WebSocket 已关闭（代码 ${event.code}）。`, "offline");
+        if (!ready) finish(false); else if (gen === generation && socket === ws) recover("连接暂时中断，正在恢复原 Shell…");
+      };
     });
   }
   async function poll(gen) {
@@ -209,8 +223,9 @@
     const gen = generation;
     const uncertain = !!pending || sendingInput;
     pauseTransport();
-    status(message); $("terminal-transport").textContent = "正在重连";
+    status(message, "loading", window.navigator?.onLine === false ? "offline" : "reconnecting"); $("terminal-transport").textContent = "正在重连";
     $("terminal-hint").textContent = uncertain ? "部分输入结果未确认，不会自动重发；恢复后请检查命令状态。" : "保留当前 Shell 与屏幕内容，正在恢复连接。";
+    connectionNote("正在恢复原 Shell 连接。", "reconnecting");
     recovery = (async () => {
       // Finish any queued xterm write before taking the resume cursor.
       await outputQueue;
@@ -229,7 +244,7 @@
             if (gen !== generation || !session) return;
           }
           alive = true; httpTransport = !realtime; mobile.updateControls(); fitScreen(); enqueue("", { cols: term.cols, rows: term.rows });
-          if (!realtime) poll(gen);
+          if (!realtime) { connectionNote("已使用兼容连接。", "ready"); poll(gen); }
           term.options.disableStdin = false;
           $("terminal-led").classList.add("connected");
           $("terminal-transport").textContent = realtime ? "实时连接" : "兼容连接";
@@ -238,6 +253,7 @@
         } catch (error) {
           if (gen !== generation) return;
           if (error.code === "terminal_expired" || [404, 410].includes(error.status)) { await disconnect("原终端已结束或过期，请重新连接。", gen); return; }
+          connectionNote("重连尝试未成功。", "error");
           pauseTransport();
         }
       }
@@ -251,12 +267,12 @@
   }
   async function disconnect(message = "已断开终端。训练任务保持原状态。", gen = generation) {
     if (gen !== generation) return;
-    const old = session; session = null; alive = false; generation++;
+    const old = session; session = null; alive = false; networkCheckPending = false; generation++;
     pauseTransport(); sendingInput = false;
     if (term) term.options.disableStdin = true;
     $("terminal-led").classList.remove("connected"); $("terminal-transport").textContent = "已断开";
     $("terminal-hint").textContent = message; $("terminal-retry").hidden = false;
-    status(message, "idle");
+    status(message, "idle", old ? "offline" : "idle");
     $("terminal-instance").disabled = $("terminal-container").disabled = false;
     if (old) $("terminal-connection").open = true;
     official();
@@ -284,7 +300,7 @@
       fitScreen();
       enqueue("", { cols: term.cols, rows: term.rows });
       $("terminal-transport").textContent = realtime ? "实时连接" : "兼容连接";
-      if (!realtime) poll(gen);
+      if (!realtime) { connectionNote("已使用兼容连接。", "ready"); poll(gen); }
       term.options.disableStdin = false; if (!mobile.compact) term.focus();
       $("terminal-target-name").textContent = target.instance + (target.container ? ` / ${target.container}` : "");
       $("terminal-target-name").title = $("terminal-target-name").textContent;
@@ -312,7 +328,7 @@
       $("terminal-instance").replaceChildren(...[...new Set(targets.map(t => t.instance))].map(option));
       selectInstance(); $("terminal-picker").hidden = false;
       $("terminal-connection").open = targets.length > 1;
-      status(targets.length > 1 ? "请选择要连接的 Worker / 容器。" : "已找到运行容器。", "ready");
+      status(targets.length > 1 ? "请选择要连接的 Worker / 容器。" : "已找到运行容器。", "ready", "idle");
     } catch (error) { status(error.message || "连接失败，请重试。", "error"); }
     finally { loading = false; official(); $("terminal-retry").hidden = false; }
     if (targets.length === 1) await openTerminal();
@@ -320,9 +336,14 @@
   $("terminal-instance").addEventListener("change", selectInstance);
   $("terminal-container").addEventListener("change", official);
   $("terminal-open").addEventListener("click", openTerminal);
-  $("terminal-retry").addEventListener("click", () => session ? recover() : load());
+  $("terminal-retry").addEventListener("click", () => { connectionNote("用户请求重新连接。", "reconnecting"); return session ? recover() : load(); });
   setInterval(() => { if (!alive) probe(); }, 30000);
-  window.addEventListener("online", probe);
+  window.addEventListener("online", () => {
+    connectionNote("网络已恢复，正在检查连接。", "reconnecting");
+    if (session) { networkCheckPending = true; window.MonitorConnectionLog?.update("reconnecting", "网络已恢复，正在检查连接。"); probe(); }
+    else window.MonitorConnectionLog?.update("idle", "等待建立连接。");
+  });
+  window.addEventListener("offline", () => { if (session) window.MonitorConnectionLog?.update("offline", "网络已离线，等待网络恢复。"); });
   window.addEventListener("focus", () => { scheduleFit(); probe(); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { scheduleFit(); probe(); } });
   $("terminal-disconnect").addEventListener("click", () => disconnect());

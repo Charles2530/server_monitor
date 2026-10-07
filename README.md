@@ -284,6 +284,8 @@ ssh -N -L 8766:127.0.0.1:8766 user@your-linux-server
 
 默认使用登录后运行的 LaunchAgent。若需要重启后无需登录就恢复监控与手机入口，使用[系统级无人登录部署](docs/macos-unattended.md)，其中包含独立 Tailscale 进程、回退方式和真实重启验收要求。
 
+已实测 Mac 的参数选择与保留方式见 [Mac 运行参数说明](docs/mac-runtime-profiles-1007-1317.md)，本机 Air 的前后测量与回退见 [Air 调优结果](docs/MacBook-Air-运行调优结果-1007-1317.md)。Mini 与 Air 使用独立参数；其他机器不要直接套用。
+
 ### 安装与更新
 
 此节仅适用于 macOS。Linux 的 `start.sh` 使用可脱离终端运行的后台进程；尚未自动安装 systemd 服务，机器重启后需重新启动。
