@@ -43,6 +43,8 @@ def select_runtime_profile(runtime, profile_file=None):
         selected = json.loads(Path(profile_file).read_text())
         if not _valid_profile(selected):
             raise ValueError('Invalid runtime profile: ' + str(profile_file))
+        if 'hardware' in selected and selected['hardware'] != profile['hardware']:
+            raise ValueError('Runtime profile hardware does not match this machine: ' + str(profile_file))
     elif profile_file is None:
         try:
             previous = json.loads((runtime/'runtime-profile.json').read_text())

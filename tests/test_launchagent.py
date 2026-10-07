@@ -190,3 +190,22 @@ def test_saved_air_profile_survives_redeployment_without_affecting_mini(tmp_path
     assert mini['selection'] == 'auto'
     assert mini['queue_concurrency'] == 6
     assert mini['web_process_type'] == 'Interactive'
+
+
+@pytest.mark.parametrize('change', [
+    {'model':'Mac16,10'}, {'machine':'x86_64'}, {'ncpu':8}, {'memory_gb':24},
+])
+def test_air_override_on_different_hardware_is_rejected_before_deployment(tmp_path, monkeypatch, change):
+    from scripts import deploy_launchagent as deploy
+    hardware = {'model':'Mac16,12','machine':'arm64','ncpu':10,'memory_gb':16}
+    monkeypatch.setattr(deploy, 'require_agent_mode', lambda *a:None)
+    monkeypatch.setattr(deploy, 'RUNTIME', tmp_path)
+    monkeypatch.setattr(deploy.sys, 'platform', 'darwin')
+    monkeypatch.setattr('server.runtime_profile.detect_hardware', lambda:{**hardware, **change})
+    monkeypatch.setattr(deploy.subprocess, 'run', lambda *a, **kw:pytest.fail('must validate before installation'))
+    before = b'keep the current machine configuration'
+    (tmp_path/'runtime-profile.json').write_bytes(before)
+    saved = deploy.SOURCE/'config/runtime-profiles/macbook-air-current.json'
+    with pytest.raises(ValueError, match='hardware'):
+        deploy.main(['--profile-file', str(saved)])
+    assert (tmp_path/'runtime-profile.json').read_bytes() == before

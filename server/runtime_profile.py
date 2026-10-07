@@ -77,16 +77,11 @@ def choose_profile(hardware):
         values = dict(collector_concurrency=6, metric_concurrency=4,
                       queue_concurrency=6, terminal_max_sessions=8,
                       target_cache_seconds=8)
-    # Keep the Mini's measured policy separate from the fanless Air. Other
-    # configurations require their own measurements before changing scheduling.
+    # Preserve the existing Mini policy. Air measurements live only in its
+    # explicitly selected JSON profile, not in shared automatic defaults.
     if hardware.get('model') == 'Mac16,10':
         values.update(state_poll_seconds=30, busy_state_poll_seconds=10, error_state_poll_seconds=15,
                       web_process_type='Interactive')
-    elif (hardware.get('model') == 'Mac16,12' and hardware.get('machine') == 'arm64'
-          and ncpu == 10 and memory_gb == 16):
-        # Standard captured most of the scheduling benefit on AC power; retain
-        # the Air's original queue capacity and 10-second browser polling.
-        values.update(web_process_type='Standard', queue_concurrency=3)
     return {'name': name, **values, 'hardware': {
         'model': str(hardware.get('model') or 'unknown'),
         'machine': str(hardware.get('machine') or 'unknown'),
@@ -115,7 +110,8 @@ def _load_profile():
     try:
         value = json.loads(PROFILE_PATH.read_text())
         if _valid_profile(value):
-            return value
+            if 'hardware' not in value or value['hardware'] == choose_profile(detect_hardware())['hardware']:
+                return value
     except (OSError, ValueError, TypeError):
         pass
     return choose_profile(detect_hardware())

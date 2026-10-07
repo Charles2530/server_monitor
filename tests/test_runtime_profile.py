@@ -31,7 +31,7 @@ def test_only_detected_mini_receives_new_poll_tuning():
         assert other.get('web_process_type', 'Background') == 'Background'
 
 
-def test_measured_m4_air_preserves_queue_capacity_and_uses_standard_scheduling():
+def test_air_auto_detection_does_not_apply_machine_specific_measurements():
     result = profile.choose_profile({
         'model': 'Mac16,12',
         'machine': 'arm64',
@@ -41,11 +41,31 @@ def test_measured_m4_air_preserves_queue_capacity_and_uses_standard_scheduling()
     assert result['name'] == 'm4-balanced'
     assert result['collector_concurrency'] == 6
     assert result['metric_concurrency'] == 4
-    assert result['queue_concurrency'] == 3
+    assert result['queue_concurrency'] == 6
     assert result['terminal_max_sessions'] == 8
     assert result['target_cache_seconds'] == 8
-    assert result['web_process_type'] == 'Standard'
+    assert result.get('web_process_type', 'Background') == 'Background'
     assert result.get('state_poll_seconds', 10) == 10
+
+
+@pytest.mark.parametrize('hardware', [
+    {'model':'Mac16,12','machine':'arm64','ncpu':10,'memory_gb':16},
+    {'model':'Mac16,10','machine':'arm64','ncpu':10,'memory_gb':24},
+    {'model':'Mac16,1','machine':'arm64','ncpu':14,'memory_gb':48},
+])
+def test_saved_air_profile_loads_only_on_matching_hardware(tmp_path, monkeypatch, hardware):
+    saved = json.loads((profile.ROOT/'config/runtime-profiles/macbook-air-current.json').read_text())
+    path = tmp_path/'runtime-profile.json'
+    path.write_text(json.dumps(saved))
+    monkeypatch.setattr(profile, 'PROFILE_PATH', path)
+    monkeypatch.setattr(profile, 'detect_hardware', lambda: hardware)
+    result = profile._load_profile()
+    if hardware == saved['hardware']:
+        assert result == saved
+        assert result['web_process_type'] == 'Standard'
+        assert result['queue_concurrency'] == 3
+    else:
+        assert result == profile.choose_profile(hardware)
 
 
 @pytest.mark.parametrize('change', [
