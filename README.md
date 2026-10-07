@@ -286,6 +286,8 @@ ssh -N -L 8766:127.0.0.1:8766 user@your-linux-server
 
 已实测 Mac 的参数选择与保留方式见 [Mac 运行参数说明](docs/mac-runtime-profiles-1007-1327.md)，本机 Air 的前后测量与回退见 [Air 调优结果](docs/MacBook-Air-运行调优结果-1007-1327.md)。Air 与 Mini 共用同一 `main` 和完整功能，各自保留独立的实测系统配置，不按机型划分功能或性能等级。Air 使用 `./deploy-air.sh`，Mini 使用 `./deploy-mini.sh`；两个入口分别选择对应的 `*-current.json`，后续部署保留所选配置。其他机器不要直接套用参数。见 [Air 独立部署与回退](docs/MacBook-Air-独立适配说明-1007-1531.md) 和 [本机最新部署验收](docs/MacBook-Air-主线重部署与历史优化-1008-0002.md)。
 
+本轮新优化合并、Air/Mini 共用功能与独立配置，以及 Maoshanwang 实机验收见 [主线集成验收](docs/Air-Mini共用主线与Maoshanwang验收-1008-0120.md)。
+
 ### 安装与更新
 
 此节仅适用于 macOS。Linux 的 `start.sh` 使用可脱离终端运行的后台进程；尚未自动安装 systemd 服务，机器重启后需重新启动。
