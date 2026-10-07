@@ -52,3 +52,13 @@ def test_history_script_is_self_contained_and_does_not_print_content():
     assert 'session_meta' in script
     assert 'auth.json' not in script
     assert 'item_json' not in script
+
+
+def test_sanitize_uses_container_canonical_workspace_path():
+    from server.ide_history import sanitize_history_result
+    result = sanitize_history_result({
+        'workspace': '/mnt/project',
+        'records': [{'thread_id': 't1', 'display_title': 'Project', 'updated_at': 1, 'cwd': '/mnt/project/src'}],
+    }, '/workspace')
+    assert result['workspace'] == '/mnt/project'
+    assert [row['thread_id'] for row in result['records']] == ['t1']

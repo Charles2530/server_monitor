@@ -45,7 +45,8 @@ def _sort_key(value: Any) -> tuple[int, str]:
 
 
 def sanitize_history_result(value: Any, workspace: str) -> dict[str, Any]:
-    root = _normal_path(workspace) or workspace
+    reported_root = value.get("workspace") if isinstance(value, dict) else None
+    root = _normal_path(reported_root) or _normal_path(workspace) or workspace
     raw_records = value.get("records") if isinstance(value, dict) else []
     records: list[dict[str, Any]] = []
     if isinstance(raw_records, list):
