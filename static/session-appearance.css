@@ -35,9 +35,19 @@ body:not(:has(#ide-frame:not([hidden]))) .session-status { background: var(--sur
 :root[data-theme] select option:hover { background: var(--surface-hover); }
 :root[data-theme] select option:checked { color: var(--accent); background: var(--accent-soft); }
 body:has(#terminal-workspace:not([hidden])) #terminal-connection summary { color: var(--muted); background: var(--surface); border-color: var(--line); }
-.ide-progress { background: var(--surface-raised); border-color: var(--line); border-radius: 12px; }
-.ide-progress-heading { color: var(--ink); }
-#ide-progress-detail { color: var(--muted); }
+.ide-progress { padding: 18px; background: var(--surface-raised); border-color: var(--line); border-radius: 12px; }
+.ide-progress-heading { align-items: center; gap: 12px; margin-bottom: 14px; color: var(--ink); }
+#ide-progress-value { padding: 3px 8px; border: 1px solid var(--accent-line); border-radius: 6px; background: var(--accent-soft); color: var(--accent); }
+#ide-progress-bar { height: 6px; background: var(--line); accent-color: var(--accent); }
+#ide-progress-bar::-webkit-progress-bar { background: var(--line); }
+#ide-progress-bar::-webkit-progress-value { background: var(--accent); }
+#ide-progress-bar::-moz-progress-bar { background: var(--accent); }
+#ide-progress-bar:indeterminate { background: linear-gradient(90deg, var(--line) 25%, var(--accent) 50%, var(--line) 75%); background-size: 200% 100%; }
+#ide-progress-detail { margin-top: 12px; color: var(--muted); line-height: 1.8; }
+.ide-setup-status { padding: 8px 11px; margin: 8px 0 3px; border-left: 2px solid var(--accent-line); border-radius: 0 7px 7px 0; background: var(--surface-raised); color: var(--muted); }
+.ide-setup-status[data-attention="true"] { border-left-color: var(--warning-ink); color: var(--warning-ink); background: color-mix(in srgb, var(--warning-ink) 7%, var(--surface)); }
+body:not(:has(#ide-frame:not([hidden]))) .ide-setup-status { margin-top: 16px; padding: 12px 14px; font-size: 12px; line-height: 1.8; }
+body:has(#ide-picker[hidden]) #ide-status[data-state="loading"]::before { border-color: var(--accent-line); border-top-color: var(--accent); }
 #ide-frame { border-color: var(--line); }
 /* Explicit theme selectors override state-specific light surfaces. */
 :root[data-theme="dark"] body:not(:has(#terminal-workspace:not([hidden]))) .session-status:has(#terminal-status[data-state="error"]),
