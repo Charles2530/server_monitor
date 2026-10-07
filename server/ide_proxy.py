@@ -1,5 +1,6 @@
 """An isolated localhost origin: editor credentials never reach the browser."""
 import asyncio
+import json
 from html import escape
 from contextlib import AsyncExitStack, nullcontext
 import logging
@@ -13,7 +14,7 @@ from urllib.parse import urlsplit
 import httpx
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 from websockets.asyncio.client import connect
 from .ide_assets import EditorAssetCache
@@ -120,11 +121,36 @@ class EditorProxy:
         if path.startswith('/_ilab_open/'):
             if not self.allowed(request, entry=True) or request.method != 'GET': return PlainTextResponse('Forbidden', 403)
             stamp = self.tickets.pop(path.rsplit('/', 1)[-1], None)
-            if stamp is None or time.monotonic() - stamp >= 60: return PlainTextResponse('入口已过期，请返回重新打开。', 403)
+            entry_headers = {'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer'}
+            if stamp is None or time.monotonic() - stamp >= 60:
+                # Browser history may restore an already-consumed iframe URL.
+                # Existing authentication suffices; never reauthorize from a used ticket.
+                if self.allowed(request):
+                    return RedirectResponse('/', status_code=303, headers=entry_headers)
+                nonce = secrets.token_urlsafe(24)
+                parent = json.dumps(self.parent_origin).replace('<', '\\u003c')
+                message = json.dumps({'type': 'ilab-editor-entry-expired', 'entry': path}).replace('<', '\\u003c')
+                body = ('<!doctype html><html lang="zh-CN"><meta charset="utf-8">'
+                        '<title>编辑器入口已过期</title><p>入口已过期，请点击上方“重新连接”。</p>'
+                        f'<script nonce="{nonce}">window.parent.postMessage('
+                        + message + ',' + parent + ');</script></html>')
+                return HTMLResponse(body, status_code=403, headers={**entry_headers,
+                    'Content-Security-Policy': f"default-src 'none'; script-src 'nonce-{nonce}'; frame-ancestors 'self' {self.parent_origin}",
+                    'X-Content-Type-Options': 'nosniff'})
             key = secrets.token_urlsafe(32)
             self.browser_keys[key] = time.monotonic()
             if len(self.browser_keys) > 32: self.browser_keys.pop(next(iter(self.browser_keys)))
-            response = RedirectResponse('/', status_code=303)
+            if request.query_params.get('reauth') == '1':
+                nonce = secrets.token_urlsafe(24)
+                parent = json.dumps(self.parent_origin).replace('<', '\\u003c')
+                message = json.dumps({'type': 'ilab-editor-authenticated', 'entry': path}).replace('<', '\\u003c')
+                response = HTMLResponse('<!doctype html><meta charset="utf-8">'
+                    f'<script nonce="{nonce}">window.parent.postMessage('
+                    + message + ',' + parent + ');</script>', headers={
+                        'Content-Security-Policy': f"default-src 'none'; script-src 'nonce-{nonce}'; frame-ancestors 'self' {self.parent_origin}",
+                        'X-Content-Type-Options': 'nosniff'})
+            else:
+                response = RedirectResponse('/', status_code=303)
             response.set_cookie(self.cookie_name, key, httponly=True, samesite='strict', path='/')
             response.headers['Cache-Control'] = 'no-store'
             response.headers['Referrer-Policy'] = 'no-referrer'

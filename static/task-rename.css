@@ -1,0 +1,27 @@
+.detail-title-row{display:flex;align-items:center;gap:8px;min-width:0}
+.detail-title-row h2{min-width:0;margin-bottom:0;overflow-wrap:anywhere}
+.task-rename-button{display:inline-flex;align-items:center;justify-content:center;flex:0 0 34px;width:34px;height:34px;padding:7px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;transition:color .15s,background .15s,border-color .15s}
+.task-rename-button svg{width:18px;height:18px}
+.task-rename-button:hover{color:var(--ink);background:var(--surface);border-color:var(--line)}
+.task-rename-button:focus-visible{outline:2px solid var(--accent,#14b8a6);outline-offset:2px}
+.task-rename-button:disabled{opacity:.45;cursor:default}
+.task-rename-dialog{width:520px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);padding:28px;border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--ink);box-shadow:0 24px 80px #0004;overflow:auto}
+.task-rename-dialog::backdrop{background:#0c171d80;backdrop-filter:blur(3px)}
+.task-rename-heading{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+.task-rename-emblem{display:grid;place-items:center;width:46px;height:46px;flex:0 0 46px;border-radius:14px;background:var(--accent-soft);border:1px solid var(--accent-line);color:var(--accent)}
+.task-rename-emblem svg{width:22px;height:22px}
+.task-rename-eyebrow{display:block;margin-bottom:3px;color:var(--muted);font-size:11px;letter-spacing:.05em}
+.task-rename-dialog h2{font-size:22px;margin:0;letter-spacing:-.03em}
+.task-rename-dialog #task-rename-current{padding:12px 14px;margin:18px 0 0;border:1px solid var(--line);border-radius:10px;background:var(--surface-raised);color:var(--ink);line-height:1.75}
+.task-rename-dialog p{font-size:12px;line-height:1.8;color:var(--muted);overflow-wrap:anywhere}
+.task-rename-dialog label{display:block;font-size:13px;font-weight:600;margin:22px 0 8px}
+.task-rename-dialog input{display:block;width:100%;min-width:0;box-sizing:border-box;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg,var(--surface));color:var(--ink);font:inherit;font-size:14px}
+.task-rename-dialog input:focus{outline:2px solid var(--accent,#14b8a6);outline-offset:2px}
+.task-rename-dialog input:disabled{opacity:.7}
+.task-rename-dialog .task-rename-hint{margin:9px 0 0}
+.task-rename-dialog .task-rename-message{margin:16px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:8px;color:var(--ink)}
+.task-rename-dialog .dialog-actions{margin-top:24px;padding-top:18px;border-top:1px solid var(--line);gap:10px}
+.task-rename-dialog .dialog-actions .button{min-height:40px;padding-inline:18px}
+.task-rename-status{font-size:12px;line-height:1.6;color:var(--muted);overflow-wrap:anywhere}
+.task-rename-status:empty{display:none}
+@media(max-width:620px){.task-rename-button{flex-basis:40px;width:40px;height:40px}.task-rename-dialog{padding:22px 18px}.task-rename-dialog .dialog-actions{flex-wrap:nowrap}.task-rename-dialog .dialog-actions button{flex:1;min-height:42px}.task-rename-dialog input{font-size:16px}}

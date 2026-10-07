@@ -4,7 +4,7 @@ import functools
 import threading
 from datetime import datetime, timezone
 from http.server import ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 from playwright.async_api import async_playwright, expect
 from browser_support import browser_launch_options
@@ -108,6 +108,11 @@ async def main():
         return page
 
     async def editor_page(route):
+        if parse_qs(urlparse(route.request.url).query).get('reauth') == ['1']:
+            import json
+            message = json.dumps({'type':'ilab-editor-authenticated','entry':urlparse(route.request.url).path})
+            await route.fulfill(content_type='text/html', body=f'<script>parent.postMessage({message},{base!r})</script>')
+            return
         if urlparse(route.request.url).path == '/_ilab_frame_status.js':
             await route.fulfill(content_type='application/javascript', body=(ROOT / 'static/ide-frame-status.js').read_text())
             return
@@ -194,6 +199,8 @@ async def main():
             page = await page_for(ctx)
             await expect(page.locator('#ide-frame')).to_be_visible()
             await expect(page.locator('#ide-status')).to_contain_text('正在加载编辑器')
+            await page.evaluate('window.dispatchEvent(new MessageEvent("message", {origin:"http://attacker.test",source:document.getElementById("ide-frame").contentWindow,data:{type:"ilab-editor-entry-expired"}}))')
+            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'loading')
             await page.evaluate('window.dispatchEvent(new MessageEvent("message", {origin:"http://attacker.test",source:document.getElementById("ide-frame").contentWindow,data:{type:"ilab-editor-ready"}}))')
             await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'loading')
             await page.frame_locator('#ide-frame').locator('main').evaluate('(el)=>el.classList.add("monaco-workbench")')
@@ -202,12 +209,50 @@ async def main():
             assert 0 <= float(await page.locator('#ide-status').get_attribute('data-ready-seconds')) < 10
             await page.close()
 
+            # An expired iframe must stop claiming the connection is loading,
+            # and the retry button must acquire a fresh entry instead of only pinging SSH.
+            site, mode = 'maoshanwang', 'framepending'
+            page = await page_for(ctx)
+            await expect(page.locator('#ide-frame')).to_be_visible()
+            await page.frame_locator('#ide-frame').locator('main').evaluate(f'() => parent.postMessage({{type:"ilab-editor-entry-expired",entry:"/_ilab_open/stale"}}, {base!r})')
+            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'loading')
+            await page.frame_locator('#ide-frame').locator('main').evaluate(f'() => parent.postMessage({{type:"ilab-editor-entry-expired",entry:location.pathname}}, {base!r})')
+            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'error')
+            await expect(page.locator('#ide-status')).to_contain_text('入口已过期')
+            # A lifecycle retry now repairs the expired entry automatically.
+            before = len(opens)
+            mode = 'single'
+            await page.evaluate('window.dispatchEvent(new Event("online"))')
+            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'ready')
+            assert len(opens) == before + 1
+            await page.close()
+
+            # A frame restored by the browser may become ready after its expiry
+            # notification; subsequent recovery must preserve its draft too.
+            mode = 'framepending'
+            page = await page_for(ctx)
+            await expect(page.locator('#ide-frame')).to_be_visible()
+            await page.frame_locator('#ide-frame').locator('main').evaluate(f'() => parent.postMessage({{type:"ilab-editor-entry-expired",entry:location.pathname}}, {base!r})')
+            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'error')
+            await page.frame_locator('#ide-frame').locator('main').evaluate('(el)=>el.classList.add("monaco-workbench")')
+            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'ready')
+            draft = page.frame_locator('#ide-frame').get_by_role('textbox')
+            await draft.fill('draft after restoring an expired frame')
+            before = len(opens)
+            await page.locator('#ide-retry').click()
+            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'ready')
+            await expect(draft).to_have_value('draft after restoring an expired frame')
+            assert len(opens) == before + 1
+            await page.close()
+
             site, mode = 'maoshanwang', 'single'
             page = await page_for(ctx)
             frame = page.locator('#ide-frame')
             await expect(frame).to_be_visible()
             draft = page.frame_locator('#ide-frame').get_by_role('textbox')
             await draft.fill('unsaved editor state')
+            await page.frame_locator('#ide-frame').locator('main').evaluate(f'() => parent.postMessage({{type:"ilab-editor-entry-expired",entry:location.pathname}}, {base!r})')
+            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'ready')
             original_src = await frame.get_attribute('src')
             before = len(opens)
             await page.set_viewport_size({'width': 700, 'height': 900})
@@ -216,23 +261,22 @@ async def main():
             await page.set_viewport_size({'width': 1440, 'height': 1000})
             await page.locator('#ide-retry').click()
             await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'ready')
-            assert any(path.endswith('/recover') for path, _ in calls)
-            assert len(opens) == before
+            assert len(opens) == before + 1
             await expect(frame).to_have_attribute('src', original_src)
             await expect(draft).to_have_value('unsaved editor state')
             mode = 'recovererror'
-            await page.locator('#ide-retry').click()
-            await expect(page.locator('#ide-status')).to_contain_text('模拟连接暂不可用')
+            await page.evaluate('window.dispatchEvent(new Event("online"))')
+            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'ready')
             await expect(frame).to_be_visible()
             await expect(draft).to_have_value('unsaved editor state')
             mode = 'recovernetwork'
-            await page.locator('#ide-retry').click()
-            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'error')
+            await page.evaluate('window.dispatchEvent(new Event("online"))')
+            await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'ready', timeout=10000)
             await expect(draft).to_have_value('unsaved editor state')
             mode = 'recoverpending'
             before_recover = sum(path.endswith('/recover') for path, _ in calls)
-            await page.locator('#ide-retry').click()
-            await expect(page.locator('#ide-status')).to_contain_text('正在恢复')
+            await page.evaluate('window.dispatchEvent(new Event("online"))')
+            await expect(page.locator('#ide-status')).to_contain_text('恢复编辑器连接')
             await page.evaluate('for(let i=0;i<10;i++){window.dispatchEvent(new Event("focus"));window.dispatchEvent(new Event("online"));document.dispatchEvent(new Event("visibilitychange"));}')
             await expect(draft).to_have_value('unsaved editor state')
             assert sum(path.endswith('/recover') for path, _ in calls) == before_recover + 1
@@ -241,7 +285,7 @@ async def main():
             await page.evaluate('window.dispatchEvent(new Event("online"))')
             await expect(page.locator('#ide-status')).to_have_attribute('data-state', 'ready')
             await expect(draft).to_have_value('unsaved editor state')
-            assert len(opens) == before
+            assert len(opens) == before + 3
             await page.close()
 
             site, mode = 'maoshanwang', 'progress'
@@ -300,7 +344,10 @@ async def main():
                 await expect(page.locator('#ide-frame')).to_be_hidden()
                 await page.close()
                 page = await page_for(mobile, '/#tasks')
-                await expect(page.locator('#cci-terminal-selected')).to_have_attribute('href', '/terminal?site=maoshanwang&task_id=CCI%3Ajob')
+                terminal_url = '/terminal?site=maoshanwang&task_id=CCI%3Ajob'
+                if options['viewport']['width'] <= 760:
+                    terminal_url += '&task_view=monitor'
+                await expect(page.locator('#cci-terminal-selected')).to_have_attribute('href', terminal_url)
                 await expect(page.locator('#cci-ide-selected')).to_have_attribute('hidden', '')
                 await expect(page.locator('#cci-ide-selected')).to_be_hidden()
                 await mobile.close()

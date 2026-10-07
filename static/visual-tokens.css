@@ -1,0 +1,39 @@
+/* Shared palette for the monitor and its standalone session pages. */
+:root, :root[data-theme="light"] {
+  --ink: #243348;
+  --muted: #627086;
+  --line: #dfe6ed;
+  --surface: #ffffff;
+  --page: #f3f5f8;
+  --surface-raised: #f7f9fb;
+  --surface-hover: #edf2f6;
+  --accent: #087d70;
+  --accent-strong: #07685d;
+  --accent-soft: #e9f6f1;
+  --accent-line: #bdddd1;
+  --focus: #138775;
+  --warning-ink: #8b5c19;
+  --panel-shadow: 0 2px 3px #23344803, 0 8px 24px #23344804;
+  --dialog-shadow: 0 28px 90px #12203333, 0 4px 18px #12203312;
+  --radius-panel: 16px;
+  --radius-control: 9px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  /* Retain the original forest-green dark theme. */
+  --ink: #dce9e3;
+  --muted: #a0b5aa;
+  --line: #31463d;
+  --surface: #1a2823;
+  --page: #111b19;
+  --surface-raised: #22342c;
+  --surface-hover: #2a4035;
+  --accent: #65d4ae;
+  --accent-strong: #7cddb3;
+  --accent-soft: #1b3b2d;
+  --accent-line: #3b6753;
+  --focus: #65d4ae;
+  --warning-ink: #e8c583;
+  --panel-shadow: 0 2px 12px #00000018;
+  --dialog-shadow: 0 28px 90px #0008, 0 4px 18px #0003;
+}

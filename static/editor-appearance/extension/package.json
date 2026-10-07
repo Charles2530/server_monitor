@@ -2,7 +2,7 @@
   "name": "workspace-appearance",
   "displayName": "iLab Workspace Appearance",
   "description": "Readable code typography and Material file icons for iLab Server Monitor. User settings take precedence.",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "publisher": "ilab",
   "license": "MIT",
   "engines": {
@@ -104,7 +104,31 @@
           "focusBorder": "#6dbb9c"
         }
       },
-      "workbench.colorTheme": "Dark Modern"
+      "workbench.colorTheme": "Dark Modern",
+      "chat.disableAIFeatures": true,
+      "chatgpt.openOnStartup": true,
+      "files.watcherExclude": {
+        "**/.venv/**": true,
+        "**/.venv-*/**": true,
+        "**/venv/**": true,
+        "**/node_modules/**": true,
+        "**/__pycache__/**": true,
+        "**/.pytest_cache/**": true,
+        "**/.ruff_cache/**": true,
+        "**/.mypy_cache/**": true,
+        "**/*.{safetensors,ckpt,pt,pth,onnx}": true
+      },
+      "search.exclude": {
+        "**/.venv/**": true,
+        "**/.venv-*/**": true,
+        "**/venv/**": true,
+        "**/node_modules/**": true,
+        "**/__pycache__/**": true,
+        "**/.pytest_cache/**": true,
+        "**/.ruff_cache/**": true,
+        "**/.mypy_cache/**": true,
+        "**/*.{safetensors,ckpt,pt,pth,onnx}": true
+      }
     }
   }
 }

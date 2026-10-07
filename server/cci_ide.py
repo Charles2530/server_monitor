@@ -272,7 +272,16 @@ class CCIEditor:
             progress = item.get('progress')
             if progress: return {'pending': True, 'message': PROGRESS_MESSAGES[progress['stage']], 'progress': dict(progress)}
             return {'pending': True, 'message': message}
-        return item['task'].result()
+        result = item['task'].result()
+        if item['action'] == 'open' and isinstance(result.get('result'), dict) and 'port' in result['result']:
+            data = item['data']
+            session = self.sessions.get((data['task_id'], data['instance'], data['container'], origin))
+            if not session or session['proxy'].port != result['result']['port']:
+                raise ActionError('编辑器连接已变化，请重新打开。', 'ide_expired', 404)
+            # Preparation can be shared by tabs or completed while a tab sleeps.
+            # Issue the one-use credential when each caller receives its result.
+            return {**result, 'result': {**result['result'], 'ticket': session['proxy'].ticket()}}
+        return result
 
     async def targets(self, task_id):
         if not task_id.startswith('CCI:'): raise ActionError('仅 CCI 支持站内 VS Code。')
@@ -375,7 +384,20 @@ class CCIEditor:
                     raise ActionError('编辑器连接无法自动恢复，请保留未保存内容后重新打开编辑器页面。')
                 await self.connect(session['address'], session['forward'].remote_port, session['password'], origin, notify, session)
             session['proxy'].touched = time.monotonic()
-            return {'site': self.site.id, **data, 'port': session['proxy'].port}
+            return self.details(data, origin)
+
+    def details(self, data, origin):
+        """Read local preparation state; never probe the cloud or start an install."""
+        identity = (data['task_id'], data['instance'], data['container'], origin)
+        session = self.sessions.get(identity)
+        if not session:
+            raise ActionError('编辑器会话已过期，请保留当前内容后重新打开。', 'ide_expired', 404)
+        job = self.optional_jobs.get(identity)
+        codex, appearance = session.get('codex', {}), session.get('appearance', {})
+        return {'site': self.site.id, **data, 'port': session['proxy'].port,
+                'codex': {key: codex[key] for key in ('configured', 'installed') if key in codex},
+                'appearance': {key: appearance[key] for key in ('installed', 'version') if key in appearance},
+                'optional_pending': bool(job and not job.done())}
 
     def prepare_optional(self, identity, session, data):
         codex, appearance = session.get('codex', {}), session.get('appearance', {})

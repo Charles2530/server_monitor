@@ -4,9 +4,58 @@
   const taskId = new URL(location.href).searchParams.get("task_id");
   const mobileMedia = matchMedia("(max-width:760px), (pointer:coarse)");
   let targets = [], generation = 0, controller = null, busy = false;
-  let connection = null, nextCheck = 0, recoveryFailures = 0;
+  let connection = null, nextCheck = 0, recoveryFailures = 0, retryTimer = null, initializationFailed = false;
   const loadingStarted = performance.now();
   const recentKey = `ilab-ide-recent:${site.id}`;
+  let setupBusy = false, setupFailures = 0, setupNextCheck = 0, focusMode = false;
+  try { focusMode = localStorage.getItem('ilab-ide-focus') === '1'; } catch (_) {}
+  function applyFocus() {
+    document.body.classList.toggle('ide-focused', focusMode && !!connection);
+    $("ide-focus").textContent = focusMode ? "退出专注" : "专注模式";
+    $("ide-focus").setAttribute('aria-pressed', String(focusMode));
+  }
+  $("ide-focus").addEventListener('click', () => {
+    focusMode = !focusMode; applyFocus();
+    try { localStorage.setItem('ilab-ide-focus', focusMode ? '1' : '0'); } catch (_) {}
+  });
+  function setupStatus(result) {
+    if (!connection) return;
+    if (result) {
+      connection.setup = { ...connection.setup, ...result };
+      setupFailures = 0;
+    }
+    const setup = connection.setup || {}, parts = [];
+    if (setup.optional_pending) parts.push('插件与外观正在后台准备');
+    if (connection.codexPanel === 'ready') parts.push('Codex 面板已加载');
+    else if (connection.codexPanel === 'loading') parts.push('Codex 面板加载中…');
+    else if (setup.codex?.installed) parts.push('Codex 已安装，等待面板打开');
+    else if (setup.codex?.configured === false) parts.push('此容器尚未配置 Codex');
+    else if (setup.codex?.installed === false && !setup.optional_pending) parts.push('Codex 安装未完成，下次打开时重试');
+    if (setup.appearance?.installed === false && !setup.optional_pending) parts.push('外观配置未完成，下次打开时重试');
+    if (setupFailures) parts.push('配置状态暂不可用，稍后重试');
+    $("ide-setup-status").textContent = parts.join(' · ');
+    $("ide-setup-status").hidden = !parts.length;
+    $("ide-setup-status").dataset.attention = String(!!setupFailures || (!setup.optional_pending && (setup.appearance?.installed === false || (setup.codex?.configured && setup.codex.installed === false))));
+  }
+  async function refreshSetup() {
+    const current = connection;
+    if (!current?.setup?.optional_pending || setupBusy || document.hidden || navigator.onLine === false || current.entryExpired || Date.now() < setupNextCheck) return;
+    setupBusy = true;
+    const request = new AbortController(), timeout = setTimeout(() => request.abort(), 10000);
+    try {
+      const response = await site.fetch('/api/cci/ide/details', { method: 'POST', headers: { 'X-Monitor-Request': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({task_id: taskId, instance: current.instance, container: current.container}), cache: 'no-store', signal: request.signal });
+      if (!response.ok) throw new Error('setup status unavailable');
+      const result = await response.json(); identity(result);
+      if (connection !== current) return;
+      if (result.port !== current.port || result.instance !== current.instance || result.container !== current.container) throw new Error('setup identity changed');
+      setupStatus(result);
+    } catch (_) {
+      if (connection === current) { setupFailures += 1; setupStatus(); }
+    } finally {
+      clearTimeout(timeout); setupBusy = false;
+      setupNextCheck = Date.now() + Math.min(60000, 5000 * 2 ** Math.min(setupFailures, 4));
+    }
+  }
   function recentTarget() {
     try {
       const saved = JSON.parse(localStorage.getItem(recentKey));
@@ -18,7 +67,7 @@
   $("ide-back").href = window.MonitorTaskContext?.returnUrl(taskId, new URL(location.href).searchParams.get("task_view")) || `/?site=${encodeURIComponent(site.id)}#tasks`;
   $("ide-task").textContent = taskId || "未指定任务";
 
-  function status(message, state = "loading") { $("ide-status").textContent = message; $("ide-status").dataset.state = state; }
+  function status(message, state = "loading") { $("ide-status").textContent = message; $("ide-status").dataset.state = state; window.MonitorConnectionLog?.update(navigator.onLine === false ? "offline" : state, message); }
   function progress(value) {
     const labels = {download_editor: "下载 VS Code 编辑器", verify_editor: "校验编辑器安装包", extract_editor: "解压编辑器", download_codex: "下载 Codex 插件", verify_codex: "校验 Codex 插件", install_codex: "安装 Codex 插件", start_editor: "启动编辑器"};
     const label = value && labels[value.stage];
@@ -50,12 +99,14 @@
     if (!taskId?.startsWith("CCI:") || taskId.length <= 4) return "VS Code 仅支持运行中的 charles CCI 任务，请返回监控选择任务。";
     return "";
   }
-  function cancel() { progress(null); generation += 1; controller?.abort(); controller = null; busy = false; }
+  function cancel() { clearTimeout(retryTimer); retryTimer = null; progress(null); generation += 1; controller?.abort(); controller = null; busy = false; }
   function resetFrame() { progress(null); $("ide-frame").hidden = true; $("ide-frame").removeAttribute("src"); }
   function controls() { ["ide-instance", "ide-container", "ide-open"].forEach(id => { $(id).disabled = busy; }); }
   function active(gen) { if (gen !== generation) throw new DOMException("Cancelled", "AbortError"); }
-  async function api(path, data, gen) {
+  async function apiOnce(path, data, gen) {
     active(gen);
+    if (navigator.onLine === false) throw new Error('网络已离线，网络恢复后会自动修复连接。');
+    const started = performance.now();
     const request = new AbortController(), outer = controller.signal;
     const abort = () => request.abort();
     outer.addEventListener("abort", abort, { once: true });
@@ -64,19 +115,46 @@
       const response = await site.fetch(`/api/cci/ide/${path}`, { method: "POST", headers: { "X-Monitor-Request": "1", "Content-Type": "application/json" }, body: JSON.stringify(data), cache: "no-store", signal: request.signal });
       const result = await response.json();
       active(gen);
-      if (!response.ok) throw new Error(result.error || "编辑器请求失败，请重试。");
+      if (!response.ok || path === 'open' || path === 'recover') window.MonitorConnectionLog?.note(`API ${path} · HTTP ${response.status} · ${Math.min(999999, Math.round(performance.now() - started))}ms`, response.ok ? 'loading' : 'error');
+      if (!response.ok) throw Object.assign(new Error(result.error || "编辑器请求失败，请重试。"), { code: result.code });
       return result;
     } catch (error) {
       active(gen);
       if (error.name === "AbortError") throw new Error("连接超时，请重试。");
+      if (error instanceof TypeError) window.MonitorConnectionLog?.note('本机监控请求连接失败。', 'error');
+      if (error instanceof TypeError) throw Object.assign(new Error("本机监控服务暂时无法连接，可能正在重启；请稍后点击“重新连接”。"), { code: "ide_network" });
       throw error;
     } finally { clearTimeout(timer); outer.removeEventListener("abort", abort); }
   }
+  async function api(path, data, gen) {
+    for (let attempt = 0; ; attempt += 1) {
+      try { return await apiOnce(path, data, gen); }
+      catch (error) {
+        active(gen);
+        if (error.code !== 'ide_network' || attempt >= 2 || navigator.onLine === false) throw error;
+        const delay = (attempt + 1) * 1000;
+        status(`本机监控连接中断，${delay / 1000} 秒后自动重试（${attempt + 1}/2）…`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        active(gen);
+      }
+    }
+  }
   async function prepare(action, data, gen) {
-    const start = await api(action, data, gen), deadline = Date.now() + 15 * 60 * 1000;
-    if (typeof start.request_id !== "string" || !start.request_id) throw new Error("准备请求无效，请重试。");
+    let start = await api(action, data, gen), restarted = false;
+    const deadline = Date.now() + 15 * 60 * 1000;
     while (Date.now() < deadline) {
-      const result = await api("status", { request_id: start.request_id }, gen);
+      if (typeof start.request_id !== "string" || !start.request_id) throw new Error("准备请求无效，请重试。");
+      let result;
+      try { result = await api("status", { request_id: start.request_id }, gen); }
+      catch (error) {
+        // Monitor restarts lose preparation IDs. Recreate this idempotent
+        // editor preparation once; do not loop on validation/access errors.
+        if (error.code !== 'ide_expired' || restarted) throw error;
+        restarted = true;
+        status("连接准备状态已失效，正在重新建立连接…");
+        start = await api(action, data, gen);
+        continue;
+      }
       if (result.pending === false) {
         progress(null);
         if (result.error) throw new Error(result.error);
@@ -84,7 +162,7 @@
       }
       if (result.pending !== true) throw new Error("准备状态无效，请重试。");
       progress(result.progress);
-      if (typeof result.message === "string" && result.message) status(result.message);
+      if (typeof result.message === "string" && result.message && (action !== "recover" || !connection?.ready)) status(result.message);
       await new Promise(resolve => setTimeout(resolve, 400));
       active(gen);
     }
@@ -98,54 +176,158 @@
   function selected() { return targets.find(t => t.instance === $("ide-instance").value && t.container === $("ide-container").value); }
   function failure(error, gen) {
     if (gen !== generation) return;
-    busy = false; controls(); if (!connection) resetFrame(); status(error.message || "无法打开编辑器，请重试。", "error"); $("ide-retry").hidden = false;
+    busy = false; controls();
+    if (!connection) { resetFrame(); initializationFailed = true; }
+    recoveryFailures += 1;
+    const delay = Math.min(120000, 5000 * 2 ** Math.min(recoveryFailures - 1, 5));
+    nextCheck = Date.now() + delay;
+    status(`${error.message || "连接暂时不可用。"} ${delay / 1000} 秒后自动修复。`, "error");
+    $("ide-retry").hidden = false;
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(() => recover(), delay);
   }
-  async function open(target, gen) {
+  function reauthenticate(destination, gen) {
+    return new Promise((resolve, reject) => {
+      const frame = document.createElement('iframe'), signal = controller.signal;
+      frame.hidden = true; frame.dataset.ideReauth = ''; frame.title = '恢复编辑器连接';
+      function finish(error) {
+        clearTimeout(timer); window.removeEventListener('message', message);
+        signal.removeEventListener('abort', abort); frame.remove();
+        if (error) reject(error); else resolve();
+      }
+      function abort() { finish(new DOMException('Cancelled', 'AbortError')); }
+      function message(event) {
+        if (event.source !== frame.contentWindow || event.origin !== destination.origin || event.data?.entry !== destination.pathname) return;
+        if (event.data.type === 'ilab-editor-authenticated') finish();
+        else if (event.data.type === 'ilab-editor-entry-expired') finish(new Error('认证入口已过期，正在等待重建。'));
+      }
+      const timer = setTimeout(() => finish(new Error('编辑器认证恢复暂未完成。')), 15000);
+      window.addEventListener('message', message); signal.addEventListener('abort', abort, { once: true });
+      active(gen);
+      frame.src = destination.href + '?reauth=1'; document.body.append(frame);
+    });
+  }
+  function workbenchAlive(gen) {
+    return new Promise(resolve => {
+      const frame = $('ide-frame'), origin = connection.origin, signal = controller.signal;
+      const id = `${gen}:${Date.now()}`;
+      function finish(alive) {
+        clearTimeout(timer); window.removeEventListener('message', message);
+        signal.removeEventListener('abort', abort); resolve(alive);
+      }
+      function abort() { finish(false); }
+      function message(event) {
+        if (event.source === frame.contentWindow && event.origin === origin && event.data?.type === 'ilab-editor-alive' && event.data.id === id) finish(event.data.disconnected !== true);
+      }
+      const timer = setTimeout(() => finish(false), 2000);
+      window.addEventListener('message', message); signal.addEventListener('abort', abort, { once: true });
+      window.MonitorConnectionLog?.note('正在确认编辑器页面响应。', 'loading');
+      frame.contentWindow?.postMessage({type: 'ilab-editor-probe', id}, origin);
+    });
+  }
+  const preservedFrames = [];
+  function retainPreviousEditor() {
+    const previous = $('ide-frame'), current = previous.cloneNode(false);
+    preservedFrames.push(previous);
+    previous.id = preservedFrames.length === 1 ? 'ide-preserved-frame' : `ide-preserved-frame-${preservedFrames.length}`;
+    current.removeAttribute('src'); current.id = 'ide-frame'; previous.after(current);
+    previous.style.cssText = 'width:100%;flex:1;min-height:calc(100vh - 180px);border:0';
+    let select = $('ide-preserved-select');
+    if (!select) {
+      select = document.createElement('select'); select.id = 'ide-preserved-select'; select.className = 'button';
+      select.setAttribute('aria-label', '切换保留的编辑内容');
+      select.append(option('当前编辑器'));
+      select.addEventListener('change', () => {
+        $('ide-frame').hidden = select.selectedIndex !== 0;
+        preservedFrames.forEach((frame, index) => { frame.hidden = select.selectedIndex !== index + 1; });
+      });
+      document.querySelector('.ide-header').append(select);
+    }
+    select.append(option(`恢复前 ${preservedFrames.length} · ${new Date().toLocaleTimeString('zh-CN', {hour12:false})}`));
+    select.selectedIndex = 0; preservedFrames.forEach(frame => { frame.hidden = true; });
+  }
+  async function open(target, gen, preserve = false) {
     busy = true; controls(); if (!connection) resetFrame();
-    status("正在检查已有编辑器并建立连接，请稍候…");
+    status(preserve ? "正在重建编辑器连接，请稍候…" : "正在检查已有编辑器并建立连接，请稍候…");
     const result = await prepare("open", { task_id: taskId, instance: target.instance, container: target.container }, gen);
     identity(result);
     if (result.instance !== target.instance || result.container !== target.container || !Number.isInteger(result.port) || result.port < 1024 || result.port > 65535 || !/^[A-Za-z0-9_-]{40,100}$/.test(result.ticket || "") || typeof result.ticket !== "string") throw new Error("编辑器连接信息无效，请重试。");
     const destination = new URL(`${location.protocol}//${location.hostname}:${result.port}/_ilab_open/${result.ticket}`);
     if (destination.origin === location.origin) throw new Error("编辑器必须使用独立端口，请重试。");
     active(gen);
+    if (preserve && connection?.ready && connection.origin === destination.origin) {
+      status('正在恢复编辑器认证和连接；当前编辑内容已保留…');
+      await reauthenticate(destination, gen); active(gen);
+      const alive = await workbenchAlive(gen); active(gen);
+      if (alive) {
+        connection.entryExpired = false; recoveryFailures = 0; initializationFailed = false;
+        nextCheck = Date.now() + 30000;
+        setupStatus(result); busy = false; controls();
+        status('连接已恢复；编辑器页面正常，当前编辑内容已保留。', 'ready');
+        return;
+      }
+    }
+    if (preserve && connection?.ready) {
+      window.MonitorConnectionLog?.note('编辑器页面未响应，正在恢复连接。', 'reconnecting');
+      retainPreviousEditor();
+    }
+    initializationFailed = false;
     $("ide-status").dataset.connectionSeconds = ((performance.now() - loadingStarted) / 1000).toFixed(1);
     if (targets.length === 1 && !target.saved_at) {
       try { localStorage.setItem(recentKey, JSON.stringify({ task_id: taskId, instance: target.instance, container: target.container, saved_at: Date.now() })); } catch (_) {}
     }
     $("ide-task").textContent = `${result.name || taskId} · ${taskId}`;
-    connection = { instance: target.instance, container: target.container, port: result.port, origin: destination.origin, ready: false };
+    connection = { instance: target.instance, container: target.container, port: result.port, origin: destination.origin, entry: destination.pathname, ready: false, loadDeadline: Date.now() + 60000 };
     nextCheck = Date.now() + 30000;
     $("ide-frame").src = destination.href;
     $("ide-frame").hidden = false;
     busy = false; controls();
-    const codexNotice = result.codex?.configured && result.codex.installed === false ? " · Codex 插件尚未准备完成" : "";
-    const appearanceNotice = result.appearance?.installed === false ? " · 外观预设尚未准备完成" : "";
-    connection.notice = result.optional_pending ? " · 插件与外观正在后台准备" : codexNotice + appearanceNotice;
+    setupNextCheck = Date.now() + 5000;
+    setupStatus(result);
+    $("ide-focus").hidden = false; applyFocus();
     status("连接已建立，正在加载编辑器…");
   }
+  async function reconnect() {
+    if (document.hidden) return;
+    if (navigator.onLine === false) { status('网络已离线，网络恢复后会自动修复连接。', 'error'); return; }
+    if (!connection) { await load(); return; }
+    const target = { instance: connection.instance, container: connection.container };
+    cancel(); controller = new AbortController(); const gen = generation;
+    try { await open(target, gen, true); } catch (error) { failure(error, gen); }
+  }
   async function recover(force = false) {
-    if (!connection || busy || document.hidden || (!force && Date.now() < nextCheck)) return;
+    if (busy || document.hidden || $('ide-preserved-select')?.selectedIndex > 0 || (!force && Date.now() < nextCheck)) return;
     if (navigator.onLine === false) {
-      status("网络已离线；已保留编辑器，网络恢复后会重试连接。", "error");
-      return;
+      status("网络已离线；已保留编辑器，网络恢复后会自动修复连接。", "error"); return;
     }
+    if (!connection) { if (initializationFailed) await load(); return; }
+    if (!connection.ready && (connection.entryExpired || Date.now() >= connection.loadDeadline)) { await reconnect(); return; }
     cancel(); controller = new AbortController(); const gen = generation;
     busy = true; controls(); nextCheck = Date.now() + 30000;
     if (force) status("正在检查并恢复编辑器连接；已保留当前编辑内容…");
+    let rebuilding = false;
+    window.MonitorConnectionLog?.update('checking', '正在探测后台连接状态。');
     try {
       const result = await prepare("recover", { task_id: taskId, instance: connection.instance, container: connection.container }, gen);
       identity(result);
       if (result.instance !== connection.instance || result.container !== connection.container || result.port !== connection.port) throw new Error("编辑器连接已变化；请保留未保存内容后重新打开页面。");
       active(gen);
+      if (connection.ready) {
+        const alive = await workbenchAlive(gen); active(gen);
+        if (!alive) { rebuilding = true; await open({instance: connection.instance, container: connection.container}, gen, true); return; }
+      }
+      setupStatus(result);
       recoveryFailures = 0;
       busy = false; controls();
       status(connection.ready ? `${connection.instance} / ${connection.container} · 连接可用` : "连接可用，正在加载编辑器…", connection.ready ? "ready" : "loading");
     } catch (error) {
       if (gen !== generation) return;
-      recoveryFailures += 1;
-      nextCheck = Date.now() + Math.min(120000, 30000 * 2 ** Math.min(recoveryFailures, 2));
-      failure(error, gen);
+      if (rebuilding) { failure(error, gen); return; }
+      // A health probe cannot recreate a session lost with the monitor process.
+      // Escalate to the same verified full preparation used by explicit reconnect.
+      status('检测到连接异常，正在自动重建编辑器连接…');
+      try { await open({ instance: connection.instance, container: connection.container }, gen, true); }
+      catch (repairError) { failure(repairError, gen); }
     }
   }
   async function load() {
@@ -187,23 +369,42 @@
     cancel(); controller = new AbortController(); const gen = generation;
     try { await open(target, gen); } catch (error) { failure(error, gen); }
   });
-  $("ide-retry").addEventListener("click", () => connection ? recover(true) : load());
+  $("ide-retry").addEventListener("click", () => { window.MonitorConnectionLog?.note('用户请求重新连接。', 'reconnecting'); reconnect(); });
   window.addEventListener("message", event => {
-    if (!connection || event.source !== $("ide-frame").contentWindow || event.origin !== connection.origin || event.data?.type !== "ilab-editor-ready") return;
+    if (!connection || event.source !== $("ide-frame").contentWindow || event.origin !== connection.origin) return;
+    if (event.data?.type === 'ilab-editor-codex' && ['loading', 'ready', 'hidden'].includes(event.data.state)) {
+      connection.codexPanel = event.data.state; setupStatus(); return;
+    }
+    if (event.data?.type === "ilab-editor-entry-expired") {
+      // Only the failed entry document may be replaced. A ready workbench may
+      // contain unsaved edits and must keep its existing iframe during recovery.
+      if (connection.ready || event.data.entry !== connection.entry) return;
+      cancel(); connection.entryExpired = true; controls();
+      failure(new Error('编辑器入口已过期，正在自动重新打开。'), generation);
+      return;
+    }
+    if (event.data?.type !== "ilab-editor-ready") return;
     if (connection.ready) return;
-    connection.ready = true;
+    connection.entryExpired = false;
+    connection.ready = true; recoveryFailures = 0; clearTimeout(retryTimer); retryTimer = null;
     const seconds = ((performance.now() - loadingStarted) / 1000).toFixed(1);
     $("ide-status").dataset.readySeconds = seconds;
-    status(`${connection.instance} / ${connection.container} · 编辑器已就绪 · ${seconds} 秒${connection.notice || ""}`, "ready");
+    status(`${connection.instance} / ${connection.container} · 编辑器已就绪 · ${seconds} 秒`, "ready");
   });
   // A desktop window crossing the layout breakpoint must not unload the editor.
   mobileMedia.addEventListener("change", () => { if (!connection) load(); });
   window.addEventListener("focus", () => recover());
   window.addEventListener("online", () => recover(true));
-  window.addEventListener("offline", () => { if (connection) status("网络已离线；已保留编辑器，网络恢复后会重试连接。", "error"); });
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) recover(); });
+  window.addEventListener("offline", () => {
+    if (!connection && busy) initializationFailed = true;
+    cancel(); controls();
+    if (connection && !connection.ready) connection.loadDeadline = 0;
+    status("网络已离线；已保留编辑器，网络恢复后会自动修复连接。", "error");
+  });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { recover(); refreshSetup(); } });
   window.addEventListener("pageshow", () => recover());
   setInterval(() => recover(), 30000);
+  setInterval(refreshSetup, 5000);
   window.addEventListener("pagehide", cancel);
   load();
 })();

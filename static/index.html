@@ -28,6 +28,8 @@
     <script src="/static/acp.js" defer></script>
     <script src="/static/logs.js" defer></script>
     <script src="/static/task-config.js" defer></script>
+    <script src="/static/task-rename.js" defer></script>
+    <link rel="stylesheet" href="/static/task-rename.css">
     <link rel="stylesheet" href="/static/task-config.css">
     <script src="/static/storage.js" defer></script>
     <script src="/static/task-history.js" defer></script>
@@ -40,6 +42,8 @@
     <link rel="stylesheet" href="/static/tokenhub.css">
     <script src="/static/tokenhub.js" defer></script>
     <link rel="stylesheet" href="/static/appearance.css">
+  <link rel="stylesheet" href="/static/visual-tokens.css">
+  <link rel="stylesheet" href="/static/visual-refresh.css">
     <link rel="stylesheet" href="/static/mobile-task-workspace.css">
   </head>
   <body>
@@ -186,7 +190,7 @@
         <div id="task-list" class="task-grid" aria-label="任务列表"><div class="empty-state"><span class="empty-icon" aria-hidden="true">◌</span><h3>正在加载任务</h3><p>正在读取本地采集器的最新快照。</p></div></div>
       </section>
       <section class="detail-panel" id="detail-panel" aria-labelledby="detail-title" hidden>
-        <div class="detail-heading"><div><div class="eyebrow">任务资源监控</div><h2 id="detail-title">任务历史</h2><p id="detail-meta"></p></div><div class="detail-heading-actions"><div class="task-detail-links"><button id="task-config-open" class="button button-secondary" type="button" hidden>查看配置</button><a id="task-console-link" class="button button-secondary" target="_blank" rel="noopener noreferrer" hidden>跳转至该任务 <span aria-hidden="true">↗</span></a></div><div id="history-ranges" class="filter-group" role="group" aria-label="历史时间范围"><button class="range-button selected" type="button" data-hours="1" aria-pressed="true">1 小时</button><button class="range-button" type="button" data-hours="24" aria-pressed="false">24 小时</button><button class="range-button" type="button" data-hours="168" aria-pressed="false">7 天</button></div></div></div>
+        <div class="detail-heading"><div><div class="eyebrow">任务资源监控</div><div class="detail-title-row"><h2 id="detail-title">任务历史</h2><button id="task-rename-open" class="task-rename-button" type="button" aria-label="重命名任务" title="重命名任务" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15l-1 6Z"/></svg></button></div><p id="detail-meta"></p><p id="task-rename-status" class="task-rename-status" role="status" aria-live="polite"></p></div><div class="detail-heading-actions"><div class="task-detail-links"><button id="task-config-open" class="button button-secondary" type="button" hidden>查看配置</button><a id="task-console-link" class="button button-secondary" target="_blank" rel="noopener noreferrer" hidden>跳转至该任务 <span aria-hidden="true">↗</span></a></div><div id="history-ranges" class="filter-group" role="group" aria-label="历史时间范围"><button class="range-button selected" type="button" data-hours="1" aria-pressed="true">1 小时</button><button class="range-button" type="button" data-hours="24" aria-pressed="false">24 小时</button><button class="range-button" type="button" data-hours="168" aria-pressed="false">7 天</button></div></div></div>
         <div class="detail-tabs" role="tablist" aria-label="任务详情"><button id="detail-tab-monitor" type="button" role="tab" aria-selected="true" aria-controls="detail-monitor">资源监控</button><button id="detail-tab-logs" type="button" role="tab" aria-selected="false" aria-controls="detail-logs" tabindex="-1">任务日志</button></div>
         <div id="detail-monitor" role="tabpanel" aria-labelledby="detail-tab-monitor"><div class="chart-wrap"><div id="history-chart" role="img" aria-label="所选任务的资源使用率历史曲线"></div><div class="chart-message" id="chart-message" role="status" hidden></div></div></div>
         <div id="detail-logs" role="tabpanel" aria-labelledby="detail-tab-logs" hidden>
@@ -242,6 +246,18 @@
       </section>
       <footer class="page-footer"><span>iLab Server Monitor<span class="footer-divider">/</span>运行监控：charles · 等待队列：所有用户</span><span>本地历史保留 7 天 · 60 秒采样</span></footer>
     </main>
+    <dialog id="task-rename-dialog" class="task-rename-dialog" aria-labelledby="task-rename-title" aria-describedby="task-rename-description">
+      <form id="task-rename-form" novalidate>
+        <div class="task-rename-heading"><span class="task-rename-emblem" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15l-1 6Z"/></svg></span><div><span class="task-rename-eyebrow">任务设置</span><h2 id="task-rename-title">重命名任务</h2></div></div>
+        <p id="task-rename-description">修改将同步到云平台，任务 ID、运行状态和历史曲线保持不变。</p>
+        <p id="task-rename-current"></p>
+        <label for="task-rename-name">新任务名称</label>
+        <input id="task-rename-name" type="text" maxlength="256" required autocomplete="off" spellcheck="false" aria-describedby="task-rename-hint">
+        <p id="task-rename-hint" class="task-rename-hint">保留 charles，最多 256 字符。支持中英文、数字、下划线、连字符、点和冒号。</p>
+        <p id="task-rename-message" class="task-rename-message" role="status" aria-live="polite" hidden></p>
+        <div class="dialog-actions"><button id="task-rename-cancel" class="button button-secondary" type="button">取消</button><button id="task-rename-save" class="button button-primary" type="submit">保存名称</button></div>
+      </form>
+    </dialog>
     <dialog id="acp-restart-dialog" class="acp-dialog" aria-labelledby="acp-restart-title">
       <h2 id="acp-restart-title">重新启动 ACP 任务</h2>
       <p id="acp-restart-description" class="acp-helper">沿用原任务名称、集群、资源、镜像和 AFS 配置，提交一个新任务，原历史记录保留。可在下方修改启动命令。</p>

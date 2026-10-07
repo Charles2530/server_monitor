@@ -14,6 +14,7 @@ from .collector import Collector
 from .auth import connect_browser, AuthRequired
 from .acp_actions import ACPManager, ActionError
 from .task_logs import TaskLogs
+from .task_rename import TaskRenamer
 from .cci_terminal import CCITerminal
 from .acp_terminal import ACPTerminal
 from .terminal_bridge import TerminalBridge
@@ -50,6 +51,7 @@ class SiteRuntime:
     terminal_bridge: object = None
     ide: object = None
     utilization_queue: object = None
+    renamer: object = None
 
 
 def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=None, tokenhub=None):
@@ -65,6 +67,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
                 instance=Monitor(store,Collector(site),renew=partial(connect_browser,site=site))
                 runtimes[site.id]=SiteRuntime(instance,ACPManager(store,site=site),TaskLogs(site=site),site)
     for runtime in runtimes.values():
+        if runtime.renamer is None:runtime.renamer=TaskRenamer(runtime.monitor.store,site=runtime.site)
         if runtime.terminal is None:runtime.terminal=CCITerminal(runtime.site)
         if runtime.acp_terminal is None:runtime.acp_terminal=ACPTerminal(runtime.site)
         if runtime.terminal_bridge is None:runtime.terminal_bridge=TerminalBridge(runtime.site,runtime.terminal,runtime.acp_terminal)
@@ -221,6 +224,18 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     async def task_logs(task_id: str=Query(max_length=100),worker: str=Query(min_length=1,max_length=253),
                         container: str=Query(min_length=1,max_length=253),tail: int=Query(default=1000,ge=1,le=1000),runtime=Depends(current_site)):
         return await read_only(lambda:runtime.logs.read(task_id,worker,container,tail), LOG_TIMEOUT_SECONDS)
+
+    @app.post('/api/tasks/rename')
+    async def task_rename(request:Request,runtime=Depends(current_site)):
+        async def run():
+            data=await action_body(request,('task_id','expected_name','display_name','request_id'),optional=('check_only',))
+            try:
+                result=await asyncio.wait_for(runtime.renamer.rename(**data),75)
+            except asyncio.TimeoutError:
+                raise ActionError('改名结果尚未确认，请核对结果；不会自动重复提交。','outcome_unknown',504) from None
+            runtime.monitor.request_refresh()
+            return result
+        return await perform(run)
 
     @app.get('/api/acp/task-config')
     async def acp_task_config(task_id: str=Query(max_length=100),runtime=Depends(current_site)):

@@ -656,3 +656,46 @@ for (const [status, message] of [["reconnecting", "正在重连，完成后会�
     assert.equal(b.nodes.get("refresh-button").disabled, false);
   });
 }
+
+test("verified rename preserves selected task and curves when its old name matched search", () => {
+  const { b, app } = runningPage(2, "tasks");
+  app.model.snapshot.tasks.forEach((task, i) => { task.name = `charles_old_${i}`; });
+  app.model.search = "old"; app.renderTasks(); app.renderDetail();
+  const id = app.model.selected;
+  app.model.chartTaskId = id;
+  const reads = b.requests.length;
+  b.emit("monitor-task-renamed", { site: "maoshanwang", task_id: id, name: "charles_new", verified_at: "2026-10-06T00:01:00Z" });
+  assert.equal(app.model.selected, id);
+  assert.equal(app.model.chartTaskId, id);
+  assert.equal(b.nodes.get("detail-title").textContent, "charles_new");
+  assert.equal(app.model.search, "");
+  assert.equal(b.requests.length, reads, "rename must not reload chart data");
+});
+
+test("verified names survive stale source snapshots and yield to fresh authoritative names", async () => {
+  const b = browser({ route: "tasks" }), app = b.load("app.js", "model");
+  const data = runningData(2), states = () => b.requests.filter(r => r.url === "/api/state");
+  states()[0].respond(clone(data)); await settle();
+  b.emit("monitor-task-renamed", { site: "maoshanwang", task_id: "ACP:running-0", name: "charles_new", verified_at: "2026-10-06T00:01:00Z" });
+  b.tick(10000);
+  const failed = clone(data);
+  failed.updated_at = "2026-10-06T00:02:00Z";
+  failed.source_status.ACP = {status:"error",updated_at:data.updated_at};
+  states().at(-1).respond(failed); await settle();
+  assert.equal(b.nodes.get("detail-title").textContent, "charles_new");
+  b.tick(10000);
+  const fresh = clone(data);
+  fresh.updated_at = "2026-10-06T00:03:00Z";
+  fresh.source_status.ACP = {status:"ok",updated_at:fresh.updated_at};
+  fresh.tasks[0].name = "charles_changed_in_console";
+  states().at(-1).respond(fresh); await settle();
+  assert.equal(b.nodes.get("detail-title").textContent, "charles_changed_in_console");
+  b.tick(10000);
+  const failedAgain = clone(fresh);
+  failedAgain.updated_at = "2026-10-06T00:04:00Z";
+  failedAgain.source_status.ACP.status = "error";
+  states().at(-1).respond(failedAgain); await settle();
+  assert.equal(b.nodes.get("detail-title").textContent, "charles_changed_in_console", "a retired task-source override must not revive while queue remains stale");
+  b.emit("monitor-task-renamed", {site:"sensecore",task_id:"ACP:running-0",name:"wrong_site",verified_at:fresh.updated_at});
+  assert.equal(b.nodes.get("detail-title").textContent, "charles_changed_in_console");
+});

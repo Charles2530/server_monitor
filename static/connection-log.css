@@ -1,0 +1,38 @@
+/* Shared session diagnostics use the existing light / forest-green palette. */
+.connection-monitor { display: flex; align-items: center; flex-shrink: 0; gap: 7px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.connection-log-button, #connection-log-close { min-height: 32px; padding: 5px 9px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
+.connection-log-button:hover, #connection-log-close:hover { background: var(--surface-hover); border-color: var(--accent-line); }
+.connection-current-state::before { display: inline-block; content: ''; width: 6px; height: 6px; margin: 0 5px 1px 0; border-radius: 50%; background: currentColor; }
+.connection-monitor[data-state='ready'] .connection-current-state, #connection-log-dialog[data-state='ready'] #connection-log-state { color: var(--accent); }
+.connection-monitor:is([data-state='error'], [data-state='offline'], [data-state='reconnecting']) .connection-current-state { color: var(--warning-ink); }
+.connection-updated { font-variant-numeric: tabular-nums; }
+#connection-log-dialog { width: min(680px, calc(100vw - 24px)); max-height: min(620px, calc(100dvh - 32px)); padding: 20px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); color: var(--ink); box-shadow: var(--dialog-shadow); overflow: hidden; }
+#connection-log-dialog[open] { display: flex; flex-direction: column; gap: 12px; }
+#connection-log-dialog::backdrop { background: #07181066; }
+.connection-log-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#connection-log-title { margin: 0; font-size: 17px; }
+.connection-log-overview { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin: 0; font-size: 12px; color: var(--muted); }
+.connection-log-privacy { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
+#connection-log-list { min-height: 80px; margin: 0; padding: 0; list-style: none; overflow: auto; overscroll-behavior: contain; border-top: 1px solid var(--line); }
+#connection-log-list li { display: grid; grid-template-columns: 64px 52px minmax(0, 1fr); gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+#connection-log-list time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.connection-event-state { color: var(--muted); }
+#connection-log-list [data-state='ready'] .connection-event-state { color: var(--accent); }
+#connection-log-list :is([data-state='error'], [data-state='offline'], [data-state='reconnecting']) .connection-event-state { color: var(--warning-ink); }
+body.ide-focused:has(#ide-frame:not([hidden])) .ide-header > #ide-connection-monitor { display: flex; margin-right: auto; }
+body:has(#terminal-workspace:not([hidden])) .terminal-header > .connection-monitor { display: none; }
+.terminal-toolbar > .connection-monitor { margin-left: auto; }
+@media (max-width: 1050px) { .terminal-toolbar .connection-updated { display: none; } }
+@media (max-width: 760px), (pointer: coarse) {
+  .connection-monitor { gap: 5px; }
+  .connection-updated { display: none; }
+  .connection-log-button { min-height: 36px; }
+  .terminal-toolbar .connection-current-state { font-size: 10px; }
+  .terminal-toolbar .connection-log-button { padding-inline: 6px; font-size: 11px; }
+  .terminal-header { flex-wrap: wrap; }
+  #connection-log-dialog { padding: 16px; }
+  #connection-log-list li { grid-template-columns: 58px 45px minmax(0, 1fr); gap: 5px; }
+}
+body.terminal-space-saving .terminal-toolbar .connection-log-button { font-size: 10px; padding-inline: 4px; }
+
+body.ide-focused:has(#ide-frame:not([hidden])) .ide-header > #ide-preserved-select { display: block; max-width: 230px; }

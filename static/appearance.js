@@ -7,7 +7,7 @@
     const dark = theme === "dark";
     root.dataset.theme = dark ? "dark" : "light";
     document.querySelector('meta[name="color-scheme"]').content = root.dataset.theme;
-    document.querySelector('meta[name="theme-color"]').content = dark ? "#111b19" : "#f5f6f8";
+    document.querySelector('meta[name="theme-color"]').content = dark ? "#111b19" : "#f3f5f8";
     const button = document.getElementById("theme-toggle");
     if (button) {
       const label = dark ? "浅色模式" : "深色模式";
@@ -24,7 +24,7 @@
   applyTheme(savedTheme);
   document.addEventListener("DOMContentLoaded", () => {
     applyTheme(root.dataset.theme);
-    document.getElementById("theme-toggle").addEventListener("click", () => {
+    document.getElementById("theme-toggle")?.addEventListener("click", () => {
       applyTheme(root.dataset.theme === "dark" ? "light" : "dark");
       try { localStorage.setItem(storageKey, root.dataset.theme); } catch { /* Keep this session usable. */ }
     });

@@ -1,0 +1,62 @@
+/* The standalone shells share the dashboard palette. Terminal canvas stays dark. */
+:root { background: var(--page); color: var(--ink); }
+body { background: var(--page); color: var(--ink); }
+:is(.terminal-header, .ide-header) { background: var(--surface); border-color: var(--line); box-shadow: var(--panel-shadow); }
+:is(.terminal-context, .ide-context) h1 { color: var(--ink); font-weight: 650; }
+:is(#terminal-task, #ide-task, .official-link, .welcome-eyebrow) { color: var(--muted); }
+.site-badge { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); }
+.button { border-radius: var(--radius-control); border-color: var(--line); color: var(--ink); background: var(--surface); }
+.button:hover { border-color: var(--accent-line); background: var(--surface-hover); }
+.button.primary { color: #fff; background: #087d70; border-color: #087d70; }
+.button.primary:hover { background: #07685d; border-color: #07685d; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.welcome-icon, .ide-brand-icon { color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-line); box-shadow: none; }
+.welcome-icon { border-radius: 16px; width: 56px; height: 56px; }
+.session-welcome h2 { color: var(--ink); font-size: 28px; letter-spacing: -.04em; }
+.session-welcome p { color: var(--muted); line-height: 1.85; }
+.welcome-tags span { color: var(--muted); background: var(--surface-raised); border-color: var(--line); border-radius: 6px; padding: 5px 9px; }
+body:not(:has(#terminal-workspace:not([hidden]))) .terminal-setup,
+body:not(:has(#ide-frame:not([hidden]))) .ide-setup { background: var(--surface); border-color: var(--line); border-radius: 20px; box-shadow: var(--panel-shadow); }
+:is(.connection-bar, .ide-connection, .ide-setup) { border-color: var(--line); }
+body:not(:has(#terminal-workspace:not([hidden]))) .connection-bar,
+body:not(:has(#ide-frame:not([hidden]))) .ide-connection { border-color: var(--line); }
+body:not(:has(#terminal-workspace:not([hidden]))) .session-status,
+body:not(:has(#ide-frame:not([hidden]))) .session-status { background: var(--surface-raised); border-color: var(--line); border-radius: 10px; }
+:is(#terminal-status, #ide-status)[data-state] { color: var(--muted); }
+:is(#terminal-status, #ide-status)[data-state="ready"] { color: var(--accent); }
+.session-status:has([data-state="error"]) :is(#terminal-retry, #ide-retry) { color: var(--ink); background: var(--surface); border-color: var(--line); }
+#terminal-picker { background: var(--surface); border-color: var(--line); border-radius: 12px; box-shadow: var(--panel-shadow); }
+:is(label, #ide-picker label, #terminal-connection summary) { color: var(--muted); }
+:is(select, select.terminal-select) { color: var(--ink); background-color: var(--surface); border-color: var(--line); border-radius: var(--radius-control); }
+:root[data-theme] select:hover:not(:disabled) { color: var(--ink); background-color: var(--surface-hover); border-color: var(--accent-line); }
+:root[data-theme] select:disabled { color: var(--muted); background-color: var(--surface-raised); border-color: var(--line); }
+:root[data-theme] select::picker(select) { color: var(--ink); background: var(--surface); border-color: var(--line); }
+:root[data-theme] select option { color: var(--ink); background: var(--surface); }
+:root[data-theme] select option:hover { background: var(--surface-hover); }
+:root[data-theme] select option:checked { color: var(--accent); background: var(--accent-soft); }
+body:has(#terminal-workspace:not([hidden])) #terminal-connection summary { color: var(--muted); background: var(--surface); border-color: var(--line); }
+.ide-progress { background: var(--surface-raised); border-color: var(--line); border-radius: 12px; }
+.ide-progress-heading { color: var(--ink); }
+#ide-progress-detail { color: var(--muted); }
+#ide-frame { border-color: var(--line); }
+/* Explicit theme selectors override state-specific light surfaces. */
+:root[data-theme="dark"] body:not(:has(#terminal-workspace:not([hidden]))) .session-status:has(#terminal-status[data-state="error"]),
+:root[data-theme="dark"] body:not(:has(#ide-frame:not([hidden]))) .session-status:has(#ide-status[data-state="error"]) { background: #372c25; border-color: #705036; }
+:root[data-theme="dark"] :is(#terminal-status, #ide-status)[data-state="error"] { color: #f2c49a; }
+:root[data-theme="dark"] body:not(:has(#terminal-workspace:not([hidden]))) .session-status:has(#terminal-status:is([data-state="loading"], [data-state="idle"])),
+:root[data-theme="dark"] body:not(:has(#ide-frame:not([hidden]))) .session-status:has(#ide-status:is([data-state="loading"], [data-state="idle"])) { background: var(--surface-raised); border-color: var(--line); }
+@media (min-width: 761px) {
+  body:not(:has(#terminal-workspace:not([hidden]))) .terminal-setup,
+  body:not(:has(#ide-frame:not([hidden]))) .ide-setup { padding: 36px; }
+  body:has(#ide-frame:not([hidden])) :is(.ide-header, .ide-setup) { border-color: var(--line); }
+}
+@media (max-width: 760px) {
+  .session-welcome h2 { font-size: 24px; }
+  body:not(:has(#terminal-workspace:not([hidden]))) .terminal-setup,
+  body:not(:has(#ide-frame:not([hidden]))) .ide-setup { padding: 22px; border-radius: 16px; }
+  :is(.terminal-header, .ide-header) .button { min-height: 44px; }
+  .terminal-header .back-button { min-width: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
