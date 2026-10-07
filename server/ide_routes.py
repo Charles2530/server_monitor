@@ -35,7 +35,7 @@ def register_ide_routes(app, current_site, perform, action_body):
     @app.post('/api/cci/ide/history')
     async def history(request: Request, runtime=Depends(current_site)):
         async def run():
-            data = await action_body(request, ('task_id', 'instance', 'container'))
+            data = await action_body(request, ('task_id', 'instance', 'container'), optional=('workspace',))
             return await runtime.ide.history(data, origin(request))
         return await perform(run)
 

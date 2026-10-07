@@ -256,7 +256,7 @@
   async function refreshHistory(gen, current = connection) {
     if (!current?.workspace || current.entryExpired || document.hidden) return;
     try {
-      const result = await api('history', { task_id: taskId, instance: current.instance, container: current.container }, gen);
+      const result = await api('history', { task_id: taskId, instance: current.instance, container: current.container, workspace: current.workspace }, gen);
       identity(result);
       if (connection !== current || result.workspace !== current.workspace) return;
       current.historyPayload = { workspace: result.workspace, records: Array.isArray(result.records) ? result.records : [], error: null };
@@ -421,6 +421,7 @@
     if (event.data?.type !== "ilab-editor-ready") return;
     if (connection.ready) return;
     connection.entryExpired = false;
+    if (typeof event.data.workspace === 'string' && event.data.workspace.startsWith('/') && event.data.workspace.length <= 4096 && !/[\u0000-\u001f\u007f]/.test(event.data.workspace)) connection.workspace = event.data.workspace;
     connection.ready = true; recoveryFailures = 0; clearTimeout(retryTimer); retryTimer = null;
     sendHistoryToFrame(connection);
     const seconds = ((performance.now() - loadingStarted) / 1000).toFixed(1);

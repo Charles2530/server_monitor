@@ -2,11 +2,17 @@
 (() => {
   const parentOrigin = document.currentScript?.dataset.parentOrigin;
   const embedded = parentOrigin && window.parent !== window;
+  function openedWorkspace() {
+    try {
+      const value = new URL(location.href).searchParams.get('folder');
+      return typeof value === 'string' && value.startsWith('/') && value.length <= 4096 ? value : null;
+    } catch (_) { return null; }
+  }
   function ready() {
     if (!embedded) return true;
     const workbench = document.querySelector(".monaco-workbench");
     if (!workbench || !workbench.getClientRects().length) return false;
-    window.parent.postMessage({ type: "ilab-editor-ready" }, parentOrigin);
+    window.parent.postMessage({ type: "ilab-editor-ready", workspace: openedWorkspace() }, parentOrigin);
     return true;
   }
   const observer = new MutationObserver(() => { if (ready()) observer.disconnect(); });
@@ -46,11 +52,17 @@
     return panels;
   }
   function historyRows(panel) {
-    return [...panel.querySelectorAll('button')].filter(row =>
+    const legacy = [...panel.querySelectorAll('button')].filter(row =>
       [...row.querySelectorAll('button')].some(child => /archive chat/i.test(normalizeText(child.textContent)))
       && !/^archive chat$/i.test(normalizeText(row.textContent)));
+    const current = [...panel.querySelectorAll('[role="button"][aria-label]')].filter(row =>
+      [...row.querySelectorAll('button,[role="button"]')].some(child => /archive chat/i.test(child.getAttribute('aria-label') || child.textContent || ''))
+      && !/^(new chat|view all|recent chats)/i.test(row.getAttribute('aria-label') || ''));
+    return [...new Set([...legacy, ...current])];
   }
   function rowTitle(row) {
+    const label = normalizeText(row.getAttribute('aria-label'));
+    if (label) return label;
     const direct = [...row.childNodes].filter(node => node.nodeType === Node.TEXT_NODE).map(node => normalizeText(node.textContent)).filter(Boolean).join(' ');
     if (direct) return direct;
     return normalizeText(row.innerText).split(' Archive chat ')[0].split('\n')[0];

@@ -19,7 +19,7 @@ from .ide_bootstrap import bootstrap_script
 from .ide_appearance import APPEARANCE_VERSION
 from .ide_proxy import EditorProxy
 from .ide_origins import EditorOriginRegistry
-from .ide_history import history_script, sanitize_history_result
+from .ide_history import _normal_path, history_script, sanitize_history_result
 from .sites import MAOSHANWANG
 from .cci_terminal import VerifiedCCITargets
 
@@ -407,11 +407,11 @@ class CCIEditor:
         session = self.sessions.get(identity)
         if not session:
             raise ActionError('编辑器会话已过期，请重新打开。', 'ide_expired', 404)
-        workspace = session.get('workspace')
+        workspace = _normal_path(data.get('workspace')) or _normal_path(session.get('workspace'))
         if not isinstance(workspace, str) or not workspace.startswith('/'):
             raise ActionError('容器工作区路径暂不可用。', 'history_unavailable', 503)
         cached = session.get('history_cache')
-        if cached and time.monotonic() - cached.get('created', 0) < 15:
+        if cached and cached.get('workspace') == workspace and time.monotonic() - cached.get('created', 0) < 15:
             return dict(cached['result'])
         try:
             raw = await run_python(self.bridge, data, history_script(workspace), timeout=45, cleanup_jobs=self.cleanup_jobs)
@@ -421,7 +421,7 @@ class CCIEditor:
             raise ActionError('容器 Codex 历史暂不可用。', 'history_unavailable', 503)
         result = sanitize_history_result(raw, workspace)
         result = {'site': self.site.id, **data, **result, 'source': 'container'}
-        session['history_cache'] = {'created': time.monotonic(), 'result': result}
+        session['history_cache'] = {'created': time.monotonic(), 'workspace': workspace, 'result': result}
         return dict(result)
 
     def prepare_optional(self, identity, session, data):
