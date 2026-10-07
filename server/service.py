@@ -6,6 +6,7 @@ from .auth import AuthRequired, connect_browser
 from .config import INTERVAL
 from .normalize import iso
 from .store import store_call
+from .runtime_profile import get_runtime_profile
 
 CONNECT_TIMEOUT = 90
 RENEW_TIMEOUT = 90
@@ -19,6 +20,7 @@ class Monitor:
         self.lock = asyncio.Lock()
         self.state = store.latest() or {'tasks':[], 'clusters':[], 'source_status':{},'updated_at':None,'connected':False}
         self.state.setdefault('waiting_tasks',[])
+        self.state['runtime_profile'] = get_runtime_profile()
         self.state.update(status='collecting',error=None,interval_seconds=INTERVAL,last_attempt_at=None,next_run_at=None,connecting=False)
         self.jobs = set()
         self.connecting = None

@@ -1,0 +1,14 @@
+{
+  "collector_concurrency": 6,
+  "hardware": {
+    "machine": "arm64",
+    "memory_gb": 24.0,
+    "model": "Mac16,10",
+    "ncpu": 10
+  },
+  "metric_concurrency": 4,
+  "name": "m4-balanced",
+  "queue_concurrency": 6,
+  "target_cache_seconds": 8,
+  "terminal_max_sessions": 8
+}

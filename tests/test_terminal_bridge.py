@@ -35,6 +35,7 @@ async def test_bridge_uses_verified_target_and_private_cloud_token(site,kind):
         assert socket.sent==[b'\x04{"Width":80,"Height":24}',b'\0echo hi\r']
         await bridge.write(result['session_id'],2,'',{'cols':120,'rows':40},'local')
         assert socket.sent[-1]==b'\x04{"Width":120,"Height":40}'
+        assert bridge.resolvers[kind].targets.await_args.kwargs.get('reuse') is True
         with pytest.raises(ActionError):await bridge.read(result['session_id'],0,'other-device')
     finally:await bridge.close()
 

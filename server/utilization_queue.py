@@ -12,6 +12,7 @@ from .collector import Collector, SourceError
 from .domain import summarize_metrics
 from .normalize import iso, metric_series, task_console_url, task_from_raw
 from .task_history import timestamp
+from .runtime_profile import get_runtime_profile
 
 
 class UtilizationQueue:
@@ -79,7 +80,7 @@ class UtilizationQueue:
     async def collect(self):
         # Python 3.9 binds semaphores at construction; the server loop starts later.
         if self.slots is None:
-            self.slots = asyncio.Semaphore(3)
+            self.slots = asyncio.Semaphore(get_runtime_profile()['queue_concurrency'])
         async with httpx.AsyncClient(headers=self.session_loader()['headers'], timeout=20,
                                      transport=self.transport, follow_redirects=False) as client:
             # All creation dates: do not inherit the console's recent-month filter.

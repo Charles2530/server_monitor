@@ -58,3 +58,10 @@ async def test_multiple_containers_stale_instances_and_empty_targets():
     assert (await manager(cloud).targets('CCI:app-test'))['targets']==[]
     cloud.instances[0]['app_name']='app-test';cloud.instances[0]['name']='../invalid'
     assert (await manager(cloud).targets('CCI:app-test'))['targets']==[]
+
+@pytest.mark.asyncio
+async def test_recent_target_resolution_can_be_reused_for_terminal_open():
+    cloud=Cloud(MAOSHANWANG);m=manager(cloud)
+    first=await m.targets('CCI:app-test')
+    second=await m.targets('CCI:app-test',reuse=True)
+    assert second==first and len(cloud.requests)==2

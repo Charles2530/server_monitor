@@ -402,6 +402,76 @@ test("slow history reads do not hold state polling or duplicate unchanged histor
   assert.equal(b.charts.at(-1).options.at(-1).series[0].data[0][1], 90);
 });
 
+const miniPolling = { state_poll_seconds: 30, busy_state_poll_seconds: 10, error_state_poll_seconds: 15 };
+
+test("mini state polling backs off only while the collector is stable", async () => {
+  const b = browser({ route: "tasks" }); b.load("app.js");
+  const stable = { ...runningData(1), runtime_profile: miniPolling };
+  const states = () => b.requests.filter(r => r.url === "/api/state");
+  states()[0].respond(clone(stable)); await settle();
+  b.tick(10000);
+  assert.equal(states().length, 1, "stable mini must not poll after 10 seconds");
+  b.tick(30000);
+  assert.equal(states().length, 2);
+  states()[1].respond({ ...clone(stable), status: "collecting" }); await settle();
+  b.tick(10000); assert.equal(states().length, 3, "collection retains original status cadence");
+  states()[2].reject(new Error("offline")); await settle();
+  b.tick(2000); assert.equal(states().length, 3, "failed local reads must back off");
+  b.tick(15000); assert.equal(states().length, 4);
+  states()[3].respond(clone(stable)); await settle();
+  b.hide(true); b.tick(30000); assert.equal(states().length, 4);
+  b.hide(false); assert.equal(states().length, 5, "foreground resumes immediately");
+});
+
+test("Pro and deployments without mini tuning retain the original 10 second cadence", async () => {
+  const b = browser(); b.load("app.js");
+  const states = () => b.requests.filter(r => r.url === "/api/state");
+  for (const status of ["ok", "collecting", "error"]) {
+    states().at(-1).respond({ ...runningData(0), status, runtime_profile: { name: "m4-performance" } });
+    await settle();
+    const count = states().length;
+    b.tick(2000); assert.equal(states().length, count);
+    b.tick(10000); assert.equal(states().length, count + 1);
+  }
+});
+
+test("mini anticipates scheduled collection and manual refresh does not duplicate polling", async () => {
+  const b = browser(); b.load("app.js");
+  const states = () => b.requests.filter(r => r.url === "/api/state");
+  states()[0].respond({ ...runningData(0), runtime_profile: miniPolling,
+    next_run_at: new Date(b.context.Date.now()+5000).toISOString() }); await settle();
+  assert.ok([...b.timers.values()].some(t => t.delay === 5250), "check just after collection starts");
+  b.tick(5250); assert.equal(states().length, 2);
+  b.emit("monitor-refresh"); assert.equal(states().length, 2, "share in-flight read");
+  states()[1].respond({ ...runningData(0), runtime_profile: miniPolling, connecting: true }); await settle();
+  assert.equal([...b.timers.values()].filter(t => t.delay === 10000).length, 1);
+  b.tick(10000); assert.equal(states().length, 3);
+});
+
+test("mini saves requests across whole collection cycles, not just idle snapshots", async t => {
+  async function countRequests(tuning) {
+    const b = browser(); b.load("app.js");
+    const start = b.context.Date.now(), end = start + 180000;
+    const states = () => b.requests.filter(r => r.url === "/api/state");
+    while (true) {
+      const phase = (b.context.Date.now() - start) % 60000;
+      states().at(-1).respond({ ...runningData(0), status: phase < 20000 ? "collecting" : "ok",
+        runtime_profile: tuning, next_run_at: new Date(b.context.Date.now()+60000-phase).toISOString() });
+      await settle();
+      const delay = Math.min(...[...b.timers.values()].map(timer => timer.delay));
+      assert.ok(Number.isFinite(delay) && delay > 0);
+      if (b.context.Date.now()+delay >= end) break;
+      b.advance(delay); b.tick(delay);
+    }
+    return states().length;
+  }
+  const previous = await countRequests({}), mini = await countRequests(miniPolling);
+  t.diagnostic(`3 minutes, 20-second collection per minute: previous=${previous}, mini=${mini} state requests`);
+  assert.equal(previous, 18);
+  assert.ok(mini <= 12);
+});
+
+
 for (const file of ["storage.js", "task-history.js", "tokenhub.js", "utilization-queue.js"]) {
   test(`${file}: bulk date formatting preserves text without constructing per-row locale formatters`, t => {
     const b = browser({ route: "other" }), subject = b.load(file, "date");

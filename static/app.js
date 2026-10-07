@@ -10,7 +10,7 @@
   const byId = (id) => document.getElementById(id);
   const restored = window.MonitorTaskContext?.read() || {};
   const model = { snapshot: null, kind: restored.kind || "all", search: restored.search || "", selected: restored.taskId || restored.selected || null, hours: restored.hours || 1, unavailable: false, fetching: false, historyRequest: 0, chart: null };
-  let taskCards = new Map(), taskEmptySignature = null;
+  let taskCards = new Map(), taskEmptySignature = null, pollTimer = null;
   const numberFormat = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 });
   const timeFormat = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
   const chartClock = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -467,8 +467,29 @@
     return model.historyPromise;
   }
 
+  function pollDelay() {
+    const tuning = model.snapshot?.runtime_profile || {};
+    const seconds = (key, fallback) => Number.isInteger(tuning[key]) && tuning[key] >= 2 && tuning[key] <= 30 ? tuning[key] : fallback;
+    const idle = seconds("state_poll_seconds", 10) * 1000;
+    const busy = seconds("busy_state_poll_seconds", 10) * 1000;
+    if (model.unavailable || !model.snapshot || !model.snapshot.connected
+        || ["error", "disconnected"].includes(model.snapshot.status)) return seconds("error_state_poll_seconds", 10) * 1000;
+    if (model.snapshot.connecting || model.snapshot.status === "collecting") return busy;
+    // A known collection deadline should interrupt the idle backoff. Missing
+    // tuning keeps existing Pro deployments on their original cadence.
+    const remaining = Date.parse(model.snapshot.next_run_at) - Date.now();
+    return tuning.state_poll_seconds && Number.isFinite(remaining)
+      ? Math.min(idle, remaining > 0 ? Math.max(1000, remaining + 250) : busy) : idle;
+  }
+
+  function schedulePoll() {
+    clearTimeout(pollTimer); pollTimer = null;
+    if (!document.hidden) pollTimer = setTimeout(() => poll(), pollDelay());
+  }
+
   async function poll() {
     if (model.fetching) return;
+    clearTimeout(pollTimer); pollTimer = null;
     model.fetching = true;
     try {
       const snapshot = await request("/api/state");
@@ -492,7 +513,7 @@
       renderStatus();
       renderSummary();
       if (!model.snapshot) { renderTasks(); renderClusters(); }
-    } finally { model.fetching = false; }
+    } finally { model.fetching = false; schedulePoll(); }
   }
 
   async function action(buttonId, endpoint, message) {
@@ -551,7 +572,7 @@
     });
   });
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) cancelHistory();
+    if (document.hidden) { cancelHistory(); clearTimeout(pollTimer); pollTimer = null; }
     else { poll(); renderDetail(); loadHistory(); }
   });
   document.addEventListener("monitor-task-request", event => {
@@ -575,5 +596,4 @@
   }
   if (window.MonitorTaskContext) restoreFilters();
   poll();
-  setInterval(() => { if (!document.hidden) poll(); }, 10000);
 })();

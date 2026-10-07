@@ -1,0 +1,188 @@
+{
+  "runtime": "/Users/charles/Library/Application Support/CharlesCloudMonitor",
+  "rounds": 5,
+  "samples": [
+    {
+      "process_type": "Background",
+      "round": 1,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 278.962,
+      "state_api_median_ms": 2.941,
+      "state_api_bytes": 9469,
+      "history_api_median_ms": 41.909
+    },
+    {
+      "process_type": "Standard",
+      "round": 1,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 71.727,
+      "state_api_median_ms": 0.792,
+      "state_api_bytes": 9469,
+      "history_api_median_ms": 2.855
+    },
+    {
+      "process_type": "Interactive",
+      "round": 1,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 70.14,
+      "state_api_median_ms": 0.811,
+      "state_api_bytes": 9469,
+      "history_api_median_ms": 2.766
+    },
+    {
+      "process_type": "Interactive",
+      "round": 2,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 61.823,
+      "state_api_median_ms": 0.716,
+      "state_api_bytes": 9469,
+      "history_api_median_ms": 2.643
+    },
+    {
+      "process_type": "Standard",
+      "round": 2,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 72.624,
+      "state_api_median_ms": 0.938,
+      "state_api_bytes": 9469,
+      "history_api_median_ms": 3.415
+    },
+    {
+      "process_type": "Background",
+      "round": 2,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 253.202,
+      "state_api_median_ms": 3.447,
+      "state_api_bytes": 9469,
+      "history_api_median_ms": 44.268
+    },
+    {
+      "process_type": "Background",
+      "round": 3,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 304.522,
+      "state_api_median_ms": 4.631,
+      "state_api_bytes": 9469,
+      "history_api_median_ms": 41.481
+    },
+    {
+      "process_type": "Standard",
+      "round": 3,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 67.68,
+      "state_api_median_ms": 0.831,
+      "state_api_bytes": 9469,
+      "history_api_median_ms": 2.983
+    },
+    {
+      "process_type": "Interactive",
+      "round": 3,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 62.563,
+      "state_api_median_ms": 0.795,
+      "state_api_bytes": 9469,
+      "history_api_median_ms": 2.815
+    },
+    {
+      "process_type": "Interactive",
+      "round": 4,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 72.512,
+      "state_api_median_ms": 0.734,
+      "state_api_bytes": 9469,
+      "history_api_median_ms": 2.68
+    },
+    {
+      "process_type": "Standard",
+      "round": 4,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 82.506,
+      "state_api_median_ms": 0.819,
+      "state_api_bytes": 9469,
+      "history_api_median_ms": 2.99
+    },
+    {
+      "process_type": "Background",
+      "round": 4,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 278.424,
+      "state_api_median_ms": 3.624,
+      "state_api_bytes": 9469,
+      "history_api_median_ms": 12.669
+    },
+    {
+      "process_type": "Background",
+      "round": 5,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 272.62,
+      "state_api_median_ms": 3.389,
+      "state_api_bytes": 9469,
+      "history_api_median_ms": 44.508
+    },
+    {
+      "process_type": "Standard",
+      "round": 5,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 84.872,
+      "state_api_median_ms": 0.905,
+      "state_api_bytes": 9469,
+      "history_api_median_ms": 3.219
+    },
+    {
+      "process_type": "Interactive",
+      "round": 5,
+      "synthetic_tasks": 20,
+      "workers_per_task": 8,
+      "samples": 38400,
+      "repeat_save_median_ms": 72.571,
+      "state_api_median_ms": 0.755,
+      "state_api_bytes": 9469,
+      "history_api_median_ms": 3.074
+    }
+  ],
+  "medians": {
+    "Background": {
+      "repeat_save_median_ms": 278.424,
+      "state_api_median_ms": 3.447,
+      "history_api_median_ms": 41.909
+    },
+    "Standard": {
+      "repeat_save_median_ms": 72.624,
+      "state_api_median_ms": 0.831,
+      "history_api_median_ms": 2.99
+    },
+    "Interactive": {
+      "repeat_save_median_ms": 70.14,
+      "state_api_median_ms": 0.755,
+      "history_api_median_ms": 2.766
+    }
+  }
+}

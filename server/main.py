@@ -30,6 +30,7 @@ from .config import DATA, ROOT
 from .service import Monitor
 from .store import Store
 from .http_assets import StaticAssetCompression, revalidatable_asset
+from .runtime_profile import get_runtime_profile
 from .sites import SITES, MAOSHANWANG
 
 
@@ -109,6 +110,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     app.state.monitor=runtimes["maoshanwang"].monitor
     app.state.runtimes=runtimes
     app.state.tokenhub=tokenhub
+    app.state.runtime_profile=get_runtime_profile()
 
     @app.middleware('http')
     async def local_only(request: Request, call_next):

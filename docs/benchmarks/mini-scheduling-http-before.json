@@ -1,0 +1,30 @@
+[
+  {
+    "path": "/api/state",
+    "median_ms": 3.457,
+    "p95_ms": 4.635,
+    "decoded_bytes": 9022,
+    "samples": 20
+  },
+  {
+    "path": "/static/app.js",
+    "median_ms": 5.389,
+    "p95_ms": 6.541,
+    "decoded_bytes": 41125,
+    "samples": 20
+  },
+  {
+    "path": "/static/vendor/echarts.min.js",
+    "median_ms": 87.153,
+    "p95_ms": 110.802,
+    "decoded_bytes": 1121883,
+    "samples": 20
+  },
+  {
+    "path": "/api/history",
+    "median_ms": 37.602,
+    "p95_ms": 44.5,
+    "decoded_bytes": 5885,
+    "samples": 20
+  }
+]

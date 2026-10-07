@@ -1,0 +1,9 @@
+{
+  "name": "m4-performance",
+  "collector_concurrency": 6,
+  "metric_concurrency": 4,
+  "queue_concurrency": 8,
+  "terminal_max_sessions": 12,
+  "target_cache_seconds": 6,
+  "provenance": "Preserved code preset from 2026-10-07; not read from MacBook Pro. Original browser state poll interval: 10 seconds."
+}

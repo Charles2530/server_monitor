@@ -56,3 +56,10 @@ async def test_multiple_duplicate_invalid_and_empty_workers():
     assert [t['instance'] for t in result['targets']]==['pt-uid-worker-0','pt-uid-master-0']
     cloud.workers=[]
     assert (await manager(cloud).targets('ACP:pt-test'))['targets']==[]
+
+@pytest.mark.asyncio
+async def test_recent_target_resolution_can_be_reused_for_terminal_open():
+    cloud=Cloud(MAOSHANWANG);m=manager(cloud)
+    first=await m.targets('ACP:pt-test')
+    second=await m.targets('ACP:pt-test',reuse=True)
+    assert second==first and len(cloud.requests)==2

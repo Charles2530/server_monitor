@@ -11,6 +11,7 @@ from .domain import is_target, summarize_metrics, merge_series
 from .normalize import task_from_raw, waiting_from_raw, cluster_from_raw, metric_series, iso
 from .acp_states import is_charles
 from .queue_states import QUEUE_LABELS
+from .runtime_profile import get_runtime_profile
 
 PANELS = {'cpu':'CpuUtilization','memory':'MemUtilization','gpu':'GpuUtilTotal','gpu_memory':'GpuMemUtilTotal'}
 
@@ -22,11 +23,12 @@ class Collector:
         self.site = site
         self.workspace = site.workspace if site else WORKSPACE
         self.services = site.services if site else SERVICES
-        self.semaphore = asyncio.Semaphore(6)
-        # Leave two of the six request slots for node inventory/allocation;
+        profile = get_runtime_profile()
+        self.semaphore = asyncio.Semaphore(profile['collector_concurrency'])
+        # Leave request slots for node inventory/allocation;
         # otherwise queued metric panels can exhaust its short timeout before
         # an observation request even reaches the cloud.
-        self.metric_semaphore = asyncio.Semaphore(4)
+        self.metric_semaphore = asyncio.Semaphore(profile['metric_concurrency'])
         self.workspace_uid = None
         self.station = None
 

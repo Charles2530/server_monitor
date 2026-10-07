@@ -15,8 +15,9 @@ from .auth import AuthRequired, connect_browser, load_session
 from .acp_actions import ActionError
 from .task_logs import task_identity
 from .cci_terminal import VerifiedCCITargets
+from .runtime_profile import get_runtime_profile
 
-MAX_SESSIONS=8
+MAX_SESSIONS=get_runtime_profile()['terminal_max_sessions']
 MAX_BUFFER=1024*1024
 OUTPUT_CHUNK_BYTES=64*1024
 IDLE_SECONDS=15*60
@@ -169,7 +170,7 @@ class TerminalBridge:
                     verified = (verified_targets.get(self.site, data['task_id'])
                                 if kind == 'CCI' and owner == 'cci-editor-bootstrap' and attempt == 0
                                 and isinstance(verified_targets, VerifiedCCITargets) else None)
-                    targets=(verified or await self.resolvers[kind].targets(data['task_id']))['targets']
+                    targets=(verified or await self.resolvers[kind].targets(data['task_id'],reuse=True))['targets']
                     if not any(t['instance']==instance and (kind=='ACP' or t.get('container')==container) for t in targets):
                         raise ActionError('所选 Worker / 容器已不可用，请重新读取。','terminal_unavailable',409)
                     token=self.session_loader()['headers']['authorization']
