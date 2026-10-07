@@ -141,3 +141,40 @@ async def test_history_cache_expires_bounds_memory_and_retries_failures(monkeypa
         assert calls[-1] == '/project'
     finally:
         await editor.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('workspace', ['relative/project', '', '/project/\x00', None])
+async def test_invalid_requested_workspace_does_not_fall_back(monkeypatch, workspace):
+    from tests.test_ide_history_transport import history_editor
+    from server.acp_actions import ActionError
+    import server.cci_ide as module
+    editor, data, origin = history_editor(object())
+    async def forbidden(*args, **kwargs):
+        pytest.fail('invalid scope must not start a container command')
+    monkeypatch.setattr(module, 'run_python', forbidden)
+    try:
+        with pytest.raises(ActionError) as raised:
+            await editor.history({**data, 'workspace': workspace}, origin)
+        assert raised.value.code == 'history_unavailable'
+    finally:
+        await editor.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('response', [{}, {'records': {}}, {'records': [], 'workspace': None}, {'records': [], 'workspace': 'relative'}])
+async def test_malformed_history_result_is_not_cached_as_empty(monkeypatch, response):
+    from tests.test_ide_history_transport import history_editor
+    from server.acp_actions import ActionError
+    import server.cci_ide as module
+    editor, data, origin = history_editor(object())
+    async def malformed(*args, **kwargs):
+        return response
+    monkeypatch.setattr(module, 'run_python', malformed)
+    try:
+        with pytest.raises(ActionError) as raised:
+            await editor.history(data, origin)
+        assert raised.value.code == 'history_unavailable'
+        assert not editor.sessions[('CCI:job', 'pod', 'main', origin)]['history_caches']
+    finally:
+        await editor.close()

@@ -3,7 +3,7 @@
   const $ = id => document.getElementById(id), site = window.MonitorSite;
   const taskId = new URL(location.href).searchParams.get("task_id");
   const mobileMedia = matchMedia("(max-width:760px), (pointer:coarse)");
-  let targets = [], generation = 0, controller = null, busy = false;
+  let targets = [], generation = 0, controller = null, busy = false, historyRevision = 0;
   let connection = null, nextCheck = 0, recoveryFailures = 0, retryTimer = null, initializationFailed = false;
   const loadingStarted = performance.now();
   const recentKey = `ilab-ide-recent:${site.id}`;
@@ -35,6 +35,7 @@
     if (connection.historyState === 'ready') parts.push('当前项目聊天已过滤 · ' + (connection.historyCount || 0) + ' 条');
     else if (connection.historyState === 'empty') parts.push('当前项目暂无历史聊天');
     else if (connection.historyState === 'unavailable') parts.push('项目聊天过滤暂不可用，已保留 Codex 原列表');
+    else if (connection.historyState === 'loading') parts.push('正在确认项目聊天过滤状态');
     if (setupFailures) parts.push('配置状态暂不可用，稍后重试');
     $("ide-setup-status").textContent = parts.join(' · ');
     $("ide-setup-status").hidden = !parts.length;
@@ -254,23 +255,34 @@
     $("ide-frame").contentWindow?.postMessage({ type: 'ilab-codex-history', ...current.historyPayload }, current.origin);
   }
   async function refreshHistory(gen, current = connection) {
-    if (!current?.workspace || current.entryExpired || document.hidden) return;
+    if (!current?.workspace || !current.ready || current.entryExpired || current.codexPanel !== 'ready'
+        || gen !== generation || !controller || controller.signal.aborted || busy || recoveryFailures || document.hidden || navigator.onLine === false
+        || $('ide-preserved-select')?.selectedIndex > 0 || current.historyRequest
+        || (current.historyWorkspace === current.workspace && Date.now() < current.historyNextCheck)) return;
+    const workspace = current.workspace, request = {};
+    current.historyRequest = request;
+    current.historyWorkspace = workspace;
+    current.historyNextCheck = Date.now() + 30000;
     try {
-      const result = await api('history', { task_id: taskId, instance: current.instance, container: current.container, workspace: current.workspace }, gen);
+      const result = await apiOnce('history', { task_id: taskId, instance: current.instance, container: current.container, workspace }, gen);
       identity(result);
-      if (connection !== current || result.workspace !== current.workspace) return;
-      current.historyPayload = { workspace: result.workspace, records: Array.isArray(result.records) ? result.records : [], error: null };
-      current.historyState = current.historyPayload.records.length ? 'ready' : 'empty';
-      current.historyCount = current.historyPayload.records.length;
+      // The server resolves symlinks. Compare the captured request identity,
+      // rather than rejecting its canonical workspace path.
+      if (gen !== generation || connection !== current || current.workspace !== workspace) return;
+      current.historyPayload = { workspace: result.workspace, records: Array.isArray(result.records) ? result.records : [], truncated: result.truncated === true, error: null, revision: ++historyRevision };
+      if (current.historyState !== 'unavailable') current.historyState = 'loading';
+      current.historyCount = 0;
       sendHistoryToFrame(current);
       setupStatus();
-      window.MonitorConnectionLog?.note('Codex 项目历史 · ' + current.historyCount + ' 条', 'ready');
+      window.MonitorConnectionLog?.note('Codex 项目历史已读取，等待列表过滤确认。', 'loading');
     } catch (error) {
-      if (gen !== generation || connection !== current) return;
-      current.historyPayload = { workspace: current.workspace, records: [], error: 'history_unavailable' };
+      if (gen !== generation || connection !== current || current.workspace !== workspace) return;
+      current.historyPayload = { workspace, records: [], error: 'history_unavailable', revision: ++historyRevision };
       current.historyState = 'unavailable'; current.historyCount = 0;
       sendHistoryToFrame(current); setupStatus();
       window.MonitorConnectionLog?.note('Codex 项目历史读取失败，已保留原生列表。', 'error');
+    } finally {
+      if (current.historyRequest === request) current.historyRequest = null;
     }
   }
   async function open(target, gen, preserve = false) {
@@ -404,10 +416,15 @@
   window.addEventListener("message", event => {
     if (!connection || event.source !== $("ide-frame").contentWindow || event.origin !== connection.origin) return;
     if (event.data?.type === 'ilab-editor-codex' && ['loading', 'ready', 'hidden'].includes(event.data.state)) {
-      connection.codexPanel = event.data.state; setupStatus(); return;
+      connection.codexPanel = event.data.state; setupStatus();
+      if (event.data.state === 'ready') void refreshHistory(generation, connection);
+      return;
     }
     if (event.data?.type === 'ilab-editor-codex-history-state' && ['ready', 'empty', 'unavailable'].includes(event.data.state)) {
-      if (event.data.state === 'unavailable' && connection.historyState !== 'unavailable') connection.historyState = 'unavailable';
+      if (!connection.historyPayload || event.data.revision !== connection.historyPayload.revision
+          || event.data.workspace !== connection.historyPayload.workspace || !Number.isSafeInteger(event.data.count) || event.data.count < 0) return;
+      connection.historyState = event.data.state;
+      connection.historyCount = event.data.count;
       setupStatus(); return;
     }
     if (event.data?.type === "ilab-editor-entry-expired") {
@@ -439,10 +456,12 @@
     if (connection && !connection.ready) connection.loadDeadline = 0;
     status("网络已离线；已保留编辑器，网络恢复后会自动修复连接。", "error");
   });
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) { recover(); refreshSetup(); } });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { recover(); refreshSetup(); void refreshHistory(generation); } });
   window.addEventListener("pageshow", () => recover());
   setInterval(() => recover(), 30000);
   setInterval(refreshSetup, 5000);
+  // Check between 30s recovery probes; the request's 30s cooldown limits reads.
+  setInterval(() => { void refreshHistory(generation); }, 15000);
   window.addEventListener("pagehide", cancel);
   load();
 })();

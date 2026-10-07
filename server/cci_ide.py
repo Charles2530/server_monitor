@@ -19,7 +19,7 @@ from .ide_bootstrap import bootstrap_script
 from .ide_appearance import APPEARANCE_VERSION
 from .ide_proxy import EditorProxy
 from .ide_origins import EditorOriginRegistry
-from .ide_history import _normal_path, history_script, sanitize_history_result
+from .ide_history import MAX_HISTORY_RESPONSE_BYTES, _normal_path, history_script, sanitize_history_result
 from .sites import MAOSHANWANG
 from .cci_terminal import VerifiedCCITargets
 
@@ -61,7 +61,9 @@ def safe_progress(value):
     return result
 
 
-async def run_python(bridge, data, script, *, timeout=600, on_progress=None, verified_targets=None, cleanup_jobs=None):
+async def run_python(bridge, data, script, *, timeout=600, on_progress=None, verified_targets=None, cleanup_jobs=None, max_result_bytes=16384):
+    if type(max_result_bytes) is not int or not 1 <= max_result_bytes <= MAX_HISTORY_RESPONSE_BYTES:
+        raise ValueError("invalid result byte limit")
     owner = 'cci-editor-bootstrap'
     verified = {'verified_targets': verified_targets} if verified_targets is not None else {}
     opened = await bridge.open({**data, 'cols': 240, 'rows': 40}, owner, **verified)
@@ -80,15 +82,23 @@ async def run_python(bridge, data, script, *, timeout=600, on_progress=None, ver
         while True:
             result = await bridge.read(key, cursor, owner)
             cursor = result['cursor']
-            raw += b''.join(base64.b64decode(chunk) for chunk in result['chunks'])
+            for chunk in result['chunks']:
+                # Reject before decoding or appending an unbounded terminal chunk.
+                if len(chunk) > 4 * ((1024 * 1024 + 2) // 3): raise ActionError('编辑器准备输出过长。')
+                decoded = base64.b64decode(chunk)
+                if len(raw) + len(decoded) > 1024 * 1024: raise ActionError('编辑器准备输出过长。')
+                raw += decoded
             while marker in raw and b'\x1f' in raw.split(marker, 1)[1]:
                 message, raw = raw.split(marker, 1)[1].split(b'\x1f', 1)
-                if len(message) > 16384: raise ActionError('编辑器返回异常。')
+                if len(message) > max_result_bytes: raise ActionError('编辑器返回异常。')
                 value = json.loads(message)
                 if isinstance(value, dict) and '__ilab_progress__' in value:
+                    if len(message) > 16384: raise ActionError('编辑器返回异常。')
                     progress = safe_progress(value['__ilab_progress__'])
                     if progress is not None and on_progress: on_progress(progress)
                 else: return value
+            if marker in raw and len(raw.split(marker, 1)[1]) > max_result_bytes:
+                raise ActionError('编辑器返回异常。')
             if result['closed']: raise ActionError('编辑器准备时容器连接中断。')
             if len(raw) > 1024 * 1024: raise ActionError('编辑器准备输出过长。')
     completed = False
@@ -407,7 +417,7 @@ class CCIEditor:
         session = self.sessions.get(identity)
         if not session:
             raise ActionError('编辑器会话已过期，请重新打开。', 'ide_expired', 404)
-        workspace = _normal_path(data.get('workspace')) or _normal_path(session.get('workspace'))
+        workspace = _normal_path(data['workspace'] if 'workspace' in data else session.get('workspace'))
         if not isinstance(workspace, str) or not workspace.startswith('/'):
             raise ActionError('容器工作区路径暂不可用。', 'history_unavailable', 503)
         # Same-project callers share the result after the first read completes.
@@ -420,10 +430,12 @@ class CCIEditor:
             if cached and time.monotonic() - cached['created'] < 15:
                 return dict(cached['result'])
             try:
-                raw = await run_python(self.bridge, data, history_script(workspace), timeout=45, cleanup_jobs=self.cleanup_jobs)
+                raw = await run_python(self.bridge, data, history_script(workspace), timeout=45, cleanup_jobs=self.cleanup_jobs, max_result_bytes=MAX_HISTORY_RESPONSE_BYTES)
             except Exception:
                 raise ActionError('容器 Codex 历史暂不可用。', 'history_unavailable', 503) from None
-            if not isinstance(raw, dict) or raw.get('error'):
+            if (not isinstance(raw, dict) or raw.get('error')
+                    or not isinstance(raw.get('records'), list)
+                    or ('workspace' in raw and not _normal_path(raw['workspace']))):
                 raise ActionError('容器 Codex 历史暂不可用。', 'history_unavailable', 503)
             result = sanitize_history_result(raw, workspace)
             result = {'site': self.site.id, **data, **result, 'source': 'container'}

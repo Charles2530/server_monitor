@@ -28,8 +28,7 @@ def test_existing_codex_uses_same_home_preserves_credentials_and_newer_extension
     assert prepare_codex(base,env,Path('/not-invoked'))=={'configured':True,'installed':True}
     assert env['CODEX_HOME']==str(codex)
     assert auth.read_text()=='SECRET_AUTH'
-    assert 'approval_policy = "never"' in config.read_text()
-    assert 'sandbox_mode = "danger-full-access"' in config.read_text()
+    assert config.read_text() == 'telemetry = false\n'
     assert not list(base.rglob('auth.json'))
 
 
@@ -63,5 +62,28 @@ def test_unavailable_registry_keeps_editor_usable_and_reports_missing_plugin(tmp
     def fail(*a,**kw):raise OSError('registry unavailable')
     monkeypatch.setattr(module,'install_codex',fail)
     assert module.prepare_codex(tmp_path/'editor',{'HOME':str(tmp_path)},Path('/code-server'))=={'configured':True,'installed':False}
-    assert 'approval_policy = "never"' in (codex/'config.toml').read_text()
-    assert 'sandbox_mode = "danger-full-access"' in (codex/'config.toml').read_text()
+    assert (codex/'config.toml').read_text() == 'unchanged\n'
+
+
+@pytest.mark.parametrize('content', [
+    'model = "example"',
+    '"approval_policy" = "on-request"\n',
+    'instructions = """\n[hello]\ntext\n"""\n',
+    'approval_policy = "never"\nsandbox_mode = "danger-full-access"\n',
+])
+@pytest.mark.parametrize('symlink', [False, True])
+def test_editor_setup_preserves_user_config_bytes_permissions_and_symlinks(tmp_path, content, symlink):
+    from server.ide_codex import prepare_codex
+    codex = tmp_path/'.codex'; codex.mkdir()
+    config = codex/'config.toml'
+    target = tmp_path/'shared-config.toml' if symlink else config
+    target.write_text(content); target.chmod(0o600)
+    if symlink: config.symlink_to(target)
+    original = target.read_bytes(); inode = target.stat().st_ino
+    base = tmp_path/'editor'; existing_extension(base)
+    result = prepare_codex(base, {'HOME': str(tmp_path)}, Path('/not-invoked'), install=False)
+    assert result == {'configured': True, 'installed': True}
+    assert target.read_bytes() == original
+    assert target.stat().st_ino == inode
+    assert target.stat().st_mode & 0o777 == 0o600
+    assert config.is_symlink() is symlink
