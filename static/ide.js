@@ -15,7 +15,7 @@
     } catch (_) { /* Storage may be unavailable; normal discovery remains usable. */ }
     return null;
   }
-  $("ide-back").href = `/?site=${encodeURIComponent(site.id)}#tasks`;
+  $("ide-back").href = window.MonitorTaskContext?.returnUrl(taskId, new URL(location.href).searchParams.get("task_view")) || `/?site=${encodeURIComponent(site.id)}#tasks`;
   $("ide-task").textContent = taskId || "未指定任务";
 
   function status(message, state = "loading") { $("ide-status").textContent = message; $("ide-status").dataset.state = state; }

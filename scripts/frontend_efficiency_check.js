@@ -42,6 +42,9 @@ function browser({ route = "overview", hidden = false, mobile = false } = {}) {
     get childNodes() { return this.children; }
     get options() { return this.children; }
     setAttribute(name, value) { this[name] = value; }
+    getAttribute(name) { return this[name] ?? null; }
+    before() {}
+    after() {}
     removeAttribute(name) { delete this[name]; }
     querySelectorAll() { return []; }
     querySelector() { return null; }
@@ -56,14 +59,16 @@ function browser({ route = "overview", hidden = false, mobile = false } = {}) {
   document.getElementById = id => { if (!nodes.has(id)) nodes.set(id, new Node()); return nodes.get(id); };
   document.createElement = tag => new Node(tag); document.createElementNS = (_, tag) => new Node(tag);
   document.createTextNode = text => Object.assign(new Node(), { textContent: text });
+  document.createComment = () => new Node("#comment");
   document.createDocumentFragment = () => new Node("#fragment"); document.querySelectorAll = () => [];
-  document.querySelector = selector => selector === ".sidebar" ? new Node() : null;
+  document.querySelector = selector => [".sidebar", ".detail-tabs"].includes(selector) ? new Node() : null;
   document.getElementById("tasks-view").hidden = route !== "tasks";
   document.getElementById("task-history-size").value = "25";
   const window = new Target(), location = { hash: `#${route}` };
   const fetch = (url, options = {}) => new Promise((resolve, reject) => {
     requests.push({ url, options, reject, respond(data, ok = true) { resolve({ ok, status: ok ? 200 : 500, json: async () => data }); } });
   });
+  window.scrollTo = () => {};
   window.MonitorSite = { id: "maoshanwang", key: key => key, fetch };
   window.matchMedia = () => {
     const query = new Target(); Object.defineProperty(query, "matches", { get: () => mobile });
@@ -549,11 +554,11 @@ test("TokenHub visibility pauses polling without discarding an active group save
 
 test("mobile list does not load curves; opening and closing detail controls the read", () => {
   const { b, app, reads } = historyPage({ mobile: true }); b.load("mobile.js");
-  app.loadHistory(); assert.equal(reads().length, 0);
+  app.renderDetail(); app.loadHistory(); assert.equal(reads().length, 0);
   b.document.dispatchEvent({ type: "click", target: { closest: selector => selector === ".task-card, .overview-task" } });
   assert.equal(reads().length, 1);
   // The generated back button is prepended to the existing detail panel.
-  b.nodes.get("detail-panel").children[0].click();
+  b.nodes.get("detail-panel").children.find(node => node.id === "mobile-task-back").click();
   assert.equal(reads()[0].options.signal.aborted, true);
 });
 

@@ -8,7 +8,8 @@
     { key: "gpu_memory", label: "显存占用", color: "#d99816" },
   ];
   const byId = (id) => document.getElementById(id);
-  const model = { snapshot: null, kind: "all", search: "", selected: null, hours: 1, unavailable: false, fetching: false, historyRequest: 0, chart: null };
+  const restored = window.MonitorTaskContext?.read() || {};
+  const model = { snapshot: null, kind: restored.kind || "all", search: restored.search || "", selected: restored.taskId || restored.selected || null, hours: restored.hours || 1, unavailable: false, fetching: false, historyRequest: 0, chart: null };
   let taskCards = new Map(), taskEmptySignature = null;
   const numberFormat = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 });
   const timeFormat = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
@@ -216,7 +217,7 @@
       }
       nextCards.set(task.id, cached);
     }
-    const cards = [...nextCards.values()].map(entry => entry.card), retained = new Set(cards);
+    const cards = [...nextCards.values()].map(entry => entry.root || entry.card), retained = new Set(cards);
     for (const child of [...container.children]) if (!retained.has(child)) container.removeChild(child);
     cards.forEach((card, index) => { if (container.children[index] !== card) container.insertBefore(card, container.children[index] || null); });
     taskCards = nextCards; taskEmptySignature = null;
@@ -253,7 +254,16 @@
     card.append(top, meta, metrics, bottom);
     const id = task.id;
     card.addEventListener("click", () => { model.selected = id; renderTasks(); renderDetail(); loadHistory(); });
-    return { card, hint };
+    let root;
+    if (window.MonitorTaskContext && task.kind === "CCI" && task.state === "running" && task.name?.toLowerCase().includes("charles")) {
+      root = element("div", "task-card-item");
+      const open = element("a", "mobile-cci-terminal", "打开终端 →");
+      open.href = `/terminal?${new URLSearchParams({site:window.MonitorSite?.id || "maoshanwang",task_id:id,task_view:"monitor"})}`;
+      open.setAttribute("aria-label", `打开 ${task.name || id} 的 CCI 终端`);
+      open.addEventListener("click", () => window.MonitorTaskContext.remember({selected:id,search:model.search,kind:model.kind,hours:model.hours,scroll:window.scrollY}));
+      root.append(card, open);
+    }
+    return { card, hint, root };
   }
 
   function renderClusters() {
@@ -307,6 +317,7 @@
   }
 
   function renderDetail() {
+    window.MonitorTaskContext?.remember({selected:model.selected,search:model.search,kind:model.kind,hours:model.hours});
     const task = tasks().find((item) => item.id === model.selected);
     byId("detail-panel").hidden = !task;
     document.dispatchEvent(new CustomEvent("monitor-selection", { detail: task || null }));
@@ -416,7 +427,7 @@
 
   function historyVisible() {
     return !document.hidden && !byId("tasks-view").hidden && !byId("detail-monitor").hidden
-      && (!window.matchMedia("(max-width: 760px)").matches || byId("tasks-view").classList.contains("mobile-show-detail"));
+      && (!(window.MonitorTaskContext?.mobile.matches ?? window.matchMedia("(max-width: 760px)").matches) || byId("tasks-view").classList.contains("mobile-show-detail"));
   }
 
   function cancelHistory() {
@@ -505,6 +516,7 @@
   }));
   document.querySelectorAll(".range-button").forEach((button) => button.addEventListener("click", () => {
     model.hours = Number(button.dataset.hours);
+    window.MonitorTaskContext?.remember({hours:model.hours});
     document.querySelectorAll(".range-button").forEach((item) => { const selected = item === button; item.classList.toggle("selected", selected); item.setAttribute("aria-pressed", String(selected)); });
     loadHistory();
   }));
@@ -542,6 +554,26 @@
     if (document.hidden) cancelHistory();
     else { poll(); renderDetail(); loadHistory(); }
   });
+  document.addEventListener("monitor-task-request", event => {
+    const id = event.detail;
+    if (!tasks().some(task => task.id === id)) return;
+    if (!visibleTasks().some(task => task.id === id)) {
+      model.search = ""; model.kind = "all"; restoreFilters();
+    }
+    model.selected = id; renderTasks(); renderDetail(); loadHistory();
+  });
+  function restoreFilters() {
+    byId("task-search").value = model.search;
+    document.querySelectorAll(".filter-button").forEach(button => {
+      const selected = button.dataset.kind === model.kind;
+      button.classList.toggle("selected", selected); button.setAttribute("aria-pressed", String(selected));
+    });
+    document.querySelectorAll(".range-button").forEach(button => {
+      const selected = Number(button.dataset.hours) === model.hours;
+      button.classList.toggle("selected", selected); button.setAttribute("aria-pressed", String(selected));
+    });
+  }
+  if (window.MonitorTaskContext) restoreFilters();
   poll();
   setInterval(() => { if (!document.hidden) poll(); }, 10000);
 })();

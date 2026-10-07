@@ -12,9 +12,9 @@
   };
   const aliases = { main: "overview", "tasks-section": "tasks", "acp-section": "acp", "waiting-section": "waiting", clusters: "overview", "clusters-section": "overview" };
   function renderPage() {
-    const fragment = location.hash.slice(1);
+    const fragment = location.hash.slice(1) || (window.MonitorTaskContext?.mobile.matches ? "tasks" : "overview");
     const route = Object.hasOwn(pages, fragment) ? fragment : Object.hasOwn(aliases, fragment) ? aliases[fragment] : "overview";
-    if (fragment !== route) history.replaceState(null, "", `#${route}`);
+    if (location.hash.slice(1) !== route) history.replaceState(null, "", `#${route}`);
     for (const panel of document.querySelectorAll(".workspace-view")) panel.hidden = panel.dataset.page !== route;
     for (const link of document.querySelectorAll(".nav-item")) {
       const active = link.getAttribute("href") === `#${route}`;

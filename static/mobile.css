@@ -1,6 +1,6 @@
 /* Shared phone layout. Also bundled into Android; desktop rules stay untouched. */
 .mobile-task-back { display: none; }
-@media (max-width: 760px) {
+@media (max-width: 760px), (pointer: coarse) and (max-width: 1100px) {
   html { scroll-padding-top: 72px; scroll-padding-bottom: 88px; }
   body { background: #f2f6f4; }
   .sidebar {

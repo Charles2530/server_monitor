@@ -1,0 +1,28 @@
+/* Task navigation uses the same compact layout in phone portrait and landscape. */
+#mobile-task-tools[hidden], #mobile-task-notice[hidden] { display: none !important; }
+.task-card-item { display: contents; }
+.mobile-cci-terminal { display: none; }
+@media (max-width:760px), (pointer:coarse) and (max-width:1100px) {
+  body:has(.mobile-show-detail:not([hidden])) .page-header { display: none; }
+  body:has(.mobile-show-detail:not([hidden])) .status-ok { display: flex; align-items: center; margin-bottom: 10px; padding: 7px 10px; }
+  body:has(.mobile-show-detail:not([hidden])) .status-ok time { margin-left: auto; }
+  #tasks-view .mobile-task-back { align-self: flex-start; padding: 5px 9px; min-height: 36px; margin-bottom: 8px; }
+  .task-card-item { display: flex; flex-direction: column; min-width: 0; }
+  .task-card-item .task-card { width: 100%; flex: 1; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  .mobile-cci-terminal { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 12px 12px; color: var(--accent, #087f67); background: var(--surface); font-size: 13px; font-weight: 600; text-decoration: none; }
+  .mobile-cci-terminal:focus-visible { outline: 2px solid var(--accent, #087f67); outline-offset: 2px; }
+  #mobile-task-tools {
+    display: flex; align-items: stretch; gap: 4px; order: 2;
+    position: sticky; top: 64px; z-index: 20; padding: 4px; margin: 12px 0; border: 1px solid var(--line); border-radius: 12px;
+    background: var(--surface); min-width: 0;
+  }
+  #mobile-task-tools .detail-tabs { display: flex; flex: 2; min-width: 0; gap: 4px; padding: 0; margin: 0; border: 0; }
+  #mobile-task-tools .detail-tabs button { flex: 1; min-width: 0; min-height: 44px; padding: 8px 3px; font-size: 12px; border: 0; border-radius: 8px; white-space: nowrap; }
+  #mobile-task-tools .detail-tabs button[aria-selected=true] { background: var(--success-bg, #dff3eb); color: var(--accent, #087f67); }
+  #mobile-task-tools #cci-terminal-selected { flex: 1; min-width: 0; min-height: 44px; padding: 8px 4px; margin: 0; border: 0; box-shadow: none; font-size: 12px; white-space: nowrap; background: transparent; color: var(--ink); }
+  #mobile-task-tools #cci-terminal-selected .session-icon, #mobile-task-tools #cci-terminal-selected .entry-arrow { display: none; }
+  #mobile-editor-note { display: flex; flex: 1; align-items: center; justify-content: center; min-width: 0; color: var(--muted); font-size: 11px; white-space: nowrap; }
+  #mobile-task-notice { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); }
+  #tasks-view #detail-panel > .detail-task-actions { order: 5; }
+  #tasks-view #detail-panel > .chart-footer { order: 6; }
+}

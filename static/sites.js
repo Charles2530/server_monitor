@@ -30,6 +30,8 @@
       if (writes) return;
       const destination = new URL(location.href);
       destination.searchParams.set("site", target);
+      destination.searchParams.delete("task_id");
+      destination.searchParams.delete("task_view");
       location.assign(destination.href);
     });
   });
