@@ -22,12 +22,38 @@ _PROFILE_FIELDS = {
 _POLL_FIELDS = {'state_poll_seconds': (2, 30), 'busy_state_poll_seconds': (2, 10),
                 'error_state_poll_seconds': (2, 30)}
 
+_MEASURED_PROFILES = {
+    ('Mac16,12', 'arm64', 10, 16.0): {
+        'queue_concurrency': 3,
+        'state_poll_seconds': 10,
+        'busy_state_poll_seconds': 10,
+        'error_state_poll_seconds': 10,
+        'web_process_type': 'Standard',
+    },
+    ('Mac16,10', 'arm64', 10, 24.0): {
+        'state_poll_seconds': 30,
+        'busy_state_poll_seconds': 10,
+        'error_state_poll_seconds': 15,
+        'web_process_type': 'Interactive',
+    },
+}
+
 
 def _as_int(value, default=0):
     try:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _measured_overrides(hardware, ncpu, memory_gb):
+    model = str(hardware.get('model') or 'unknown')
+    machine = hardware.get('machine')
+    for (expected_model, expected_machine, expected_ncpu, expected_memory), overrides in _MEASURED_PROFILES.items():
+        if (model == expected_model and ncpu == expected_ncpu and memory_gb == expected_memory
+                and machine in (None, '', expected_machine)):
+            return overrides
+    return {}
 
 
 def detect_hardware():
@@ -77,11 +103,7 @@ def choose_profile(hardware):
         values = dict(collector_concurrency=6, metric_concurrency=4,
                       queue_concurrency=6, terminal_max_sessions=8,
                       target_cache_seconds=8)
-    # Preserve the existing Mini policy. Air measurements live only in its
-    # explicitly selected JSON profile, not in shared automatic defaults.
-    if hardware.get('model') == 'Mac16,10':
-        values.update(state_poll_seconds=30, busy_state_poll_seconds=10, error_state_poll_seconds=15,
-                      web_process_type='Interactive')
+    values.update(_measured_overrides(hardware, ncpu, memory_gb))
     return {'name': name, **values, 'hardware': {
         'model': str(hardware.get('model') or 'unknown'),
         'machine': str(hardware.get('machine') or 'unknown'),
