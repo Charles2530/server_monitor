@@ -49,3 +49,7 @@ htmlcov/
 
 # AppleDouble metadata generated on external ExFAT volumes.
 ._*
+# Verification helpers used only by local browser and terminal smoke runs.
+/mobile/android/check_mobile_page_style.py
+/scripts/browser_support.py
+/scripts/terminal_input_cases.py

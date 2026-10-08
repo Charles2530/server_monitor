@@ -51,7 +51,7 @@ def _measured_overrides(hardware, ncpu, memory_gb):
     machine = hardware.get('machine')
     for (expected_model, expected_machine, expected_ncpu, expected_memory), overrides in _MEASURED_PROFILES.items():
         if (model == expected_model and ncpu == expected_ncpu and memory_gb == expected_memory
-                and machine in (None, '', expected_machine)):
+                and machine == expected_machine):
             return overrides
     return {}
 
