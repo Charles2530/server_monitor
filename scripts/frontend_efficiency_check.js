@@ -10,7 +10,7 @@ const { test } = require("node:test");
 
 function browser({ route = "overview", hidden = false, mobile = false } = {}) {
   const nodes = new Map(), requests = [], timers = new Map(), charts = [], mediaQueries = [];
-  let timerId = 0, nodeCreations = 0, dateLocalizations = 0, now = Date.parse("2026-10-06T00:00:00Z");
+  let timerId = 0, nodeCreations = 0, dateLocalizations = 0, now = Date.parse("2026-10-06T00:00:00Z"), rejectStableListSerialization = false, stableListSerializationRejected = false;
   class Target {
     constructor() { this.listeners = new Map(); }
     addEventListener(name, fn) { if (!this.listeners.has(name)) this.listeners.set(name, []); this.listeners.get(name).push(fn); }
@@ -80,7 +80,17 @@ function browser({ route = "overview", hidden = false, mobile = false } = {}) {
     static now() { return now; }
     toLocaleString(...args) { dateLocalizations++; return super.toLocaleString(...args); }
   }
-  const context = vm.createContext({ window, document, location, fetch, AbortController, URL, URLSearchParams, Intl, Date: Clock,
+  const containsTaskItem = value => Array.isArray(value)
+    ? value.some(containsTaskItem)
+    : Boolean(value && typeof value === "object" && typeof value.kind === "string");
+  const JSONProxy = { parse: JSON.parse, stringify(value, ...args) {
+    if (rejectStableListSerialization && Array.isArray(value) && containsTaskItem(value)) {
+      stableListSerializationRejected = true;
+      throw new Error("stable task list was serialized");
+    }
+    return JSON.stringify(value, ...args);
+  } };
+  const context = vm.createContext({ window, document, location, fetch, AbortController, URL, URLSearchParams, Intl, Date: Clock, JSON: JSONProxy,
     navigator: { userAgent: "test" }, localStorage: { getItem: () => null }, matchMedia: window.matchMedia,
     getComputedStyle: () => ({ getPropertyValue: () => "#000", fontFamily: "sans-serif" }),
     ResizeObserver: class { observe() {} }, MutationObserver: class { observe() {} },
@@ -99,6 +109,8 @@ function browser({ route = "overview", hidden = false, mobile = false } = {}) {
   function emit(type, detail) { document.dispatchEvent({ type, detail }); }
   return { nodes, requests, timers, charts, context, document, window, location, load, emit, createdNodes: () => nodeCreations,
     dateLocalizations: () => dateLocalizations,
+    rejectStableListSerialization(value) { rejectStableListSerialization = value; },
+    stableListSerializationRejected: () => stableListSerializationRejected,
     hide(value) { document.hidden = value; emit("visibilitychange"); },
     setMobile(value) { mobile = value; for (const query of [...mediaQueries]) query.dispatchEvent({ type: "change" }); },
     route(value) { location.hash = `#${value}`; document.getElementById("tasks-view").hidden = value !== "tasks"; emit("workspace-page", value); },
@@ -400,6 +412,17 @@ test("slow history reads do not hold state polling or duplicate unchanged histor
   histories()[1].respond(curve(90)); await settle();
   histories()[0].respond(curve(10)); await settle();
   assert.equal(b.charts.at(-1).options.at(-1).series[0].data[0][1], 90);
+});
+
+test("unchanged state polling does not serialize stable task lists", async () => {
+  const b = browser({ route: "tasks" }); b.load("app.js");
+  const state = { ...runningData(2), runtime_profile: miniPolling };
+  const states = () => b.requests.filter(request => request.url === "/api/state");
+  states()[0].respond(clone(state)); await settle();
+  b.rejectStableListSerialization(true);
+  b.tick(30000);
+  states()[1].respond(clone(state)); await settle();
+  assert.equal(b.stableListSerializationRejected(), false);
 });
 
 const miniPolling = { state_poll_seconds: 30, busy_state_poll_seconds: 10, error_state_poll_seconds: 15 };

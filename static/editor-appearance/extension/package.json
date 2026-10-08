@@ -1,8 +1,8 @@
 {
   "name": "workspace-appearance",
   "displayName": "iLab Workspace Appearance",
-  "description": "Readable code typography and Material file icons for iLab Server Monitor. User settings take precedence.",
-  "version": "1.3.1",
+  "description": "Editor appearance and scoped Codex file, folder and selection references.",
+  "version": "1.4.0",
   "publisher": "ilab",
   "license": "MIT",
   "engines": {
@@ -12,7 +12,7 @@
     "Themes"
   ],
   "extensionKind": [
-    "ui"
+    "workspace"
   ],
   "contributes": {
     "iconThemes": [
@@ -133,11 +133,69 @@
     "menus": {
       "explorer/context": [
         {
-          "command": "chatgpt.addFileToThread",
+          "command": "ilab.codex.addReference",
           "group": "codex@1",
-          "when": "resourceScheme == file || resourceScheme == vscode-remote"
+          "when": "(resourceScheme == file || resourceScheme == vscode-remote) && !explorerResourceIsFolder"
+        },
+        {
+          "command": "ilab.codex.addFolderReference",
+          "group": "codex@1",
+          "when": "(resourceScheme == file || resourceScheme == vscode-remote) && explorerResourceIsFolder"
+        }
+      ],
+      "editor/context": [
+        {
+          "submenu": "ilab.codex.context",
+          "group": "codex@2",
+          "when": "(resourceScheme == file || resourceScheme == vscode-remote)"
+        }
+      ],
+      "ilab.codex.context": [
+        {
+          "command": "ilab.codex.addSelectionReference",
+          "group": "scope@1",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "ilab.codex.addFileReference",
+          "group": "scope@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "ilab.codex.addFolderReference",
+          "when": "false"
         }
       ]
-    }
-  }
+    },
+    "commands": [
+      {
+        "command": "ilab.codex.addReference",
+        "title": "添加引用到 Codex（优先选中代码）",
+        "category": "Codex"
+      },
+      {
+        "command": "ilab.codex.addFileReference",
+        "title": "引用文件到 Codex",
+        "category": "Codex"
+      },
+      {
+        "command": "ilab.codex.addFolderReference",
+        "title": "引用文件夹到 Codex",
+        "category": "Codex"
+      },
+      {
+        "command": "ilab.codex.addSelectionReference",
+        "title": "仅引用选中代码到 Codex",
+        "category": "Codex"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "ilab.codex.context",
+        "label": "Codex：添加引用"
+      }
+    ]
+  },
+  "main": "./context.js"
 }

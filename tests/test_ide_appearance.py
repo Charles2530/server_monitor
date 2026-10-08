@@ -10,13 +10,16 @@ import httpx
 import pytest
 
 
-def test_bundle_contains_icons_and_defaults_without_executable_code():
+def test_bundle_contains_icons_defaults_and_scoped_context_commands():
     from server.ide_appearance import appearance_bundle
     bundle = appearance_bundle()
     assert bundle == appearance_bundle()
     with zipfile.ZipFile(io.BytesIO(base64.b64decode(bundle['payload']))) as archive:
         manifest = json.loads(archive.read('extension/package.json'))
-        assert not any(key in manifest for key in ('main', 'browser', 'activationEvents'))
+        assert manifest['main'] == './context.js'
+        assert manifest['extensionKind'] == ['workspace']
+        assert 'extension/context.js' in archive.namelist()
+        assert 'Extension="js"' in archive.read('[Content_Types].xml').decode()
         defaults = manifest['contributes']['configurationDefaults']
         assert defaults['editor.fontFamily'].startswith("'iLab JetBrains Mono'")
         assert defaults['workbench.iconTheme'] == 'ilab-material-icons'
@@ -120,19 +123,20 @@ async def test_workbench_decodes_gzip_and_preserves_unrelated_pages():
     assert untouched.body == b'<html><head></head><body>other app</body></html>'
 
 
-def test_context_menus_add_explorer_files_and_folders_without_duplicating_native_menus():
+def test_context_menus_offer_explicit_file_folder_and_selection_scopes():
     from server.ide_appearance import appearance_bundle
     bundle = appearance_bundle()
     with zipfile.ZipFile(io.BytesIO(base64.b64decode(bundle['payload']))) as archive:
         manifest = json.loads(archive.read('extension/package.json'))
         assert manifest['version'] == bundle['version']
         assert f'Version="{bundle["version"]}"' in archive.read('extension.vsixmanifest').decode()
-        menus = manifest['contributes'].get('menus', {})
-        explorer = menus.get('explorer/context', [])
-        assert any(item['command'] == 'chatgpt.addFileToThread'
-                   and 'file' in item['when'] and 'vscode-remote' in item['when']
-                   and 'explorerResourceIsFolder' not in item['when'] for item in explorer)
-        # code-server exposes Codex's native editor/selection and tab menus.
-        # Adding remote-scheme copies produces duplicate actions in the browser.
-        assert 'editor/context' not in menus
-        assert 'editor/title/context' not in menus
+        menus = manifest['contributes']['menus']
+        explorer = menus['explorer/context']
+        assert any(item['command'] == 'ilab.codex.addFolderReference' and 'explorerResourceIsFolder' in item['when'] for item in explorer)
+        assert any(item['command'] == 'ilab.codex.addReference' and '!explorerResourceIsFolder' in item['when'] for item in explorer)
+        assert all('vscode-remote' in item['when'] for item in explorer)
+        # Extra editor choices are grouped, leaving the native action intact.
+        assert menus['editor/context'][0]['submenu'] == 'ilab.codex.context'
+        scopes = menus['ilab.codex.context']
+        assert any(item['command'] == 'ilab.codex.addSelectionReference' and 'editorHasSelection' in item['when'] for item in scopes)
+        assert any(item['command'] == 'ilab.codex.addFileReference' for item in scopes)

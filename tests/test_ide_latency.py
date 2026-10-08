@@ -196,6 +196,23 @@ def test_connection_bootstrap_can_skip_optional_installation():
     assert len(script.encode()) < 20000
 
 
+def test_bootstrap_reuses_static_bundle_and_module_payload(monkeypatch):
+    import server.ide_bootstrap as module
+    reads = []
+    original = module.Path.read_bytes
+    monkeypatch.setattr(module.Path, 'read_bytes', lambda path: (reads.append(str(path)) or original(path)))
+    for name in ('_packed_modules', '_appearance_bundle'):
+        cached = getattr(module, name, None)
+        if cached is not None and hasattr(cached, 'cache_clear'):
+            cached.cache_clear()
+    first = module.bootstrap_script('pod', '10.0.0.1', install_optional=False)
+    first_reads = len(reads)
+    second = module.bootstrap_script('pod', '10.0.0.1', install_optional=False)
+    assert second == first
+    assert first_reads > 0
+    assert len(reads) == first_reads
+
+
 def test_codex_inspection_does_not_install_missing_plugin(tmp_path, monkeypatch):
     from server.ide_codex import prepare_codex
     home = tmp_path / 'home'; (home / '.codex').mkdir(parents=True)
@@ -204,7 +221,7 @@ def test_codex_inspection_does_not_install_missing_plugin(tmp_path, monkeypatch)
     monkeypatch.setattr('server.ide_codex.install_codex', forbidden)
     env = {'HOME': str(home)}
     result = prepare_codex(tmp_path, env, tmp_path / 'binary', install=False)
-    assert result == {'configured': True, 'installed': False}
+    assert result == {'configured': True, 'installed': False, 'full_access': True}
     assert env['CODEX_HOME'] == str(home / '.codex')
 
 
