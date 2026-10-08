@@ -6,28 +6,14 @@ from .auth import load_session
 from .collector import Collector
 from .acp_actions import ActionError
 from .acp_states import is_charles
-from .task_logs import task_identity
-from .runtime_profile import get_runtime_profile
-from .terminal_target_cache import TerminalTargetCache
+from .terminal_resolver import TerminalResolver
 
 
-TARGET_CACHE_SECONDS = get_runtime_profile()['target_cache_seconds']
+class ACPTerminal(TerminalResolver):
+    kind = 'ACP'
+    kind_error = '请选择 ACP 任务。'
 
-
-class ACPTerminal:
-    def __init__(self,site,*,transport=None,session_loader=None):
-        self.site=site;self.reader=Collector(site);self.transport=transport
-        self.session_loader=session_loader or (lambda:load_session(site))
-        self.target_cache=TerminalTargetCache(TARGET_CACHE_SECONDS)
-
-    async def targets(self,task_id,*,reuse=False):
-        kind,name=task_identity(task_id)
-        if kind!='ACP':raise ActionError('请选择 ACP 任务。','terminal_unavailable',400)
-        headers=dict(self.session_loader()['headers'])
-        return await self.target_cache.resolve(task_id,headers,
-            lambda:self.read_targets(task_id,name,headers),reuse=reuse)
-
-    async def read_targets(self,task_id,name,headers):
+    async def read_targets(self,task_id,name,headers,**options):
         path='/compute/acp/data/v2'+self.site.workspace+'/trainingJobs'
         async with httpx.AsyncClient(headers=headers,timeout=25,follow_redirects=False,transport=self.transport) as client:
             rows=await self.reader.paginate(client,'AEC2',path+'Own','training_jobs',{'page_size':20,'filter':"name='"+name+"'"})

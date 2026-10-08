@@ -8,12 +8,7 @@ from .auth import load_session
 from .collector import Collector
 from .acp_actions import ActionError
 from .acp_states import is_charles
-from .task_logs import task_identity
-from .runtime_profile import get_runtime_profile
-from .terminal_target_cache import TerminalTargetCache
-
-
-TARGET_CACHE_SECONDS = get_runtime_profile()['target_cache_seconds']
+from .terminal_resolver import TerminalResolver
 
 
 class VerifiedCCITargets:
@@ -30,20 +25,17 @@ class VerifiedCCITargets:
         return None
 
 
-class CCITerminal:
-    def __init__(self,site,*,transport=None,session_loader=None):
-        self.site=site;self.reader=Collector(site);self.transport=transport
-        self.session_loader=session_loader or (lambda:load_session(site))
-        self.target_cache=TerminalTargetCache(TARGET_CACHE_SECONDS)
+class CCITerminal(TerminalResolver):
+    kind = 'CCI'
+    kind_error = '仅 CCI 支持 Web Terminal。'
 
     async def targets(self,task_id,*,include_address=False,reuse=False):
-        kind,name=task_identity(task_id)
-        if kind!='CCI':raise ActionError('仅 CCI 支持 Web Terminal。','terminal_unavailable',400)
-        headers=dict(self.session_loader()['headers'])
-        return await self.target_cache.resolve((task_id,include_address),headers,
-            lambda:self.read_targets(task_id,name,headers,include_address),reuse=reuse)
+        return await super().targets(task_id, include_address=include_address, reuse=reuse)
 
-    async def read_targets(self,task_id,name,headers,include_address):
+    def cache_identity(self, task_id, **options):
+        return task_id, options.get('include_address', False)
+
+    async def read_targets(self,task_id,name,headers,include_address=False,**options):
         path='/compute/cci/data/v2'+self.site.workspace+'/apps'
         async with httpx.AsyncClient(headers=headers,timeout=25,follow_redirects=False,transport=self.transport) as client:
             rows=await self.reader.paginate(client,'CCI',path+'Own','apps',{'page_size':20,'filter':"name='"+name+"'"})
