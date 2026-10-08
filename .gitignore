@@ -53,3 +53,6 @@ htmlcov/
 /mobile/android/check_mobile_page_style.py
 /scripts/browser_support.py
 /scripts/terminal_input_cases.py
+# Per-machine runtime selection and its rotation history.
+/runtime-profile.json
+/runtime-profile-history/
