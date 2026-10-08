@@ -47,7 +47,7 @@ class Session:
         self.frames=deque();self.size=0;self.cursor=0
         self.sequence=0;self.last_digest=None
         self.ended=False;self.error=None;self.transport=None
-        self.event=asyncio.Event();self.write_lock=asyncio.Lock()
+        self.event=asyncio.Event();self.space=asyncio.Event();self.write_lock=asyncio.Lock()
         self.pump=asyncio.create_task(self.receive())
         self.heartbeat=asyncio.create_task(self.keepalive())
 
@@ -58,9 +58,13 @@ class Session:
                 if frame[0] in (1,2):
                     data=frame[1:]
                     if not data:continue
-                    # One frame can contain a large paste or log batch. Bound memory, never silently drop output.
-                    if self.size+len(data)>MAX_BUFFER:
+                    # Bound each frame; a slow/background reader applies backpressure without losing its shell.
+                    if len(data)>MAX_BUFFER:
                         self.error='输出积压过多，已断开终端；请重新连接。';break
+                    while not self.ended and self.size+len(data)>MAX_BUFFER:
+                        self.space.clear()
+                        await self.space.wait()
+                    if self.ended:break
                     self.cursor+=1;self.size+=len(data);self.frames.append((self.cursor,data))
                     self.event.set()
                 elif frame[0]==3:
@@ -68,7 +72,7 @@ class Session:
         except asyncio.CancelledError:raise
         except Exception:self.error='云端终端连接中断，请重新连接。'
         finally:
-            self.ended=True;self.event.set()
+            self.ended=True;self.event.set();self.space.set()
             await self.socket.close()
 
     async def keepalive(self):
@@ -83,11 +87,11 @@ class Session:
         except asyncio.CancelledError:raise
         except Exception:self.error='云端终端连接中断，请重新连接。'
         finally:
-            self.ended=True;self.event.set()
+            self.ended=True;self.event.set();self.space.set()
             await self.socket.close()
 
     async def close(self):
-        self.ended=True;self.event.set()
+        self.ended=True;self.event.set();self.space.set()
         for job in (self.pump,self.heartbeat):job.cancel()
         await asyncio.gather(self.pump,self.heartbeat,return_exceptions=True)
         await self.socket.close()
@@ -181,8 +185,9 @@ class TerminalBridge:
                         path='/compute/workspace/data/ws/v1'+self.site.workspace+'/trainingJobs/'+name+'/pod/'+quote(instance,safe='')+'/exec'
                     origin=urlsplit(self.site.console)
                     url='wss://'+urlsplit(self.site.services['AEC2']).netloc+path+'?'+urlencode({'token':token,'lines':size['Height'],'columns':size['Width']})
+                    # Backpressure can delay pong reads; writes and session lifetime remain bounded.
                     socket=await self.dial(url,subprotocols=['channel.k8s.io'],origin=origin.scheme+'://'+origin.netloc,
-                        proxy=None,open_timeout=20,close_timeout=3,max_size=MAX_BUFFER,compression=None,ping_interval=20,ping_timeout=120)
+                        proxy=None,open_timeout=20,close_timeout=3,max_size=MAX_BUFFER,compression=None,ping_interval=20,ping_timeout=None)
                     # The cloud ignores handshake dimensions: stty reports 0 0 until
                     # channel 4 is sent. Set the PTY before accepting any input.
                     try:
@@ -232,6 +237,7 @@ class TerminalBridge:
         # Client acknowledgement releases memory. Repeated reads at the same cursor are safe.
         while s.frames and s.frames[0][0]<=cursor:
             _,data=s.frames.popleft();s.size-=len(data)
+        s.space.set()
         if wait and not s.frames and not s.ended:
             s.event.clear()
             try:await asyncio.wait_for(s.event.wait(),READ_TIMEOUT)

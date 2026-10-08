@@ -19,6 +19,7 @@
   function status(text, state = "loading", logState = state) { $("terminal-status").textContent = text; $("terminal-status").dataset.state = state; window.MonitorConnectionLog?.update(window.navigator?.onLine === false ? "offline" : logState, text); }
   function connectionNote(message, state) { window.MonitorConnectionLog?.note(message, state); }
   function confirmNetwork() {
+    clearTimeout(probeTimer); probeTimer = null;
     if (networkCheckPending && alive && window.navigator?.onLine !== false) { networkCheckPending = false; window.MonitorConnectionLog?.update("ready", "终端已连接。"); }
   }
   async function api(path, data, timeout = 30000, signal = null) {
@@ -139,7 +140,6 @@
     if (used) await new Promise(resolve => term.write(batch.subarray(0, used), resolve));
     if (gen !== generation) return;
     cursor = data.cursor;
-    if (!data.closed) confirmNetwork();
     if (data.closed) await disconnect(data.error || "终端会话已结束。", gen);
   }
   function enqueue(data, size = null) {
@@ -181,6 +181,7 @@
       ws.onmessage = event => {
         if (gen !== generation || (settled && !ready) || (ready && socket !== ws)) return;
         let data; try { data = JSON.parse(event.data); } catch { ws.close(); return; }
+        if (ready && ["output", "ack", "pong"].includes(data.type)) confirmNetwork();
         if (data.type === "ready") {
           ws.send(JSON.stringify({ type: "attach" }));
           ready = true; socket = ws; sequence = data.sequence; finish(true);
@@ -189,7 +190,6 @@
           await renderOutput(data, gen);
           if (gen === generation && socket === ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "output-ack", cursor: data.cursor }));
         }).catch(() => disconnect("终端输出读取失败，请重新连接。", gen));
-        else if (data.type === "pong") { clearTimeout(probeTimer); probeTimer = null; confirmNetwork(); }
         else if (data.type === "ack" && pending?.sequence === data.sequence) pending.resolve();
         else if (data.type === "error") { if (ready) recover(data.error); else { ws.close(); finish(false); } }
       };
@@ -206,6 +206,7 @@
       while (alive && gen === generation) {
         const data = await api("/api/terminal/read", { session_id: session, cursor }, 30000, signal);
         if (signal.aborted || gen !== generation) return;
+        if (!data.closed) confirmNetwork();
         outputQueue = outputQueue.then(() => renderOutput(data, gen));
         await outputQueue;
       }
@@ -216,7 +217,7 @@
     if (!alive || (socket && socket.readyState !== WebSocket.OPEN)) { recover(); return; }
     if (!socket || probeTimer) return;
     const ws = socket;
-    probeTimer = setTimeout(() => { probeTimer = null; if (socket === ws) recover("连接响应超时，正在恢复原 Shell…"); }, 8000);
+    probeTimer = setTimeout(() => { probeTimer = null; if (!document.hidden && socket === ws) recover("连接响应超时，正在恢复原 Shell…"); }, 8000);
     try { ws.send(JSON.stringify({ type: "ping" })); } catch { recover(); }
   }
   function pauseTransport() {
@@ -358,7 +359,10 @@
   });
   window.addEventListener("offline", () => { if (session) window.MonitorConnectionLog?.update("offline", "网络已离线，等待网络恢复。"); });
   window.addEventListener("focus", () => { scheduleFit(); probe(); });
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) { scheduleFit(); probe(); } });
+  document.addEventListener("visibilitychange", () => {
+    clearTimeout(probeTimer); probeTimer = null;
+    if (!document.hidden) { scheduleFit(); probe(); }
+  });
   $("terminal-disconnect").addEventListener("click", () => disconnect());
   function focusTerminal() { if (alive) term?.focus(); }
   for (const [id, delta] of [["terminal-font-down", -1], ["terminal-font-up", 1]]) $(id).addEventListener("click", () => { if (term) { term.options.fontSize = Math.max(10, Math.min(24, term.options.fontSize + delta)); fitScreen(); focusTerminal(); } });
