@@ -68,6 +68,17 @@
     } catch (_) { /* Storage may be unavailable; normal discovery remains usable. */ }
     return null;
   }
+  function requestedTarget() {
+    const query = new URL(location.href).searchParams;
+    if (!query.has('instance') && !query.has('container')) return null;
+    const instance = query.get('instance'), container = query.get('container');
+    if (query.getAll('instance').length !== 1 || query.getAll('container').length !== 1
+        || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,252}$/.test(instance || '')
+        || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$/.test(container || '')) {
+      throw new Error('终端链接的实例或容器参数无效，请返回终端重新打开。');
+    }
+    return { instance, container };
+  }
   $("ide-back").href = window.MonitorTaskContext?.returnUrl(taskId, new URL(location.href).searchParams.get("task_view")) || `/?site=${encodeURIComponent(site.id)}#tasks`;
   $("ide-task").textContent = taskId || "未指定任务";
 
@@ -380,7 +391,8 @@
     const gen = generation; controller = new AbortController(); busy = true; controls();
     $("ide-retry").hidden = false; status("正在读取最新实例与容器…");
     try {
-      const remembered = recentTarget();
+      const requested = requestedTarget();
+      const remembered = requested ? null : recentTarget();
       if (remembered) {
         // This is only a selection hint. The server checks the live session or
         // revalidates current ownership before creating any new transport.
@@ -400,6 +412,12 @@
       $("ide-task").textContent = `${result.name || taskId} · ${taskId}`;
       $("ide-instance").replaceChildren(...[...new Set(targets.map(t => t.instance))].map(option));
       containers();
+      if (requested) {
+        const target = targets.find(t => t.instance === requested.instance && t.container === requested.container);
+        if (!target) throw new Error('终端指定的实例或容器已不可用，请返回终端重新连接。');
+        $("ide-instance").value = target.instance; containers(); $("ide-container").value = target.container;
+        await open(target, gen); return;
+      }
       if (targets.length === 1) await open(targets[0], gen);
       else { busy = false; controls(); $("ide-picker").hidden = false; status("选择实例与容器后打开编辑器。"); }
     } catch (error) { failure(error, gen); }

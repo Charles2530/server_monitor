@@ -2,6 +2,7 @@
 (() => {
   const $ = id => document.getElementById(id), site = window.MonitorSite;
   const taskId = new URL(location.href).searchParams.get("task_id"), isACP = taskId?.startsWith("ACP:"), kind = isACP ? "ACP" : "CCI";
+  const editorMedia = matchMedia("(max-width:760px), (pointer:coarse)");
   const consoleBase = site.id === "sensecore" ? "https://console.sensecore.cn/cn-sh-01" : "https://console.ms-sc-01.maoshanwangtech.com";
   let targets = [], loading = false, term, fit, session = null, socket = null, alive = false, sequence = 0, cursor = 0;
   let inputQueue = [], sendingInput = false, inputTimer = null, outputQueue = Promise.resolve(), pending = null, ping = null, polling = null, generation = 0;
@@ -61,6 +62,16 @@
   function official() {
     const t = selected(); $("terminal-official").hidden = !t;
     if (t) $("terminal-official").href = t.url;
+    const editor = $("terminal-ide");
+    editor.hidden = !t || loading || !taskId?.startsWith("CCI:") || editorMedia.matches
+      || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)
+      || location.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(location.hostname);
+    if (editor.hidden) editor.removeAttribute("href");
+    else {
+      const query = new URLSearchParams({ site: site.id, task_id: taskId, instance: t.instance, container: t.container,
+        task_view: new URL(location.href).searchParams.get("task_view") === "logs" ? "logs" : "monitor" });
+      editor.href = `/ide?${query}`;
+    }
     $("terminal-open").disabled = !t || loading || alive || !!recovery;
     $("terminal-open").textContent = alive ? "已连接" : session ? "恢复连接" : "连接终端";
   }
@@ -315,6 +326,7 @@
     if (loading) return;
     await disconnect();
     loading = true; targets = []; $("terminal-picker").hidden = true; $("terminal-retry").hidden = true;
+    official();
     $("terminal-connection").open = false;
     $("terminal-task").textContent = taskId || "未选择任务"; status(isACP ? "正在读取最新 Worker…" : "正在读取最新实例与容器…");
     try {
@@ -335,6 +347,7 @@
   }
   $("terminal-instance").addEventListener("change", selectInstance);
   $("terminal-container").addEventListener("change", official);
+  editorMedia.addEventListener("change", official);
   $("terminal-open").addEventListener("click", openTerminal);
   $("terminal-retry").addEventListener("click", () => { connectionNote("用户请求重新连接。", "reconnecting"); return session ? recover() : load(); });
   setInterval(() => { if (!alive) probe(); }, 30000);

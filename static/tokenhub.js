@@ -156,11 +156,14 @@
       tooltip: { trigger: "axis", confine: true, renderMode: "richText", backgroundColor: chartSurface, borderColor: chartLine, borderWidth: 1, borderRadius: 10, padding: [12, 16], textStyle: { color: chartInk, fontSize: 13 },
         axisPointer: { type: "line", lineStyle: { color: chartAccent, width: 1, opacity: .4, type: "dashed" } }, valueFormatter: (value) => known(value) ? money(value) + " USD" : "未知" },
       grid: { left: 24, right: 32, top: 26, bottom: 22, containLabel: true },
-      xAxis: { type: "category", boundaryGap: false, data: dates, axisLabel: { formatter: (value) => hourly ? value.slice(11) + (value.endsWith("00:00") ? "\n" + value.slice(5, 10) : "") : value.slice(5), color: chartMuted, fontSize: 11, lineHeight: 17, margin: 14, hideOverlap: true, showMinLabel: true, showMaxLabel: true }, axisLine: { lineStyle: { color: chartLine, opacity: .6 } }, axisTick: { show: false } },
-      yAxis: { type: "value", min: 0, splitNumber: 4, axisLabel: { color: chartMuted, fontSize: 11, margin: 14, formatter: (value) => Number.isInteger(value) ? `$${count(value)}` : money(value) }, splitLine: { lineStyle: { color: chartLine, opacity: .65, width: 1, type: "solid" } } },
+      xAxis: { type: "category", boundaryGap: false, data: dates, axisLabel: { formatter: (value) => hourly ? value.slice(11) + (value.endsWith("00:00") ? "\n" + value.slice(5, 10) : "") : value.slice(5), color: chartMuted, fontSize: 12, lineHeight: 18, margin: 14, hideOverlap: true, showMinLabel: true, showMaxLabel: true }, axisLine: { lineStyle: { color: chartLine, opacity: .6 } }, axisTick: { show: false } },
+      yAxis: { type: "value", min: 0, splitNumber: 4, axisLabel: { color: chartMuted, fontSize: 12, margin: 14, formatter: (value) => Number.isInteger(value) ? `$${count(value)}` : money(value) }, splitLine: { lineStyle: { color: chartLine, opacity: .65, width: 1, type: "solid" } } },
       series: [{ name: hourly ? "每小时实际费用" : "实际花费", type: "line", smooth: .3, smoothMonotone: "x", showSymbol: false, symbol: "circle", symbolSize: 8, connectNulls: hourly,
         itemStyle: { color: chartAccent, borderColor: chartSurface, borderWidth: 2 },
-        lineStyle: { width: 3, cap: "round", join: "round" }, emphasis: { scale: 1.25 },
+        lineStyle: { width: 2.5, cap: "round", join: "round" }, emphasis: { scale: 1.25 },
+        markPoint: { symbol: "circle", symbolSize: 7, silent: true, label: { show: false },
+          itemStyle: { color: chartAccent, borderColor: chartSurface, borderWidth: 2 },
+          data: known(values[values.length - 1]) ? [{ coord: [dates.length - 1, values[values.length - 1]] }] : [] },
         areaStyle: { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: echarts.color.modifyAlpha(chartAccent, .13) }, { offset: 1, color: echarts.color.modifyAlpha(chartAccent, 0) }] } },
         data: values }]
     };

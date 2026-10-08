@@ -53,6 +53,11 @@
         <div class="terminal-session"><svg class="session-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 6 6 6-6 6M13 18h6"/></svg><span id="terminal-led" class="terminal-led"></span><strong id="terminal-target-name">Terminal</strong><span id="terminal-transport">连接中</span><span id="terminal-size" aria-label="终端列数与行数"></span></div>
         <div data-connection-log></div>
         <div id="terminal-tools" class="terminal-tools">
+          <a id="terminal-ide" target="_blank" rel="noopener noreferrer" title="在新标签页打开当前 CCI 容器的 VS Code" hidden>
+            <svg class="terminal-editor-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16"/></svg>
+            <span>打开 VS Code</span>
+            <svg class="terminal-editor-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12 12 4M5 4h7v7"/></svg>
+          </a>
           <button id="terminal-font-down" type="button" title="缩小字号" aria-label="缩小字号">A−</button>
           <button id="terminal-font-up" type="button" title="放大字号" aria-label="放大字号">A＋</button>
           <button id="terminal-copy" type="button">复制选中</button>

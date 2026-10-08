@@ -63,8 +63,21 @@
 :root[data-theme] .task-card { border-radius: 12px; background: var(--surface); border-color: var(--line); box-shadow: var(--panel-shadow); }
 :root[data-theme] .task-card:hover { border-color: var(--accent-line); }
 :root[data-theme] #task-list .task-card.selected,
-:root[data-theme] #task-list .task-card.selected:hover { background: var(--accent-soft); border-color: var(--accent-line); box-shadow: inset 3px 0 0 var(--accent); }
-:root[data-theme] .task-name { font-weight: 600; }
+:root[data-theme] #task-list .task-card.selected:hover { background: var(--surface); border-color: var(--accent-line); box-shadow: inset 3px 0 0 var(--accent), var(--panel-shadow); }
+:root[data-theme] .task-top { align-items: flex-start; }
+:root[data-theme] .task-name {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
+  white-space: normal; overflow-wrap: anywhere; font-size: 13px; line-height: 1.55; font-weight: 600;
+}
+:root[data-theme] .task-cluster { margin-top: 5px; color: var(--muted); }
+:root[data-theme] .running-badge { margin-top: 3px; }
+:root[data-theme] .task-meta { margin-block: 12px; gap: 6px; }
+:root[data-theme] .meta-pill { padding: 3px 7px; border: 1px solid var(--line); border-radius: 5px; }
+:root[data-theme] .task-bottom { padding-top: 11px; margin-top: 13px; border-color: var(--line); color: var(--muted); }
+:root[data-theme] .task-detail-hint { color: var(--accent); font-weight: 500; }
+:root[data-theme] .metric-label { color: var(--muted); }
+:root[data-theme] .metric-value { font-size: 21px; font-weight: 600; letter-spacing: -.025em; }
+:root[data-theme] .metric-value small { font-size: 11px; color: var(--muted); }
 :root[data-theme] :is(.meta-pill, .filter-group, .detail-tabs, .th-page .th-tabs, .th-range) { background: var(--surface-raised); border-color: var(--line); }
 :root[data-theme] :is(.filter-button.selected, .range-button.selected, .detail-tabs button[aria-selected="true"], .th-tabs button.active, .th-range button[aria-pressed="true"]) { background: var(--surface); color: var(--accent); box-shadow: 0 1px 4px #152a4010; }
 :root[data-theme] .detail-heading .eyebrow { color: var(--accent); letter-spacing: .08em; }
@@ -105,7 +118,7 @@
 :root[data-theme="dark"] #main .button-primary { background: #168663; color: #fff; box-shadow: none; }
 :root[data-theme="dark"] #main .button-primary:hover:not(:disabled) { background: #1b9b73; }
 :root[data-theme="dark"] #task-list .task-card.selected,
-:root[data-theme="dark"] #task-list .task-card.selected:hover { background: var(--surface); border-color: var(--line); box-shadow: inset 0 0 0 1px #3b6753; }
+:root[data-theme="dark"] #task-list .task-card.selected:hover { background: var(--surface); border-color: var(--accent-line); box-shadow: inset 3px 0 0 var(--accent); }
 :root[data-theme="dark"] #main .summary-card:nth-child(3) { background: var(--surface); border-color: var(--line); }
 :root[data-theme="dark"] #tokenhub-metrics .th-metric:first-child { background: linear-gradient(125deg, #214636, #2b5e47); border-color: #3b6753; }
 :root[data-theme="dark"] #tokenhub-metrics .th-metric:first-child strong { color: #fff; }
@@ -119,6 +132,12 @@
   :root[data-theme] .sidebar .nav-item { min-height: 46px; }
   :root[data-theme] .page-header h1 { font-size: 25px; }
   :root[data-theme] .summary-grid { gap: 16px; }
+  :root[data-theme] .task-card { padding: 16px; }
+  :root[data-theme] .detail-panel { padding: 22px 22px 0; }
+  :root[data-theme] .detail-heading { gap: 18px; margin-bottom: 18px; }
+  :root[data-theme] .detail-heading h2 { font-size: 18px; line-height: 1.55; text-wrap: pretty; }
+  :root[data-theme] .detail-tabs { padding: 4px; }
+  :root[data-theme] .status-ok { background: var(--surface); border-color: var(--line); }
 }
 @media (max-width: 760px) {
   :root[data-theme] #main .page-header { background: transparent; }
@@ -135,7 +154,25 @@
   :root[data-theme] .task-rename-button { width: 44px; flex-basis: 44px; }
   :root[data-theme] :is(.acp-dialog, .task-config-dialog, .th-original-dialog, .task-rename-dialog) { border-radius: 16px; }
 }
+/* Preserve all seven destinations, with room for labels on narrow phones. */
+@media (max-width: 760px), (pointer: coarse) and (max-width: 1100px) {
+  :root[data-theme] .sidebar nav { gap: 2px; padding-inline: 4px; }
+  :root[data-theme] .sidebar .nav-item {
+    min-width: 0; min-height: 56px; padding: 6px 2px; gap: 5px;
+    white-space: normal; overflow-wrap: anywhere; text-align: center;
+    font-size: 10px; line-height: 1.35; border-radius: 9px;
+  }
+  :root[data-theme] .task-card { padding: 16px; }
+  :root[data-theme] .task-name { -webkit-line-clamp: 4; }
+  :root[data-theme] .task-top { gap: 8px; }
+  :root[data-theme] .task-top .service-icon { width: 28px; height: 28px; font-size: 10px; }
+  :root[data-theme] .running-badge { font-size: 10px; }
+  :root[data-theme] .metric-value { font-size: 24px; }
+  :root[data-theme] .status-banner { padding: 10px 12px; }
+}
 @media (max-width: 360px) {
+  :root[data-theme] .sidebar nav { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) repeat(5, minmax(0, 1fr)); gap: 1px; padding-inline: 2px; }
+  :root[data-theme] .sidebar .nav-item { padding-inline: 0; letter-spacing: -.04em; }
   :root[data-theme] .summary-card { padding: 12px; }
   :root[data-theme] .summary-label { font-size: 11px; }
   :root[data-theme] .summary-number { font-size: 29px; }

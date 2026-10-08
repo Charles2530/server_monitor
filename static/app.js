@@ -43,7 +43,8 @@
     return list.filter((cluster) => !(cluster.id === "public" || cluster.id?.startsWith("/subscriptions/public/") || /^public aec2$/i.test(cluster.name || "")));
   }
   function visibleClusters() {
-    return clusters().filter((cluster) => cluster.available_gpus !== 0 || cluster.inventory?.total_gpus > 0 || cluster.inventory_error);
+    // Zero available GPUs means no remaining quota, not an absent cluster.
+    return clusters();
   }
   function visibleTasks() {
     return tasks().filter((task) => (model.kind === "all" || task.kind === model.kind) && `${task.name || ""} ${task.cluster || ""} ${task.id || ""}`.toLocaleLowerCase().includes(model.search));

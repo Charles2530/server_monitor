@@ -14,6 +14,14 @@
 .terminal-tools button:hover, .terminal-keyboard button:hover { background: #2d3949; }
 .terminal-hint, #terminal-size { color: var(--terminal-muted); }
 #terminal-transport { background: #ffffff04; border-color: var(--terminal-line); color: var(--terminal-muted); }
+/* The live toolbar has its own dark surface in both page themes. */
+#terminal-workspace .connection-monitor { gap: 8px; color: var(--terminal-muted); }
+#terminal-workspace .connection-log-button { background: transparent; border-color: transparent; border-radius: 7px; color: #b4c0d1; }
+#terminal-workspace .connection-log-button:hover { background: #ffffff08; border-color: #ffffff14; color: #e8effa; }
+#terminal-workspace .connection-current-state { background: #ffffff05; color: #bdc9d9; }
+#terminal-workspace .connection-monitor[data-state="ready"] .connection-current-state { background: #a0dbc20d; color: var(--terminal-accent); }
+#terminal-workspace .connection-monitor:is([data-state="error"], [data-state="offline"], [data-state="reconnecting"]) .connection-current-state { background: #efb88a10; color: #efbd98; }
+#terminal-workspace .connection-updated { color: #8291a7; font-size: 10px; }
 .terminal-led.connected { background: var(--terminal-accent); box-shadow: 0 0 0 3px #a0dbc210; }
 .terminal-ui-icon { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
 .terminal-mobile-controls, .terminal-mobile-back { display: none; }
@@ -31,6 +39,7 @@
 #terminal-menu #terminal-disconnect { color: #f0b2aa; background: #b65f5012; border-color: #dd8a7920; }
 #terminal-menu .terminal-setup { padding: 14px 0 0; border: 0; border-top: 1px solid var(--terminal-line); }
 #terminal-menu .connection-bar, #terminal-menu .session-status { display: block; }
+body.terminal-compact #terminal-menu .session-status { padding: 11px 12px; border: 1px solid var(--terminal-line); border-radius: 10px; background: #ffffff04; box-shadow: none; }
 #terminal-menu #terminal-status { color: var(--terminal-text); font-size: 12px; line-height: 1.7; }
 #terminal-menu #terminal-status[data-state=error] { color: #efbca4; }
 #terminal-menu #terminal-retry { margin: 10px 0; color: var(--terminal-accent); background: #a0dbc20a; border-color: #a0dbc225; border-radius: 8px; }
@@ -99,3 +108,25 @@ body.terminal-compact.terminal-space-saving #terminal-mobile-status[aria-label="
 body.terminal-compact.terminal-space-saving #terminal-input-notice { bottom: calc(42px + env(safe-area-inset-bottom)); }
 
 #terminal-menu .terminal-menu-back { display: block; padding: 12px 18px; border-top: 1px solid var(--terminal-line); color: var(--terminal-muted); font-size: 12px; text-decoration: none; }
+
+@media (min-width: 761px) and (pointer: fine) {
+  body:not(.terminal-compact) #terminal-workspace .terminal-toolbar { padding: 8px 14px; gap: 12px; background: #181f29; }
+  body:not(.terminal-compact) #terminal-workspace .terminal-session { flex: 1 1 180px; gap: 10px; }
+  body:not(.terminal-compact) #terminal-workspace .terminal-session > .session-icon { box-sizing: content-box; width: 15px; height: 15px; padding: 5px; border: 1px solid #a0dbc21a; border-radius: 6px; background: #a0dbc209; color: #a0dbc2; }
+  body:not(.terminal-compact) #terminal-target-name { color: #dde6f2; font: 500 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  body:not(.terminal-compact) #terminal-transport { border: 0; border-radius: 4px; padding: 3px 6px; font-size: 10px; }
+  body:not(.terminal-compact) #terminal-tools { align-items: center; gap: 4px; margin-left: auto; }
+  body:not(.terminal-compact) #terminal-tools button { min-height: 32px; padding: 5px 9px; border-color: transparent; border-radius: 7px; background: transparent; color: #b8c5d7; font-size: 11px; }
+  body:not(.terminal-compact) #terminal-tools button:hover { color: #f0f5ff; background: #ffffff09; border-color: #ffffff10; }
+  body:not(.terminal-compact) #terminal-tools :is(#terminal-font-down, #terminal-font-up) { min-width: 30px; padding-inline: 7px; background: #ffffff04; border-color: #ffffff0b; color: #b2bfd2; }
+  body:not(.terminal-compact) #terminal-tools #terminal-font-down { border-radius: 7px 0 0 7px; margin-right: -5px; }
+  body:not(.terminal-compact) #terminal-tools #terminal-font-up { border-radius: 0 7px 7px 0; margin-right: 5px; }
+  body:not(.terminal-compact) #terminal-tools #terminal-disconnect { margin-left: 5px; color: #dba7a3; }
+  body:not(.terminal-compact) #terminal-tools #terminal-disconnect:hover { color: #ffd1cb; background: #dc7b7112; border-color: #dc7b7125; }
+  body:not(.terminal-compact) #terminal-tools #terminal-ide { padding-inline: 11px; margin-inline-end: 8px; }
+  body:not(.terminal-compact) #terminal-workspace .terminal-keyboard { gap: 5px; padding: 6px 14px; }
+  body:not(.terminal-compact) #terminal-workspace .terminal-keyboard button { min-height: 24px; border-radius: 5px; background: #ffffff04; border-color: #ffffff0a; color: #9eafc5; font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  body:not(.terminal-compact) #terminal-workspace .terminal-keyboard button:hover { background: #ffffff0d; color: #e5edfa; }
+  body:not(.terminal-compact) #terminal-workspace .terminal-keyboard [data-terminal-key="ctrl"][aria-pressed="true"] { background: #a0dbc22b; border-color: #a0dbc270; color: #c7f5e1; }
+  body:not(.terminal-compact) #terminal-hint { color: #8b9ab0; font-size: 10px; }
+}
