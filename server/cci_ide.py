@@ -427,7 +427,7 @@ class CCIEditor:
                 raise ActionError('编辑器会话已过期，请重新打开。', 'ide_expired', 404)
             caches = session.setdefault('history_caches', {})
             cached = caches.get(workspace)
-            if cached and time.monotonic() - cached['created'] < 15:
+            if cached and time.monotonic() - cached['created'] < 60:
                 return dict(cached['result'])
             try:
                 raw = await run_python(self.bridge, data, history_script(workspace), timeout=45, cleanup_jobs=self.cleanup_jobs, max_result_bytes=MAX_HISTORY_RESPONSE_BYTES)

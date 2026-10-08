@@ -257,7 +257,7 @@
   async function refreshHistory(gen, current = connection) {
     if (!current?.workspace || !current.ready || current.entryExpired || current.codexPanel !== 'ready'
         || gen !== generation || !controller || controller.signal.aborted || busy || recoveryFailures || document.hidden || navigator.onLine === false
-        || $('ide-preserved-select')?.selectedIndex > 0 || current.historyRequest
+        || $('ide-preserved-select')?.selectedIndex > 0 || current.historyRequest || current.historySupported === false
         || (current.historyWorkspace === current.workspace && Date.now() < current.historyNextCheck)) return;
     const workspace = current.workspace, request = {};
     current.historyRequest = request;
@@ -425,7 +425,10 @@
           || event.data.workspace !== connection.historyPayload.workspace || !Number.isSafeInteger(event.data.count) || event.data.count < 0) return;
       connection.historyState = event.data.state;
       connection.historyCount = event.data.count;
-      setupStatus(); return;
+      connection.historySupported = event.data.supported;
+      setupStatus();
+      if (connection.historySupported) void refreshHistory(generation, connection);
+      return;
     }
     if (event.data?.type === "ilab-editor-entry-expired") {
       // Only the failed entry document may be replaced. A ready workbench may
