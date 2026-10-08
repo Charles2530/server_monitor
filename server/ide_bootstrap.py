@@ -1,5 +1,8 @@
 """Pinned, user-local editor installation executed only in a verified CCI shell."""
 import json
+import base64
+import zlib
+from functools import lru_cache
 from pathlib import Path
 from . import ide_codex, ide_appearance
 
@@ -7,13 +10,25 @@ VERSION = '4.139.1'
 SHA256 = '53029be6c5781b7bca49b815fcc9a2a3fc111813ad8c9965b2c0f0d2985a0674'
 
 
+@lru_cache(maxsize=1)
+def _packed_modules():
+    source = Path(ide_codex.__file__).read_bytes() + b'\n' + Path(ide_appearance.__file__).read_bytes()
+    return repr(base64.b64encode(zlib.compress(source, 9)).decode())
+
+
+@lru_cache(maxsize=1)
+def _appearance_bundle():
+    return ide_appearance.appearance_bundle()
+
+
 def bootstrap_script(instance, address, *, install_optional=True):
     settings = json.dumps({'instance': instance, 'address': address, 'version': VERSION, 'sha256': SHA256, 'install_optional': install_optional})
-    bundle = ide_appearance.appearance_bundle()
+    bundle = _appearance_bundle()
     if not install_optional:
         bundle = {key: value for key, value in bundle.items() if key != 'payload'}
-    return (Path(ide_codex.__file__).read_text() + '\n' + Path(ide_appearance.__file__).read_text()
-            + '\nAPPEARANCE_BUNDLE = ' + repr(bundle)
+    packed = _packed_modules()
+    return ('import base64, zlib\nexec(compile(zlib.decompress(base64.b64decode(' + packed + ")), '<bootstrap-modules>', 'exec'))\n"
+            + 'APPEARANCE_BUNDLE = ' + repr(bundle)
             + '\nSETTINGS = ' + repr(settings) + '\n' + _SCRIPT)
 
 

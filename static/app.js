@@ -117,7 +117,9 @@
 
   function renderOverview(listsKnown) {
     const list = tasks();
-    const signature = JSON.stringify([list, visibleClusters(), listsKnown, model.unavailable, model.snapshot?.connected, model.snapshot?.source_status]);
+    const signature = model.snapshot?.updated_at
+      ? JSON.stringify([model.snapshot.updated_at, listsKnown, model.unavailable, model.snapshot.connected, model.snapshot.source_status])
+      : JSON.stringify([list, visibleClusters(), listsKnown, model.unavailable, model.snapshot?.connected, model.snapshot?.source_status]);
     if (signature === model.overviewSignature) return;
     model.overviewSignature = signature;
     const totals = ["CCI", "ACP"].map((kind) => {
@@ -510,9 +512,12 @@
         if (!renamed.pendingSources.size) verifiedNames.delete(id);
       }
       const changed = snapshot.updated_at !== model.snapshot?.updated_at;
-      const taskDataChanged = JSON.stringify(snapshot.tasks) !== JSON.stringify(model.snapshot?.tasks) || snapshot.status !== model.snapshot?.status || snapshot.connected !== model.snapshot?.connected
+      const versionedLists = Boolean(snapshot.updated_at && model.snapshot?.updated_at);
+      const taskListChanged = (!versionedLists || changed) && JSON.stringify(snapshot.tasks) !== JSON.stringify(model.snapshot?.tasks);
+      const taskDataChanged = taskListChanged || snapshot.status !== model.snapshot?.status || snapshot.connected !== model.snapshot?.connected
         || ["CCI", "ACP"].some(kind => snapshot.source_status?.[kind]?.status !== model.snapshot?.source_status?.[kind]?.status);
-      const clusterDataChanged = JSON.stringify(snapshot.clusters) !== JSON.stringify(model.snapshot?.clusters) || snapshot.connected !== model.snapshot?.connected;
+      const clusterListChanged = (!versionedLists || changed) && JSON.stringify(snapshot.clusters) !== JSON.stringify(model.snapshot?.clusters);
+      const clusterDataChanged = clusterListChanged || snapshot.connected !== model.snapshot?.connected;
       const previousSelection = model.selected;
       model.snapshot = snapshot;
       model.unavailable = false;

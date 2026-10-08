@@ -1,4 +1,4 @@
-"""Declarative editor defaults; existing user/workspace settings always win."""
+"""Editor defaults and scoped context actions; user appearance settings win."""
 import base64
 import hashlib
 import io
@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import zipfile
 
-APPEARANCE_VERSION = '1.3.1'
+APPEARANCE_VERSION = '1.4.0'
 
 
 def appearance_bundle():
@@ -21,10 +21,10 @@ def appearance_bundle():
                 info = zipfile.ZipInfo('extension/' + path.relative_to(root).as_posix(), (2026, 1, 1, 0, 0, 0))
                 info.compress_type = zipfile.ZIP_DEFLATED
                 archive.writestr(info, path.read_bytes())
-        archive.writestr(zipfile.ZipInfo('[Content_Types].xml', (2026, 1, 1, 0, 0, 0)), '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="json" ContentType="application/json"/><Default Extension="svg" ContentType="image/svg+xml"/><Default Extension="vsixmanifest" ContentType="text/xml"/></Types>')
+        archive.writestr(zipfile.ZipInfo('[Content_Types].xml', (2026, 1, 1, 0, 0, 0)), '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="js" ContentType="application/javascript"/><Default Extension="json" ContentType="application/json"/><Default Extension="svg" ContentType="image/svg+xml"/><Default Extension="vsixmanifest" ContentType="text/xml"/></Types>')
         archive.writestr(zipfile.ZipInfo('extension.vsixmanifest', (2026, 1, 1, 0, 0, 0)), '''<?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011"><Metadata>
-<Identity Language="en-US" Id="workspace-appearance" Version="1.3.1" Publisher="ilab"/><DisplayName>iLab Workspace Appearance</DisplayName><Description xml:space="preserve">Code typography and Material file icons.</Description><Tags>theme,icons</Tags><Categories>Themes</Categories><GalleryFlags>Public</GalleryFlags><Properties><Property Id="Microsoft.VisualStudio.Code.Engine" Value="^1.80.0"/></Properties></Metadata><Installation><InstallationTarget Id="Microsoft.VisualStudio.Code"/></Installation><Dependencies/><Assets><Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true"/></Assets></PackageManifest>''')
+<Identity Language="en-US" Id="workspace-appearance" Version="1.4.0" Publisher="ilab"/><DisplayName>iLab Workspace Appearance</DisplayName><Description xml:space="preserve">Code typography and Material file icons.</Description><Tags>theme,icons</Tags><Categories>Themes</Categories><GalleryFlags>Public</GalleryFlags><Properties><Property Id="Microsoft.VisualStudio.Code.Engine" Value="^1.80.0"/></Properties></Metadata><Installation><InstallationTarget Id="Microsoft.VisualStudio.Code"/></Installation><Dependencies/><Assets><Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true"/></Assets></PackageManifest>''')
     raw = output.getvalue()
     return {'version': APPEARANCE_VERSION, 'sha256': hashlib.sha256(raw).hexdigest(), 'payload': base64.b64encode(raw).decode()}
 
@@ -59,7 +59,7 @@ def prepare_appearance(base, env, binary, bundle, progress=None):
         archive.write_bytes(raw)
         config = temporary / 'config.json'
         config.write_text('{}')
-        # Install only our declarative extension. Never parse or rewrite personal settings.json (JSONC).
+        # Install our bundled appearance/context extension. Never parse or rewrite personal settings.json (JSONC).
         with (base / 'appearance-install.log').open('ab') as log:
             installed = subprocess.run([str(binary), '--config', str(config), '--user-data-dir', str(base / 'user-data'),
                                         '--extensions-dir', str(base / 'extensions'), '--install-extension', str(archive), '--force'],

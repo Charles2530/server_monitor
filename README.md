@@ -43,6 +43,7 @@ server_monitor/
 ├── setup.sh                # 创建 .venv 并安装锁定依赖
 ├── run.sh                  # 前台运行，监听 127.0.0.1:8766
 ├── start.sh                # 启动 LaunchAgent 或本机后台进程
+├── deploy.sh               # 按当前硬件自动选择 Air / Mini profile 并部署
 ├── status.sh               # 查询服务状态
 ├── stop.sh                 # 停止本机监控服务
 ├── .env.example            # IAM 与采集配置示例
@@ -61,12 +62,12 @@ server_monitor/
 │   ├── task_logs.py        # Worker / 容器发现与日志读取
 │   ├── normalize.py       # 字段白名单和指标单位转换
 │   ├── domain.py          # 筛选、时间序列合并与统计
-│   ├── service.py         # 轮询、互斥、失败恢复
+│   ├── service.py          # 轮询、互斥、失败恢复
+│   ├── terminal_resolver.py # CCI / ACP 终端目标解析基类
 │   └── store.py           # SQLite 历史与操作去重
 ├── static/                 # 页面、样式和前端逻辑
 │   └── vendor/             # 本地 Tabler / ECharts 及许可证
 ├── scripts/                # 后台控制、LaunchAgent 部署、浏览器验收
-├── tests/                  # 后端自动测试
 ├── docs/                   # 带时间戳的设计与历史验收文档
 ├── config/                 # 部署时生成本机 LaunchAgent 配置，不入库
 └── data/                   # 本机会话、SQLite、日志与截图，不入库
@@ -147,8 +148,8 @@ MONITOR_BROWSER_CHANNEL=auto
 | 查看服务状态 | `./status.sh` |
 | 停止本机监控服务 | `./stop.sh` |
 | 前台调试 | `./run.sh`，Ctrl+C 退出 |
-| 安装 / 更新 macOS 自动启动副本 | `.venv/bin/python scripts/deploy_launchagent.py` |
-| 后端测试 | `.venv/bin/python -m pytest tests -q` |
+| 安装 / 更新 macOS 自动启动副本 | `./deploy.sh` |
+| 本机验证（测试源码不上传 GitHub） | `.venv/bin/python -m pytest tests -q` |
 
 **`stop.sh` 停止的是本机监控服务，不会停止云端训练任务。** 停止云任务需在页面中对目标 ACP 任务执行“停止”。
 
@@ -284,7 +285,7 @@ ssh -N -L 8766:127.0.0.1:8766 user@your-linux-server
 
 默认使用登录后运行的 LaunchAgent。若需要重启后无需登录就恢复监控与手机入口，使用[系统级无人登录部署](docs/macos-unattended.md)，其中包含独立 Tailscale 进程、回退方式和真实重启验收要求。
 
-已实测 Mac 的参数选择与保留方式见 [Mac 运行参数说明](docs/mac-runtime-profiles-1007-1327.md)，本机 Air 的前后测量与回退见 [Air 调优结果](docs/MacBook-Air-运行调优结果-1007-1327.md)。Air 与 Mini 共用同一 `main` 和完整功能，各自保留独立的实测系统配置，不按机型划分功能或性能等级。Air 使用 `./deploy-air.sh`，Mini 使用 `./deploy-mini.sh`；两个入口分别选择对应的 `*-current.json`，后续部署保留所选配置。其他机器不要直接套用参数。见 [Air 独立部署与回退](docs/MacBook-Air-独立适配说明-1007-1531.md) 和 [本机最新部署验收](docs/MacBook-Air-主线重部署与历史优化-1008-0002.md)。
+已实测 Mac 的参数选择与保留方式见 [Mac 运行参数说明](docs/mac-runtime-profiles-1007-1327.md)，本机 Air 的前后测量与回退见 [Air 调优结果](docs/MacBook-Air-运行调优结果-1007-1327.md)。Air 与 Mini 共用同一 `main` 和完整功能，`./deploy.sh` 会读取当前硬件并自动选择对应 profile：Air 使用 Standard 与队列并发 3，Mini 使用 Interactive 与队列并发 6。其他机器继续使用保守的通用 profile。见 [Air 独立部署与回退](docs/MacBook-Air-独立适配说明-1007-1531.md) 和 [本机最新部署验收](docs/MacBook-Air-主线重部署与历史优化-1008-0002.md)。
 
 本轮新优化合并、Air/Mini 共用功能与独立配置，以及 Maoshanwang 实机验收见 [主线集成验收](docs/Air-Mini共用主线与Maoshanwang验收-1008-0120.md)。
 
@@ -296,7 +297,7 @@ ssh -N -L 8766:127.0.0.1:8766 user@your-linux-server
 
 ```bash
 ./stop.sh
-.venv/bin/python scripts/deploy_launchagent.py
+./deploy.sh
 ```
 
 部署前会确认 8766 端口已释放；若仍被占用会报错退出，避免把旧进程误判为新部署成功。
