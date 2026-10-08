@@ -1,0 +1,80 @@
+/* Applied only to recognized file references inside a Codex composer. */
+[data-ilab-codex-file] {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: max-content;
+  max-width: min(280px, 75vw);
+  height: 28px;
+  min-height: 0;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 18px;
+}
+[data-ilab-codex-file="tile"] > .composer-attachment-surface {
+  width: auto;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+}
+[data-ilab-codex-file="tile"] > .composer-attachment-surface > :first-child {
+  display: none;
+}
+[data-ilab-codex-file="tile"] > .composer-attachment-surface > :nth-child(2) {
+  height: 100%;
+  min-width: 0;
+  flex-shrink: 1;
+  gap: 6px;
+  padding: 0 28px 0 8px;
+  background: transparent;
+}
+[data-ilab-codex-file] .composer-attachment-surface {
+  border-radius: inherit;
+}
+[data-ilab-codex-file="card"] > .pointer-events-none {
+  height: 100%;
+  min-width: 0;
+  gap: 6px;
+  padding: 0 28px 0 8px;
+}
+[data-ilab-codex-file="card"] .size-10 {
+  width: 14px;
+  height: 14px;
+  border-radius: 0;
+  background: transparent;
+}
+[data-ilab-codex-file="card"] .size-10 svg {
+  width: 14px;
+  height: 14px;
+}
+[data-ilab-codex-file="card"] .truncate {
+  max-width: 100%;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+}
+[data-ilab-codex-file="card"] > .pointer-events-none > .flex-col {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+[data-ilab-codex-file="card"] > .pointer-events-none > .flex-col > :last-child:not(:first-child) {
+  flex-shrink: 0;
+  font-size: 10px;
+}
+[data-ilab-codex-file] > button:last-child:not(:first-child) {
+  position: absolute;
+  inset: 50% 4px auto auto;
+  width: 20px;
+  height: 20px;
+  transform: translateY(-50%);
+  translate: none;
+  opacity: .7;
+  pointer-events: auto;
+}
+[data-ilab-codex-file] > button:last-child:not(:first-child):is(:hover, :focus-visible) {
+  opacity: 1;
+}
+[data-composer-attachments-row]:has([data-ilab-codex-file]) {
+  gap: 6px;
+}

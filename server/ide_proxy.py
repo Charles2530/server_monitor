@@ -17,7 +17,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 from websockets.asyncio.client import connect
-from .ide_assets import EditorAssetCache
+from .ide_assets import EditorAssetCache, WEBVIEW_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +32,8 @@ FONT_ASSETS = {'fonts.css': 'text/css', **{
 }}
 
 
-async def workbench_response(upstream, headers, parent_origin):
-    # Decode only the workbench document; never rewrite webviews, JS or extension resources.
+async def workbench_response(upstream, headers, parent_origin, *, codex_webview=False):
+    # Decorate editor shells only; never rewrite extension code or message content.
     if upstream.headers.get('content-encoding', '').lower() not in ('', 'identity', 'gzip', 'deflate'):
         # Some installations do not have HTTPX's optional Brotli decoder. Preserve
         # unsupported encodings byte-for-byte instead of emitting compressed HTML as text.
@@ -51,7 +51,10 @@ async def workbench_response(upstream, headers, parent_origin):
             return StreamingResponse(remainder(), headers=headers, background=BackgroundTask(upstream.aclose))
     await upstream.aclose()
     content = b''.join(chunks)
-    if b'id="vscode-workbench-web-configuration"' in content and b'</head>' in content:
+    if codex_webview and b'</head>' in content:
+        content = content.replace(b'</head>', b'<script defer src="/_ilab_appearance/codex-files.js"></script></head>', 1)
+        headers['cache-control'] = 'no-store'
+    elif b'id="vscode-workbench-web-configuration"' in content and b'</head>' in content:
         extras = ('<link rel="stylesheet" href="/_ilab_appearance/fonts.css">'
                   '<script src="/_ilab_frame_status.js" data-parent-origin="' + escape(parent_origin, quote=True) + '"></script>')
         content = content.replace(b'</head>', extras.encode() + b'</head>', 1)
@@ -159,6 +162,12 @@ class EditorProxy:
         if path == '/_ilab_frame_status.js':
             if request.method not in ('GET', 'HEAD'): return PlainTextResponse('Method not allowed', 405)
             return FileResponse(APPEARANCE_ROOT.parent / 'ide-frame-status.js', media_type='application/javascript', headers={'Cache-Control': 'no-cache'})
+        if path == '/_ilab_appearance/codex-files.js':
+            if request.method not in ('GET', 'HEAD'): return PlainTextResponse('Method not allowed', 405)
+            script = (APPEARANCE_ROOT / 'codex-files.js').read_text()
+            style = (APPEARANCE_ROOT / 'codex-files.css').read_text()
+            return Response(script.replace('/*__ILAB_CODEX_FILE_STYLE__*/', json.dumps(style)),
+                            media_type='application/javascript', headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
         if path.startswith('/_ilab_appearance/'):
             if request.method not in ('GET', 'HEAD'): return PlainTextResponse('Method not allowed', 405)
             asset = path.removeprefix('/_ilab_appearance/')
@@ -167,7 +176,9 @@ class EditorProxy:
             return FileResponse(APPEARANCE_ROOT / asset, media_type=FONT_ASSETS[asset], headers={'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff'})
         if path.rstrip('/') in ('/login', '/logout'): return PlainTextResponse('请返回监控网站重新连接编辑器。', 502)
         self.touched = time.monotonic()
-        cache_key = self.assets.key(request) if self.assets else None
+        codex_webview = (bool(WEBVIEW_PATH.fullmatch(path)) and path.endswith('/index.html')
+                         and request.query_params.get('extensionId', '').lower() == 'openai.chatgpt')
+        cache_key = self.assets.key(request) if self.assets and not codex_webview else None
         cached = await self.assets.get(cache_key) if self.assets else None
         if cached is not None:
             body, headers = cached
@@ -191,7 +202,10 @@ class EditorProxy:
                         and 'transfer-encoding' not in request.headers)
             content = None if bodyless else request.stream()
             outgoing_headers = self.headers(request)
-            if path == '/' and request.method == 'GET': outgoing_headers['accept-encoding'] = 'gzip'
+            if (path == '/' or codex_webview) and request.method == 'GET':
+                outgoing_headers['accept-encoding'] = 'gzip'
+            if codex_webview:
+                for key in ('if-none-match', 'if-modified-since'): outgoing_headers.pop(key, None)
             resource = (path.startswith('/_static/') or
                         re.match(r'^/stable-[a-f0-9]{40}/(?:static/|vscode-remote-resource$)', path))
             retryable = bodyless and (resource or path == '/')
@@ -235,6 +249,8 @@ class EditorProxy:
             headers['referrer-policy'] = 'no-referrer'
             if path == '/' and request.method == 'GET' and upstream.status_code == 200 and upstream.headers.get('content-type', '').split(';')[0] == 'text/html':
                 return await workbench_response(upstream, headers, self.parent_origin)
+            if codex_webview and request.method == 'GET' and upstream.status_code == 200 and upstream.headers.get('content-type', '').split(';')[0] == 'text/html':
+                return await workbench_response(upstream, headers, self.parent_origin, codex_webview=True)
             stream = self.assets.stream(cache_key, upstream) if self.assets and request.method == 'GET' else upstream.aiter_raw()
             return StreamingResponse(stream, status_code=upstream.status_code, headers=headers, background=BackgroundTask(upstream.aclose))
         except (httpx.HTTPError, OSError) as exc:
