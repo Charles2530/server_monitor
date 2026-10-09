@@ -3,3 +3,9 @@
 @font-face { font-family: 'iLab JetBrains Mono'; src: url('./fonts/JetBrainsMono-Italic.woff2') format('woff2'); font-style: italic; font-weight: 400; font-display: swap; }
 @font-face { font-family: 'iLab JetBrains Mono'; src: url('./fonts/JetBrainsMono-Bold.woff2') format('woff2'); font-style: normal; font-weight: 700; font-display: swap; }
 @font-face { font-family: 'iLab JetBrains Mono'; src: url('./fonts/JetBrainsMono-BoldItalic.woff2') format('woff2'); font-style: italic; font-weight: 700; font-display: swap; }
+
+/* Keep native row sizing and theme colors, including high-contrast themes. */
+.monaco-workbench:not(.hc-black):not(.hc-light) .part.sidebar .monaco-list-row { border-radius: 5px; }
+.monaco-workbench:not(.hc-black):not(.hc-light) .part.sidebar .monaco-list-row.selected { box-shadow: inset 2px 0 var(--vscode-focusBorder); }
+.monaco-workbench:not(.hc-black):not(.hc-light) .quick-input-widget { border-radius: 12px; box-shadow: 0 16px 48px #0005; }
+.monaco-workbench .part.sidebar .title-label h2 { font-weight: 600; letter-spacing: .02em; }

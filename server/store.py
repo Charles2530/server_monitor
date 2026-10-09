@@ -114,12 +114,12 @@ class Store:
                     ))
 
     def history(self, task_id, since):
+        groups = {}
         with self.connect() as db:
             rows = db.execute("SELECT metric,label,timestamp,value FROM samples WHERE task=? AND timestamp>=? ORDER BY metric,label,timestamp",
-                              (task_id, since)).fetchall()
-        groups = {}
-        for metric, label, timestamp, value in rows:
-            groups.setdefault((metric, label), []).append([timestamp, value])
+                              (task_id, since))
+            for metric, label, timestamp, value in rows:
+                groups.setdefault((metric, label), []).append([timestamp, value])
         return [{"metric": m, "label": label, "points": points}
                 for (m, label), points in groups.items()]
 

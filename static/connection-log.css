@@ -54,3 +54,13 @@ body.terminal-space-saving .terminal-toolbar .connection-log-button { font-size:
 body.terminal-space-saving .terminal-toolbar .connection-current-state { padding-inline: 0; background: transparent; }
 
 body.ide-focused:has(#ide-frame:not([hidden])) .ide-header > #ide-preserved-select { display: block; max-width: 230px; }
+
+/* Leave a scrollable log viewport when the keyboard or landscape reduces height. */
+@media (max-height: 400px) {
+  #connection-log-dialog { max-height: calc(100dvh - 16px); }
+  .connection-log-heading { padding: 6px 12px; }
+  #connection-log-close { min-height: 32px; }
+  .connection-log-overview { margin: 0 12px 6px; padding: 4px 8px; }
+  .connection-log-privacy { max-height: 32px; padding: 4px 12px; overflow: auto; font-size: 10px; line-height: 1.4; }
+  #connection-log-list { min-height: 0; padding-inline: 12px; }
+}

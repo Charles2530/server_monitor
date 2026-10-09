@@ -15,10 +15,12 @@
 :root[data-theme] .profile { border-color: var(--line); }
 :root[data-theme] .avatar-circle { color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-line); }
 :root[data-theme] h1 { font-weight: 700; letter-spacing: -.04em; }
-:root[data-theme] :is(.section-heading, .panel-heading) h2 { font-weight: 650; letter-spacing: -.025em; }
+:root[data-theme] #main :is(.section-heading, .panel-heading) h2 { color: var(--ink); font-weight: 650; letter-spacing: -.025em; }
 :root[data-theme] :is(.heading-tag, .count-badge, .form-step) { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-line); }
+:root[data-theme] .count-badge { min-width: 24px; padding: 3px 7px; border-radius: 6px; font-variant-numeric: tabular-nums; vertical-align: middle; }
 :root[data-theme] .subtle-badge { font-size: 10px; letter-spacing: .08em; background: var(--surface-raised); }
 :root[data-theme] .button { border-radius: var(--radius-control); font-weight: 550; }
+:root[data-theme] :is(.header-actions, .storage-actions, .th-actions, .dialog-actions) .button { min-height: 40px; }
 :root[data-theme] #main .button-primary { background: #087d70; color: #fff; box-shadow: 0 2px 4px #087d7014; }
 :root[data-theme] #main .button-primary:hover:not(:disabled) { background: #07685d; }
 :root[data-theme] .button-secondary { background: var(--surface); color: var(--ink); border-color: var(--line); }
@@ -30,15 +32,22 @@
 }
 :root[data-theme] .status-banner { border-radius: 10px; }
 :root[data-theme] .status-ok { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-strong); }
-:root[data-theme] .summary-card { padding: 20px; }
+:root[data-theme] .summary-card { display: flex; flex-direction: column; padding: 20px; }
 :root[data-theme] .summary-label { font-size: 13px; font-weight: 550; }
 :root[data-theme] .summary-icon { width: 34px; height: 34px; border-radius: 11px; }
-:root[data-theme] .summary-number { font-size: 36px; font-weight: 650; margin: 8px 0; letter-spacing: -.04em; }
-:root[data-theme] .summary-foot { font-size: 12px; }
+:root[data-theme] .summary-number { font-size: 40px; font-weight: 650; margin: 12px 0; letter-spacing: -.04em; }
+:root[data-theme] .summary-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.6; }
+:root[data-theme] .summary-card:nth-child(3) .summary-foot { border-color: var(--accent-line); }
 :root[data-theme] #main .summary-card:nth-child(3) { background: var(--accent-soft); border-color: var(--accent-line); }
 :root[data-theme] .summary-card:nth-child(3) .summary-number { color: var(--accent); }
 :root[data-theme] :is(.summary-number, .metric-value, .resource-value, .history-stat strong, .storage-summary strong, .th-metric strong) { font-variant-numeric: tabular-nums; }
 :root[data-theme] .overview-heading { margin-bottom: 16px; }
+:root[data-theme] :is(.section-heading, #overview-view .panel-heading) h2 { padding-left: 10px; border-left: 3px solid var(--accent); }
+:root[data-theme] #tokenhub-summary { border-top-width: 1px; }
+:root[data-theme] #tokenhub-summary-metrics { gap: 12px; }
+:root[data-theme] #tokenhub-summary-metrics .th-metric:nth-child(n) { padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-raised); }
+:root[data-theme] #tokenhub-summary-metrics .th-metric:first-child { background: var(--accent-soft); border-color: var(--accent-line); }
+:root[data-theme] #tokenhub-summary-metrics .th-metric strong { font-size: clamp(22px, 2.2vw, 30px); }
 :root[data-theme] .overview-task { background: var(--surface); border-color: var(--line); border-radius: 8px; padding-inline: 10px; }
 :root[data-theme] .overview-task:hover { background: var(--surface-raised); }
 :root[data-theme] .overview-task-info strong { font-weight: 600; }
@@ -51,15 +60,18 @@
 @media (min-width: 761px) {
   :root[data-theme] :is(.resource-table, .th-table) th { padding-block: 13px; background: var(--surface-raised); color: var(--muted); font-weight: 600; }
   :root[data-theme] :is(#clusters-section, #storage-section, #task-history-section) th { background: var(--surface-raised); color: var(--muted); }
-  :root[data-theme] :is(.resource-table, .th-table) th + th { border-left-color: transparent; }
+  :root[data-theme] #main :is(.resource-table, .th-table) th + th { border-left-color: transparent; }
   :root[data-theme] :is(.resource-table, .th-table) td { padding-block: 14px; border-color: var(--line); }
   :root[data-theme] :is(.resource-table, .th-table) tbody tr:nth-child(even) { background: var(--surface); }
   :root[data-theme] :is(.resource-table, .th-table) tbody tr:hover { background: var(--surface-raised); }
+  :root[data-theme] #clusters-section .resource-table :is(th, td):first-child:not(.table-empty) { box-shadow: none; }
   :root[data-theme] #clusters-section .resource-table th:first-child { background: var(--surface-raised); }
-  :root[data-theme] #clusters-section .resource-table tr:nth-child(even) td:first-child { background: var(--surface); }
-  :root[data-theme] #clusters-section .resource-table tr:hover td:first-child { background: var(--surface-raised); }
+  :root[data-theme] #clusters-section .resource-table tr:nth-child(even) td:first-child:not(.table-empty) { background: var(--surface); }
+  :root[data-theme] #clusters-section .resource-table tr:hover td:first-child:not(.table-empty) { background: var(--surface-raised); }
 }
 :root[data-theme] :is(.table-note, .th-summary-footer, .task-history-pagination, .th-pagination) { background: var(--surface-raised); border-color: var(--line); color: var(--muted); }
+:root[data-theme] .table-note { font-size: 12px; line-height: 1.75; }
+:root[data-theme] .table-scroll { scrollbar-width: thin; scrollbar-color: var(--accent-line) transparent; }
 :root[data-theme] .task-card { border-radius: 12px; background: var(--surface); border-color: var(--line); box-shadow: var(--panel-shadow); }
 :root[data-theme] .task-card:hover { border-color: var(--accent-line); }
 :root[data-theme] #task-list .task-card.selected,
@@ -87,13 +99,21 @@
 
 /* Filters, configuration forms and history share the same inset surface. */
 :root[data-theme] :is(.search-field, .history-search-control, .acp-form input, .acp-form select, .storage-filters input, .storage-filters select, .history-select, .th-select, .th-filters input) { border-radius: var(--radius-control); border-color: var(--line); background-color: var(--surface); color: var(--ink); }
-:root[data-theme] :is(.search-field, .history-search-control):focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+:root[data-theme] :is(.search-field, .history-search-control):focus-within { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+:root[data-theme] #main select:hover:not(:disabled) { background-color: var(--surface-raised); border-color: var(--accent-line); }
+:root[data-theme] :is(.storage-filters, .task-history-filters, .th-filters) :is(select, input[type="search"], input[type="date"]),
+:root[data-theme] .history-search-control { min-height: 40px; }
+:root[data-theme] input[type="checkbox"] { accent-color: var(--accent); }
 :root[data-theme] :is(.search-field, .history-search-control) input:focus-visible { outline: none; }
-:root[data-theme] :is(.acp-panel > .acp-helper, #storage-section .storage-filters, .task-history-filters, .history-summary, .th-filters) { background: var(--surface-raised); border-color: var(--line); border-radius: 12px; }
+:root[data-theme] :is(.acp-panel > .acp-helper, #storage-section .storage-filters, .task-history-filters, .th-filters) { background: var(--surface-raised); border-color: var(--line); border-radius: 12px; }
+:root[data-theme] .task-history-filters { padding: 14px; border: 1px solid var(--line); }
+:root[data-theme] .history-summary { gap: 10px; border: 0; border-radius: 0; background: transparent; overflow: visible; }
 :root[data-theme] .acp-panel > .acp-helper { border-left-color: var(--accent); }
 :root[data-theme] .form-step { border-radius: 10px; font-weight: 600; }
 :root[data-theme] .acp-form-footer { background: var(--accent-soft); border-color: var(--accent-line); border-radius: 12px; }
-:root[data-theme] :is(.storage-summary > div, .history-stat) { background: var(--surface); border-color: var(--line); border-radius: 12px; }
+:root[data-theme] :is(.storage-summary > div, .history-stat) { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+:root[data-theme] .history-stat:first-child { background: var(--accent-soft); border-color: var(--accent-line); }
+:root[data-theme] :is(.storage-summary strong, .history-stat strong) { letter-spacing: -.035em; }
 :root[data-theme] .storage-summary > div:last-child { background: var(--accent-soft); border-color: var(--accent-line); }
 :root[data-theme] #waiting-summary { background: var(--surface-raised); border-color: var(--line); color: var(--muted); }
 :root[data-theme] .th-detail-metrics .th-metric { padding: 20px; }
@@ -134,6 +154,8 @@
   :root[data-theme] .summary-grid { gap: 16px; }
   :root[data-theme] .task-card { padding: 16px; }
   :root[data-theme] .detail-panel { padding: 22px 22px 0; }
+  :root[data-theme] .tasks-view .detail-panel.showing-logs:not([hidden]) { height: auto; min-height: max(420px, calc(100dvh - 240px)); overflow: visible; }
+  :root[data-theme] .tasks-view .showing-logs .logs-output { contain: size; }
   :root[data-theme] .detail-heading { gap: 18px; margin-bottom: 18px; }
   :root[data-theme] .detail-heading h2 { font-size: 18px; line-height: 1.55; text-wrap: pretty; }
   :root[data-theme] .detail-tabs { padding: 4px; }
@@ -148,21 +170,30 @@
   :root[data-theme] .summary-icon { width: 28px; height: 28px; border-radius: 9px; }
   :root[data-theme] .summary-number { font-size: 32px; }
   :root[data-theme] .summary-foot { font-size: 11px; }
+  :root[data-theme] #tokenhub-summary-metrics { gap: 8px; }
+  :root[data-theme] #tokenhub-summary-metrics .th-metric:nth-child(n) { padding: 10px; }
   :root[data-theme] .th-detail-metrics .th-metric { padding: 15px; }
   :root[data-theme] :is(.resource-table, .th-page .th-table) tbody tr { background: var(--surface); border-color: var(--line); border-radius: 12px; }
+  :root[data-theme] #main :is(.resource-table, .th-table) td[data-label]::before { color: var(--muted); font-weight: 500; }
+  :root[data-theme] .table-note { font-size: 11px; }
+  :root[data-theme] .history-summary { gap: 8px; }
+  :root[data-theme] :is(.storage-actions, .th-actions, .dialog-actions, .task-history-pagination) .button { min-height: 44px; }
+  :root[data-theme] :is(.storage-filters, .task-history-filters, .th-filters) :is(select, input[type="search"], input[type="date"]),
+  :root[data-theme] .history-search-control { min-height: 44px; }
   :root[data-theme] :is(.header-actions .button, .overview-heading .button, .task-rename-button) { min-height: 44px; }
   :root[data-theme] .task-rename-button { width: 44px; flex-basis: 44px; }
   :root[data-theme] :is(.acp-dialog, .task-config-dialog, .th-original-dialog, .task-rename-dialog) { border-radius: 16px; }
 }
 /* Preserve all seven destinations, with room for labels on narrow phones. */
 @media (max-width: 760px), (pointer: coarse) and (max-width: 1100px) {
-  :root[data-theme] .sidebar nav { gap: 2px; padding-inline: 4px; }
+  :root[data-theme] .sidebar nav { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) repeat(5, minmax(0, 1fr)); gap: 2px; padding-inline: 4px; }
   :root[data-theme] .sidebar .nav-item {
     min-width: 0; min-height: 56px; padding: 6px 2px; gap: 5px;
     white-space: normal; overflow-wrap: anywhere; text-align: center;
     font-size: 10px; line-height: 1.35; border-radius: 9px;
   }
   :root[data-theme] .task-card { padding: 16px; }
+  :root[data-theme] .sidebar .nav-item[href="#tokenhub"] { white-space: nowrap; overflow-wrap: normal; letter-spacing: -.025em; }
   :root[data-theme] .task-name { -webkit-line-clamp: 4; }
   :root[data-theme] .task-top { gap: 8px; }
   :root[data-theme] .task-top .service-icon { width: 28px; height: 28px; font-size: 10px; }
@@ -171,7 +202,7 @@
   :root[data-theme] .status-banner { padding: 10px 12px; }
 }
 @media (max-width: 360px) {
-  :root[data-theme] .sidebar nav { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) repeat(5, minmax(0, 1fr)); gap: 1px; padding-inline: 2px; }
+  :root[data-theme] .sidebar nav { gap: 1px; padding-inline: 2px; }
   :root[data-theme] .sidebar .nav-item { padding-inline: 0; letter-spacing: -.04em; }
   :root[data-theme] .summary-card { padding: 12px; }
   :root[data-theme] .summary-label { font-size: 11px; }

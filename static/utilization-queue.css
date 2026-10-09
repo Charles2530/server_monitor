@@ -1,5 +1,6 @@
 #queue-view { display: grid; gap: 24px; }
 #queue-view > .waiting-panel { margin: 0; }
+#waiting-section.waiting-panel .table-scroll, #utilization-section.waiting-panel .table-scroll { max-height: 65vh; max-height: 65dvh; overflow: auto; }
 #utilization-section .section-heading { gap: 16px; flex-wrap: wrap; }
 .utilization-status { padding: 12px 14px; margin: 0 24px 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-raised); color: var(--muted); font-size: 12px; line-height: 1.8; font-variant-numeric: tabular-nums; }
 .utilization-table .utilization-value { display: inline-block; min-width: 76px; padding: 5px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); font-size: 20px; font-weight: 650; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }

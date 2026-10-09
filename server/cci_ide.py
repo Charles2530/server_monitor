@@ -278,6 +278,8 @@ class CCIEditor:
     async def status(self, key, origin):
         item = self.requests.get(key) if isinstance(key, str) else None
         if not item or item['origin'] != origin: raise ActionError('编辑器请求已过期，请重试。', 'ide_expired', 404)
+        # Bound polling without cancelling preparation shared by other tabs.
+        if not item['task'].done(): await asyncio.wait([item['task']], timeout=1)
         if not item['task'].done():
             message = '正在读取最新实例与容器…' if item['action'] == 'targets' else '正在检查已有编辑器并建立连接，请稍候…'
             progress = item.get('progress')

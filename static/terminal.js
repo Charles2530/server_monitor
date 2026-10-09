@@ -119,6 +119,10 @@
   }
   async function renderOutput(data, gen) {
     if (gen !== generation) return;
+    if (data.truncated) {
+      await new Promise(resolve => term.write("\x18\x1b[0m\r\n[后台输出积压，已省略较早输出；Shell 保持连接。]\r\n", resolve));
+      if (gen !== generation) return;
+    }
     const chunks = data.chunks || [];
     // Base64 length bounds decoded bytes; keep small replies small and writes <= 64 KiB.
     const batchSize = Math.min(65536, chunks.reduce((size, chunk) => size + chunk.length, 0));
@@ -140,7 +144,10 @@
     if (used) await new Promise(resolve => term.write(batch.subarray(0, used), resolve));
     if (gen !== generation) return;
     cursor = data.cursor;
-    if (data.closed) await disconnect(data.error || "终端会话已结束。", gen);
+    if (data.closed) {
+      await disconnect(data.error || "终端会话已结束。", gen, data.retryable === true);
+      if (reopen) setTimeout(probe, 1000);
+    }
   }
   function enqueue(data, size = null) {
     if (!alive) return;

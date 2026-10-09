@@ -21,7 +21,6 @@ MAX_SESSIONS=get_runtime_profile()['terminal_max_sessions']
 MAX_BUFFER=1024*1024
 OUTPUT_CHUNK_BYTES=64*1024
 IDLE_SECONDS=15*60
-LIFETIME_SECONDS=8*3600
 READ_TIMEOUT=20
 PREPARATION_POLL_SECONDS=10
 HEARTBEAT_INTERVAL_SECONDS=15
@@ -46,8 +45,8 @@ class Session:
         self.created=self.touched=time.monotonic()
         self.frames=deque();self.size=0;self.cursor=0
         self.sequence=0;self.last_digest=None
-        self.ended=False;self.error=None;self.transport=None
-        self.event=asyncio.Event();self.space=asyncio.Event();self.write_lock=asyncio.Lock()
+        self.ended=False;self.error=None;self.transport=None;self.retryable=False
+        self.event=asyncio.Event();self.write_lock=asyncio.Lock()
         self.pump=asyncio.create_task(self.receive())
         self.heartbeat=asyncio.create_task(self.keepalive())
 
@@ -58,40 +57,42 @@ class Session:
                 if frame[0] in (1,2):
                     data=frame[1:]
                     if not data:continue
-                    # Bound each frame; a slow/background reader applies backpressure without losing its shell.
+                    # Keep reading so upstream pings aren't blocked by a background tab.
+                    # Retain a bounded tail; read() explicitly reports any skipped output.
                     if len(data)>MAX_BUFFER:
                         self.error='输出积压过多，已断开终端；请重新连接。';break
-                    while not self.ended and self.size+len(data)>MAX_BUFFER:
-                        self.space.clear()
-                        await self.space.wait()
+                    while self.frames and self.size+len(data)>MAX_BUFFER:
+                        _,old=self.frames.popleft();self.size-=len(old)
                     if self.ended:break
                     self.cursor+=1;self.size+=len(data);self.frames.append((self.cursor,data))
                     self.event.set()
                 elif frame[0]==3:
                     self.error='云端终端会话已结束。';break
         except asyncio.CancelledError:raise
-        except Exception:self.error='云端终端连接中断，请重新连接。'
+        except Exception:
+            self.error='云端终端连接中断，请重新连接。';self.retryable=True
         finally:
-            self.ended=True;self.event.set();self.space.set()
+            self.ended=True;self.event.set()
             await self.socket.close()
 
     async def keepalive(self):
         try:
             while not self.ended:
                 await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
-                if (self.transport is None and time.monotonic()-self.touched>IDLE_SECONDS) or time.monotonic()-self.created>LIFETIME_SECONDS:
+                if self.transport is None and time.monotonic()-self.touched>IDLE_SECONDS:
                     self.error='终端会话已过期，请重新连接。'
+                    self.retryable=True
                     break
-                async with self.write_lock:
-                    if not self.ended:await asyncio.wait_for(self.socket.send(b'\0'),WRITE_TIMEOUT_SECONDS)
+                # The upstream WebSocket already sends protocol pings every 20 s.
+                # An extra stdin heartbeat must not hold the command lock or kill the shell.
         except asyncio.CancelledError:raise
         except Exception:self.error='云端终端连接中断，请重新连接。'
         finally:
-            self.ended=True;self.event.set();self.space.set()
+            self.ended=True;self.event.set();self.pump.cancel()
             await self.socket.close()
 
     async def close(self):
-        self.ended=True;self.event.set();self.space.set()
+        self.ended=True;self.event.set()
         for job in (self.pump,self.heartbeat):job.cancel()
         await asyncio.gather(self.pump,self.heartbeat,return_exceptions=True)
         await self.socket.close()
@@ -163,7 +164,7 @@ class TerminalBridge:
         async with self.open_lock:
             now=time.monotonic()
             for key,s in list(self.sessions.items()):
-                if s.ended or (s.transport is None and now-s.touched>IDLE_SECONDS) or now-s.created>LIFETIME_SECONDS:
+                if s.ended or (s.transport is None and now-s.touched>IDLE_SECONDS):
                     await s.close();del self.sessions[key]
             if len(self.sessions)>=MAX_SESSIONS:raise ActionError('已打开太多终端，请先断开不使用的会话。','terminal_limit',429)
             started=time.monotonic()
@@ -185,7 +186,7 @@ class TerminalBridge:
                         path='/compute/workspace/data/ws/v1'+self.site.workspace+'/trainingJobs/'+name+'/pod/'+quote(instance,safe='')+'/exec'
                     origin=urlsplit(self.site.console)
                     url='wss://'+urlsplit(self.site.services['AEC2']).netloc+path+'?'+urlencode({'token':token,'lines':size['Height'],'columns':size['Width']})
-                    # Backpressure can delay pong reads; writes and session lifetime remain bounded.
+                    # Keep protocol heartbeats without a short pong deadline during network stalls.
                     socket=await self.dial(url,subprotocols=['channel.k8s.io'],origin=origin.scheme+'://'+origin.netloc,
                         proxy=None,open_timeout=20,close_timeout=3,max_size=MAX_BUFFER,compression=None,ping_interval=20,ping_timeout=None)
                     # The cloud ignores handshake dimensions: stty reports 0 0 until
@@ -211,7 +212,7 @@ class TerminalBridge:
         s=self.sessions.get(key) if isinstance(key,str) else None
         if s is None or s.owner!=owner:
             raise ActionError('终端会话已失效，请重新连接。','terminal_expired',404)
-        if (s.transport is None and time.monotonic()-s.touched>IDLE_SECONDS) or time.monotonic()-s.created>LIFETIME_SECONDS:
+        if s.transport is None and time.monotonic()-s.touched>IDLE_SECONDS:
             raise ActionError('终端会话已过期，请重新连接。','terminal_expired',410)
         s.touched=time.monotonic()
         return s
@@ -237,7 +238,6 @@ class TerminalBridge:
         # Client acknowledgement releases memory. Repeated reads at the same cursor are safe.
         while s.frames and s.frames[0][0]<=cursor:
             _,data=s.frames.popleft();s.size-=len(data)
-        s.space.set()
         if wait and not s.frames and not s.ended:
             s.event.clear()
             try:await asyncio.wait_for(s.event.wait(),READ_TIMEOUT)
@@ -248,7 +248,9 @@ class TerminalBridge:
         return {'type':'output','cursor':frames[-1][0] if frames else cursor,
                 'chunks':[base64.b64encode(output[start:start+OUTPUT_CHUNK_BYTES]).decode('ascii')
                           for start in range(0,len(output),OUTPUT_CHUNK_BYTES)],
-                'closed':s.ended,'error':s.error,'sequence':s.sequence}
+                'closed':s.ended,'error':s.error,'sequence':s.sequence,
+                **({'truncated':True} if frames and frames[0][0]>cursor+1 else {}),
+                **({'retryable':True} if s.ended and s.retryable else {})}
 
     async def write(self,key,sequence,data,size,owner):
         s=self.get(key,owner)
@@ -273,6 +275,7 @@ class TerminalBridge:
         except ActionError:raise
         except Exception:
             s.error='输入结果无法确认，已断开终端；不会自动重发命令。'
+            s.retryable=True
             await s.close()
             raise ActionError(s.error,'terminal_disconnected',502) from None
 

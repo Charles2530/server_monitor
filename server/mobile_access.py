@@ -79,11 +79,16 @@ class DeviceStore:
             row=db.execute('SELECT * FROM devices WHERE hash=?',(digest(token),)).fetchone()
             if row is None or row['state']=='revoked' or row['expires']<=now:
                 raise AccessError('手机已撤销或凭证已过期，请重新配对。')
-            db.execute('UPDATE devices SET last_seen=? WHERE id=?',(now,row['id']))
+            # Activity is minute-grained; permission and expiry checks stay live.
+            if row['last_seen'] is None or not 0 <= now-row['last_seen'] < 60:
+                db.execute('UPDATE devices SET last_seen=? WHERE id=?',(now,row['id']))
         return {**{k:row[k] for k in ('id','name','state','can_write','expires')},'host_id':self.host_id}
 
     def authorize(self,token,*,write=False,now=None):
-        device=self.status(token,now=now)
+        return self.check_permission(self.status(token,now=now),write=write)
+
+    @staticmethod
+    def check_permission(device,*,write=False):
         if device['state']!='approved':raise AccessError('请先在电脑批准这部手机。')
         if write and not device['can_write']:raise AccessError('这部手机只有查看权限，请在电脑批准任务管理权限。')
         return device

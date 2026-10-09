@@ -32,8 +32,8 @@
     const get = (type) => parts.find((part) => part.type === type).value;
     return `${get("year")}-${get("month")}-${get("day")}`;
   };
-  let snapshot = null, route = "", selectedTab = "dashboard", timer = null, stateController = null, stateSerial = 0;
-  let trendDays = 7, trendData = null, trendSerial = 0, trendController = null, chart = null;
+  let snapshot = null, stateError = null, route = "", selectedTab = "dashboard", timer = null, stateController = null, stateSerial = 0;
+  let trendDays = 7, trendPendingDays = null, trendData = null, trendSerial = 0, trendController = null, chart = null;
   let hourlyData = null, hourlySerial = 0, hourlyController = null, hourlyChart = null;
   const lists = { keys: { data: null, controller: null, serial: 0 }, usage: { data: null, controller: null, serial: 0 } };
   let keyCopy = null;
@@ -41,7 +41,7 @@
   $("tokenhub-end").value = today();
   const section = (name) => snapshot?.sections?.[name];
   const sectionData = (name) => section(name)?.data;
-  const fresh = (name) => section(name)?.status === "ok";
+  const fresh = (name) => !stateError && section(name)?.status === "ok";
   const relevant = () => !document.hidden && (route === "overview" || route === "tokenhub");
 
   async function request(path, options = {}) {
@@ -85,7 +85,7 @@
 
   function sectionStatus(name) {
     const part = section(name);
-    return part ? `${part.status === "ok" ? "已更新" : "未更新 · " + (part.error || "数据可能过期")} · ${date(part.updated_at)}` : "连接后自动读取";
+    return part ? `${fresh(name) ? "已更新" : "未更新 · " + (part.error || "数据可能过期")} · ${date(part.updated_at)}` : "连接后自动读取";
   }
 
   const windowName = (value) => ({ five_hour: "5 小时", seven_day: "7 天", seven_day_sonnet: "Sonnet · 7 天", seven_day_opus: "Opus · 7 天", daily: "每日", weekly: "每周", monthly: "每月" })[value] || value || "额度窗口";
@@ -119,6 +119,7 @@
     $("tokenhub-account-quotas-status").textContent = sectionStatus("account_quotas");
     const rows = sectionData("account_quotas");
     for (const [id, compact] of [["tokenhub-account-quotas", false], ["tokenhub-quota-preview", true]]) {
+      if (route !== "tokenhub" || selectedTab !== (compact ? "dashboard" : "quotas")) continue;
       const target = $(id); target.replaceChildren();
       if (!Array.isArray(rows) || !rows.length) target.append(node("p", rows ? "暂无可查看的账号额度" : "账号额度尚未获取", "th-empty"));
       else (compact ? rows.slice(0, 2) : rows).forEach((row) => target.append(quotaCard(row, compact)));
@@ -193,7 +194,7 @@
   async function loadHourly() {
     if (!relevant() || route !== "tokenhub" || selectedTab !== "dashboard") return;
     if (!snapshot?.connected) { $("tokenhub-hourly-status").textContent = hourlyData ? "连接已失效，当前为旧数据。" : "请先连接 TokenHub。"; return; }
-    hourlyController?.abort();
+    if (hourlyController) return;
     const controller = new AbortController(), serial = ++hourlySerial; hourlyController = controller;
     const timeout = setTimeout(() => controller.abort(), 65000);
     $("tokenhub-hourly-status").textContent = "正在读取逐小时费用…";
@@ -212,8 +213,10 @@
   async function loadTrend() {
     if (!relevant() || route !== "tokenhub" || selectedTab !== "dashboard") return;
     if (!snapshot?.connected) { $("tokenhub-trend-status").textContent = trendData ? "连接已失效，当前为旧数据。" : "请先连接 TokenHub。"; return; }
+    if (trendController && trendPendingDays === trendDays) return;
     trendController?.abort();
     const controller = new AbortController(), serial = ++trendSerial, days = trendDays; trendController = controller;
+    trendPendingDays = days;
     const timeout = setTimeout(() => controller.abort(), 65000);
     $("tokenhub-trend-status").textContent = `正在读取近 ${days} 天趋势…`;
     try {
@@ -229,17 +232,20 @@
   }
 
   function render() {
-    metrics($("tokenhub-summary-metrics")); metrics($("tokenhub-metrics"));
-    const quotaSummary = $("tokenhub-summary-quotas"); quotaSummary.replaceChildren();
-    for (const row of sectionData("account_quotas") || []) {
-      const values = (row.windows || []).map((window) => `${windowName(window.key)} ${known(window.utilization) ? `已用 ${count(window.utilization)}%` : "未知"}`);
-      quotaSummary.append(node("span", `${row.name || platformName(row.platform)} · ${values.join(" / ") || "暂无周期额度"}${fresh("account_quotas") ? "" : " · 旧数据"}`));
+    if (route === "overview") {
+      metrics($("tokenhub-summary-metrics"));
+      const quotaSummary = $("tokenhub-summary-quotas"); quotaSummary.replaceChildren();
+      for (const row of sectionData("account_quotas") || []) {
+        const values = (row.windows || []).map((window) => `${windowName(window.key)} ${known(window.utilization) ? `已用 ${count(window.utilization)}%` : "未知"}`);
+        quotaSummary.append(node("span", `${row.name || platformName(row.platform)} · ${values.join(" / ") || "暂无周期额度"}${fresh("account_quotas") ? "" : " · 旧数据"}`));
+      }
     }
+    if (route === "tokenhub" && selectedTab === "dashboard") metrics($("tokenhub-metrics"));
     const connecting = snapshot?.connecting, connected = snapshot?.connected, account = sectionData("account");
     const hasData = !!account;
-    const text = connecting ? "等待你在本机浏览器完成 GitHub 登录…" : !snapshot ? "正在读取 TokenHub…" : snapshot.status === "auth_required" ? "登录已过期，请重新连接；当前为旧数据" : snapshot.status === "disconnected" ? "尚未连接 · 在本机完成一次 GitHub 登录即可同步" : snapshot.status === "ok" ? `已连接 · 余额更新 ${date(section("account")?.updated_at)}` : "部分数据未更新，请留意各项更新时间";
+    const text = stateError || (connecting ? "等待你在本机浏览器完成 GitHub 登录…" : !snapshot ? "正在读取 TokenHub…" : snapshot.status === "auth_required" ? "登录已过期，请重新连接；当前为旧数据" : snapshot.status === "disconnected" ? "尚未连接 · 在本机完成一次 GitHub 登录即可同步" : snapshot.status === "ok" ? `已连接 · 余额更新 ${date(section("account")?.updated_at)}` : "部分数据未更新，请留意各项更新时间");
     $("tokenhub-status").textContent = text;
-    $("tokenhub-status").dataset.state = snapshot?.status || "loading";
+    $("tokenhub-status").dataset.state = stateError ? "error" : snapshot?.status || "loading";
     $("tokenhub-summary-status").textContent = text;
     $("tokenhub-account").textContent = account?.display_name || account?.username || "我的 API 资源";
     const canConnect = snapshot?.can_connect !== false;
@@ -249,7 +255,7 @@
       button.disabled = !!connecting;
       button.textContent = connecting ? "等待登录…" : "连接 TokenHub";
     }
-    $("tokenhub-notice").textContent = snapshot?.login_error || (!connected ? "请在运行监控服务的电脑上连接。GitHub 登录完成后自动同步；若出现授权确认，请本人核对并完成。" : "");
+    $("tokenhub-notice").textContent = stateError || snapshot?.login_error || (!connected ? "请在运行监控服务的电脑上连接。GitHub 登录完成后自动同步；若出现授权确认，请本人核对并完成。" : "");
     $("tokenhub-notice").hidden = !$("tokenhub-notice").textContent;
     renderAccountQuotas();
   }
@@ -343,7 +349,7 @@
     $("tokenhub-trend-summary").textContent = "连接后查看每日花费趋势";
     $("tokenhub-trend-status").textContent = "";
     for (const [kind, list] of Object.entries(lists)) {
-      list.serial += 1; list.controller?.abort(); list.controller = null; list.data = null;
+      cancelList(kind); list.data = null;
       emptyList(kind, "连接后查看详情");
       $(`tokenhub-${kind}-status`).textContent = "";
       $(`tokenhub-${kind}-page`).textContent = "—";
@@ -364,20 +370,17 @@
       if (!data.sections || typeof data.sections !== "object" || typeof data.status !== "string") throw new Error("TokenHub 状态格式无法识别。");
       const before = sectionData("account")?.id, after = data.sections.account?.data?.id;
       if (before !== after || data.status === "disconnected") resetLists();
-      snapshot = data;
+      snapshot = data; stateError = null;
       if (!snapshot.connected) clearKeyCopy();
       render();
       if (route === "tokenhub") {
-        if (selectedTab === "dashboard") { await Promise.all([loadTrend(), loadHourly()]); if ($("tokenhub-usage-details").open) await loadList("usage"); }
-        if (selectedTab === "keys") await loadList("keys");
+        if (selectedTab === "dashboard") { void loadTrend(); void loadHourly(); if ($("tokenhub-usage-details").open) void loadList("usage"); }
+        if (selectedTab === "keys") void loadList("keys");
       }
     } catch (error) {
       if (serial !== stateSerial) return;
-      const text = `${error.name === "AbortError" ? "读取超时" : error.message}。${snapshot ? "保留上次成功数据，当前可能过期。" : "尚未获取数据。"}`;
-      $("tokenhub-status").textContent = text; $("tokenhub-summary-status").textContent = text;
-      $("tokenhub-status").dataset.state = "error";
-      $("tokenhub-notice").textContent = text; $("tokenhub-notice").hidden = false;
-      for (const card of document.querySelectorAll(".th-metric")) card.classList.add("is-stale");
+      stateError = `${error.name === "AbortError" ? "读取超时" : error.message}。${snapshot ? "保留上次成功数据，当前可能过期。" : "尚未获取数据。"}`;
+      render();
     } finally {
       clearTimeout(timeout);
       if (serial === stateSerial) {
@@ -522,6 +525,7 @@
 
   async function loadList(kind, page) {
     if (!relevant() || route !== "tokenhub" || !lists[kind]) return;
+    if (selectedTab !== (kind === "keys" ? "keys" : "dashboard") || (kind === "usage" && !$("tokenhub-usage-details").open)) return;
     const list = lists[kind];
     if (!snapshot?.connected) {
       $(`tokenhub-${kind}-status`).textContent = list.data ? "连接已失效，当前为旧数据。" : "请先连接 TokenHub。"; return;
@@ -538,7 +542,9 @@
       const data = await request(`/api/tokenhub/${kind}?${params}`, { signal: controller.signal });
       if (serial !== list.serial) return;
       if (!Array.isArray(data.items) || !known(data.total) || !known(data.page) || !known(data.pages)) throw new Error("列表格式无法识别。");
+      const resetScroll = list.data?.page !== data.page || list.data?.range?.start_date !== range?.start_date || list.data?.range?.end_date !== range?.end_date;
       list.data = { ...data, range }; renderList(kind, data);
+      if (resetScroll) $(`tokenhub-${kind}-body`).closest(".th-table-scroll").scrollTop = 0;
       $(`tokenhub-${kind}-status`).textContent = `已更新 ${date(data.updated_at)}${range ? ` · ${range.start_date} 至 ${range.end_date}` : ""}${data.usage_error ? ` · ${data.usage_error}` : ""}`;
     } catch (error) {
       if (serial !== list.serial) return;
@@ -551,16 +557,21 @@
     }
   }
 
+  function cancelList(kind) {
+    const list = lists[kind];
+    list.serial += 1; list.controller?.abort(); list.controller = null;
+  }
+
   function updateActivity() {
     clearKeyCopy(); clearTimeout(timer);
     trendSerial += 1; trendController?.abort(); trendController = null;
     hourlySerial += 1; hourlyController?.abort(); hourlyController = null;
     stateSerial += 1; stateController?.abort(); stateController = null; $("tokenhub-refresh").disabled = false;
-    for (const list of Object.values(lists)) { list.serial += 1; list.controller?.abort(); list.controller = null; }
+    for (const kind of Object.keys(lists)) cancelList(kind);
     if (relevant()) loadState();
   }
   function activate(nextRoute) {
-    route = nextRoute; closeGroupDialog(); updateActivity();
+    route = nextRoute; closeGroupDialog(); render(); updateActivity();
   }
   for (const button of document.querySelectorAll("[data-tokenhub-tab]")) button.addEventListener("click", () => {
     clearKeyCopy();
@@ -569,9 +580,14 @@
       const active = item === button; item.classList.toggle("active", active); item.setAttribute("aria-pressed", String(active));
     }
     for (const panel of document.querySelectorAll("[data-tokenhub-panel]")) panel.hidden = panel.dataset.tokenhubPanel !== selectedTab;
+    for (const kind of Object.keys(lists)) if (selectedTab !== (kind === "keys" ? "keys" : "dashboard")) cancelList(kind);
+    render();
     if (selectedTab === "keys") loadList("keys");
-    if (selectedTab === "dashboard") { drawTrend(); drawHourly(); loadTrend(); loadHourly(); }
-    else { hourlySerial += 1; hourlyController?.abort(); hourlyController = null; }
+    if (selectedTab === "dashboard") { drawTrend(); drawHourly(); loadTrend(); loadHourly(); if ($("tokenhub-usage-details").open) loadList("usage"); }
+    else {
+      trendSerial += 1; trendController?.abort(); trendController = null;
+      hourlySerial += 1; hourlyController?.abort(); hourlyController = null;
+    }
   });
   for (const kind of Object.keys(lists)) for (const [direction, delta] of [["prev", -1], ["next", 1]]) {
     $(`tokenhub-${kind}-${direction}`).addEventListener("click", () => loadList(kind, (lists[kind].data?.page || 1) + delta));
@@ -594,6 +610,7 @@
       stateSerial += 1; stateController?.abort(); stateController = null;
       resetLists();
       snapshot = await request("/api/tokenhub/disconnect", { method: "POST", headers: { "X-Monitor-Request": "1" } });
+      stateError = null;
       render();
     } catch (error) { $("tokenhub-notice").hidden = false; $("tokenhub-notice").textContent = error.message; }
   });
@@ -603,7 +620,7 @@
     loadTrend();
   });
   $("tokenhub-all-quotas").addEventListener("click", () => document.querySelector('[data-tokenhub-tab="quotas"]').click());
-  $("tokenhub-usage-details").addEventListener("toggle", () => { if ($("tokenhub-usage-details").open) loadList("usage"); });
+  $("tokenhub-usage-details").addEventListener("toggle", () => { if ($("tokenhub-usage-details").open) loadList("usage"); else cancelList("usage"); });
   window.addEventListener("resize", () => { chart?.resize(); hourlyChart?.resize(); });
   const chartObserver = new ResizeObserver((entries) => {
     for (const entry of entries) if (entry.contentRect.width && entry.contentRect.height) {

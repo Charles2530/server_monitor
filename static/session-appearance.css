@@ -49,6 +49,21 @@ body:has(#terminal-workspace:not([hidden])) #terminal-connection summary { color
 body:not(:has(#ide-frame:not([hidden]))) .ide-setup-status { margin-top: 16px; padding: 12px 14px; font-size: 12px; line-height: 1.8; }
 body:has(#ide-picker[hidden]) #ide-status[data-state="loading"]::before { border-color: var(--accent-line); border-top-color: var(--accent); }
 #ide-frame { border-color: var(--line); }
+/* Match the connected shell to the bundled dark editor, without changing user settings. */
+body:has(#ide-frame:not([hidden])) {
+  color-scheme: dark;
+  --page: #10171b; --surface: #141b20; --surface-raised: #1d272d; --surface-hover: #25353c;
+  --ink: #dce5e9; --muted: #a2b5bd; --line: #2a3b40;
+  --accent: #8bd8bd; --accent-soft: #203b32; --accent-line: #385e50; --focus: #8bd8bd; --warning-ink: #e8c583;
+}
+body:has(#ide-frame:not([hidden])) .ide-header { box-shadow: none; }
+body:has(#ide-frame:not([hidden])) #ide-focus[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-line); }
+body:has(#ide-frame:not([hidden])) .ide-setup-status { margin: 4px 0; padding: 5px 10px; line-height: 1.6; }
+body:has(#ide-frame:not([hidden])) #ide-status { scrollbar-width: thin; scrollbar-color: var(--accent-line) transparent; }
+@media (min-width: 761px) and (max-width: 1100px) {
+  body:has(#ide-frame:not([hidden])) .ide-header { flex-wrap: wrap; }
+  body:has(#ide-frame:not([hidden])) .ide-context { flex-basis: calc(100% - 160px); }
+}
 /* Explicit theme selectors override state-specific light surfaces. */
 :root[data-theme="dark"] body:not(:has(#terminal-workspace:not([hidden]))) .session-status:has(#terminal-status[data-state="error"]),
 :root[data-theme="dark"] body:not(:has(#ide-frame:not([hidden]))) .session-status:has(#ide-status[data-state="error"]) { background: #372c25; border-color: #705036; }

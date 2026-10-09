@@ -1,5 +1,8 @@
 "use strict";
 (() => {
+  // Refresh the bundled workbench styles independently of the font cache.
+  const appearanceStyle = document.querySelector('link[href="/_ilab_appearance/fonts.css"]');
+  if (appearanceStyle) appearanceStyle.href += '?v=20261010';
   const parentOrigin = document.currentScript?.dataset.parentOrigin;
   const embedded = parentOrigin && window.parent !== window;
   function openedWorkspace() {
@@ -122,10 +125,10 @@
     }).observe(root, {childList: true, subtree: true, characterData: true,
       attributes: true, attributeFilter: ['aria-label', 'data-thread-id', 'data-conversation-id', 'data-session-id', 'data-chat-id']});
   }
-  function applyProjectHistory() {
+  function applyProjectHistory(panels = codexPanels()) {
     if (!historyPayload || document.hidden) return;
     let reported = false;
-    for (const panel of codexPanels()) {
+    for (const panel of panels) {
       observeHistoryPanel(panel);
       const previous = historySignatures.get(panel);
       if (previous?.revision === historyRevision && previous.all === showUnclassified) { reported = true; continue; }
@@ -188,7 +191,8 @@
   function inspectCodex() {
     if (document.hidden) return;
     let state = 'hidden';
-    for (const panel of codexPanels(true)) {
+    const panels = codexPanels(true);
+    for (const panel of panels) {
       state = 'loading';
       if (!panel) continue;
       observeHistoryPanel(panel);
@@ -196,7 +200,7 @@
       if ([...panel.querySelectorAll('button,textarea,[role="textbox"],[contenteditable="true"]')]
         .some(element => !element.closest('[data-ilab-history-filter]') && visible(element))) state = 'ready';
     }
-    applyProjectHistory();
+    applyProjectHistory(panels.filter(Boolean));
     if (embedded && state !== codexState) {
       codexState = state;
       window.parent.postMessage({type: 'ilab-editor-codex', state}, parentOrigin);

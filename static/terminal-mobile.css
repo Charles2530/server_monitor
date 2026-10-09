@@ -32,7 +32,7 @@
 .terminal-menu-heading { position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; padding: 18px 18px 12px; background: var(--terminal-panel); z-index: 3; }
 .terminal-menu-eyebrow { display: block; margin-bottom: 4px; color: var(--terminal-muted); font-size: 10px; font-weight: 600; letter-spacing: .12em; }
 #terminal-menu h2 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -.3px; }
-#terminal-menu-close { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; color: var(--terminal-muted); background: #ffffff06; border: 1px solid var(--terminal-line); border-radius: 50%; }
+#terminal-menu-close { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; padding: 0; color: var(--terminal-muted); background: #ffffff06; border: 1px solid var(--terminal-line); border-radius: 50%; }
 #terminal-menu-content { display: grid; gap: 16px; padding: 4px 18px 20px; }
 #terminal-menu .terminal-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 #terminal-menu .terminal-tools button { min-height: 48px; border-radius: 10px; font-size: 12px; font-weight: 500; }
@@ -93,7 +93,8 @@ body.terminal-compact .terminal-keyboard button:nth-child(n+5):nth-child(-n+9) {
 
 /* At keyboard/landscape heights, share one dock rather than two full-width bars. */
 #terminal-mobile-status { display: none; }
-#terminal-menu-target { margin: 4px 0 0; max-width: 280px; color: var(--terminal-muted); font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.terminal-menu-heading > div { min-width: 0; }
+#terminal-menu-target { margin: 4px 0 0; max-width: 280px; max-height: 3em; overflow: auto; overscroll-behavior: contain; color: var(--terminal-muted); font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
 body.terminal-compact.terminal-space-saving #terminal-workspace { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr) auto; }
 body.terminal-compact.terminal-space-saving #terminal-screen { grid-column: 1 / -1; grid-row: 1; padding: max(2px, env(safe-area-inset-top)) 6px 2px; }
 body.terminal-compact.terminal-space-saving .terminal-toolbar { grid-column: 2; grid-row: 2; gap: 0; padding: 0 4px max(0px, env(safe-area-inset-bottom)); border-top: 1px solid var(--terminal-line); border-bottom: 0; }

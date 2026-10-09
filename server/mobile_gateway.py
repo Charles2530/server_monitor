@@ -90,11 +90,11 @@ def create_gateway(store=None,*,transport=None):
     @app.api_route('/{path:path}',methods=['GET','POST','PUT','DELETE','PATCH','HEAD','OPTIONS'])
     async def forward(request:Request,path:str):
         token=bearer(request)
-        try:await store_call(store.status,token)
+        try:device=await store_call(store.status,token)
         except AccessError as exc:return JSONResponse({'error':str(exc),'code':'mobile_auth_required'},status_code=401)
         path='/'+path
         if not allowed_path(path,request.method):return JSONResponse({'error':'未开放此接口。'},status_code=404)
-        try:device=await store_call(store.authorize,token,write=request.method=='POST')
+        try:store.check_permission(device,write=request.method=='POST')
         except AccessError as exc:return JSONResponse({'error':str(exc),'code':'mobile_access_denied'},status_code=403)
         site=request.headers.get('x-monitor-site','maoshanwang')
         if site not in ('maoshanwang','sensecore'):return JSONResponse({'error':'未知站点。'},status_code=400)

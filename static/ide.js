@@ -178,7 +178,6 @@
       if (result.pending !== true) throw new Error("准备状态无效，请重试。");
       progress(result.progress);
       if (typeof result.message === "string" && result.message && (action !== "recover" || !connection?.ready)) status(result.message);
-      await new Promise(resolve => setTimeout(resolve, 400));
       active(gen);
     }
     throw new Error("编辑器准备超过 15 分钟，请重试以核对当前状态。");
@@ -280,7 +279,11 @@
       // The server resolves symlinks. Compare the captured request identity,
       // rather than rejecting its canonical workspace path.
       if (gen !== generation || connection !== current || current.workspace !== workspace) return;
-      current.historyPayload = { workspace: result.workspace, records: Array.isArray(result.records) ? result.records : [], truncated: result.truncated === true, error: null, revision: ++historyRevision };
+      // Cached history must not reset an already confirmed list filter.
+      const payload = { workspace: result.workspace, records: Array.isArray(result.records) ? result.records : [], truncated: result.truncated === true, error: null, revision: current.historyPayload?.revision };
+      if (JSON.stringify(payload) === JSON.stringify(current.historyPayload)) return;
+      payload.revision = ++historyRevision;
+      current.historyPayload = payload;
       if (current.historyState !== 'unavailable') current.historyState = 'loading';
       current.historyCount = 0;
       sendHistoryToFrame(current);
@@ -457,7 +460,7 @@
       return;
     }
     if (event.data?.type !== "ilab-editor-ready") return;
-    if (connection.ready) return;
+    if (connection.ready) { sendHistoryToFrame(connection); return; }
     connection.entryExpired = false;
     if (typeof event.data.workspace === 'string' && event.data.workspace.startsWith('/') && event.data.workspace.length <= 4096 && !/[\u0000-\u001f\u007f]/.test(event.data.workspace)) connection.workspace = event.data.workspace;
     connection.ready = true; recoveryFailures = 0; clearTimeout(retryTimer); retryTimer = null;

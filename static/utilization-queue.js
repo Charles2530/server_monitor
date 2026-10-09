@@ -33,14 +33,16 @@
     const showWarnings = !mineOnly || data.status === "error" || tasks.some(task => !["ok", "no_gpu"].includes(task.metric_status));
     $("utilization-warning").hidden = !showWarnings || !data.warnings?.length;
     $("utilization-warning").textContent = (data.warnings || []).join(" ");
-    const signature = JSON.stringify([data.status, data.loading, data.updated_at, data.warnings, mineOnly,
+    // Header-only updates must not rebuild unchanged task rows.
+    const signature = JSON.stringify([data.status, tasks.length ? null : data.loading, mineOnly,
       tasks.map(task => [task.id, task.name, task.owner, task.cluster, task.gpu_count, task.replicas,
         task.is_mine, task.gpu_utilization, task.metric_updated_at, task.metric_status,
         task.created_at, task.started_at, task.url])]);
     if (signature === renderedSignature) {
       for (const task of tasks) {
         const row = renderedRows.get(task.id);
-        if (row?._durationNode) row._durationNode.textContent = `${data.status === "error" ? "上次观测已运行" : "已运行"} ${duration(task.duration_seconds)}`;
+        const text = `${data.status === "error" ? "上次观测已运行" : "已运行"} ${duration(task.duration_seconds)}`;
+        if (row?._durationNode && row._durationNode.textContent !== text) row._durationNode.textContent = text;
       }
       return;
     }

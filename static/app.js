@@ -117,6 +117,7 @@
   }
 
   function renderOverview(listsKnown) {
+    if (document.hidden || byId("overview-view").hidden) return;
     const list = tasks();
     const signature = model.snapshot?.updated_at
       ? JSON.stringify([model.snapshot.updated_at, listsKnown, model.unavailable, model.snapshot.connected, model.snapshot.source_status])
@@ -190,6 +191,10 @@
 
   function renderTasks() {
     const list = visibleTasks(), container = byId("task-list");
+    if (document.hidden || byId("tasks-view").hidden) {
+      if (!list.some(task => task.id === model.selected)) model.selected = list[0]?.id || null;
+      return;
+    }
     if (!list.length) {
       let title = "当前没有运行任务", description = "连接正常。CCI 与 ACP 的运行任务将在采集后显示在这里。";
       if (model.search || model.kind !== "all") { title = "没有符合条件的任务"; description = "尝试更换服务类型，或使用不同的任务、集群关键词。"; }
@@ -271,6 +276,7 @@
   }
 
   function renderClusters() {
+    if (document.hidden || byId("overview-view").hidden) return;
     const body = byId("cluster-body"), fragment = document.createDocumentFragment();
     const notices = [];
     for (const cluster of visibleClusters()) {
@@ -340,6 +346,7 @@
     if (historyVisible()) {
       if (!model.chart && window.echarts) model.chart = window.echarts.init(byId("history-chart"), null, { renderer: "canvas" });
       model.chart?.resize();
+      if (model.chartNeedsRender && model.chartSeries && model.chartTaskId === model.selected) renderChart(model.chartSeries);
     }
   }
 
@@ -425,6 +432,7 @@
         };
       }),
     }, true);
+    model.chartNeedsRender = false;
     chartMessage(hasValues ? "" : "所选时间范围还没有有效采样。采集完成后，历史曲线将在这里出现。");
     return true;
   }
@@ -585,10 +593,12 @@
   });
   document.addEventListener("monitor-refresh", () => poll());
   document.addEventListener("appearance-change", () => {
-    if (model.chartSeries && model.chartTaskId === model.selected) renderChart(model.chartSeries);
+    model.chartNeedsRender = true;
+    if (historyVisible() && model.chartSeries && model.chartTaskId === model.selected) renderChart(model.chartSeries);
   });
   document.addEventListener("workspace-page", (event) => {
-    if (event.detail === "tasks") { renderDetail(); loadHistory(); }
+    if (event.detail === "overview") { renderSummary(); renderClusters(); }
+    if (event.detail === "tasks") { if (model.snapshot) renderTasks(); renderDetail(); loadHistory(); }
     else cancelHistory();
   });
   document.addEventListener("monitor-detail-tab", (event) => {
@@ -600,17 +610,20 @@
   });
   let resizePending = false;
   window.addEventListener("resize", () => {
+    model.chartNeedsRender = true;
+    if (!historyVisible()) return;
     if (resizePending) return;
     resizePending = true;
     requestAnimationFrame(() => {
       resizePending = false;
+      if (!historyVisible()) return;
       model.chart?.resize();
       if (model.chartSeries && model.chartTaskId === model.selected) renderChart(model.chartSeries);
     });
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) { cancelHistory(); clearTimeout(pollTimer); pollTimer = null; }
-    else { poll(); renderDetail(); loadHistory(); }
+    else { poll(); renderSummary(); renderClusters(); if (model.snapshot) renderTasks(); renderDetail(); loadHistory(); }
   });
   document.addEventListener("monitor-task-request", event => {
     const id = event.detail;

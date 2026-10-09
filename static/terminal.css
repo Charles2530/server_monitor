@@ -89,7 +89,7 @@ body:not(:has(#terminal-workspace:not([hidden]))) #terminal-picker { position: s
 body:has(#terminal-workspace:not([hidden])) #terminal-connection summary { padding: 0 9px; border: 1px solid #d7e2da; border-radius: 6px; background: #fff; }
 /* Keep state feedback and its recovery action together. */
 .session-status { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
-#terminal-status { flex: 1; min-width: 0; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+#terminal-status { flex: 1; min-width: 0; max-height: min(8em, 20dvh); overflow: auto; overscroll-behavior: contain; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
 #terminal-retry { flex-shrink: 0; font-size: 11px; min-height: 30px; padding: 5px 9px; }
 body:not(:has(#terminal-workspace:not([hidden]))) .session-status:has(#terminal-status[data-state=loading]) { background: #f2f7fb; border-color: #d9e5ef; }
 .session-status:has(#terminal-status[data-state=error]) #terminal-retry { color: #965429; border-color: #dec6ad; background: #fff; }

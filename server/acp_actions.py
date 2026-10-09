@@ -296,7 +296,7 @@ class ACPManager:
         cluster_id=form.get('cluster_id','')
         async with self.client() as client:
             template,_=await self.template_context(client,form.get('partition_id'))
-            template,catalog=await self.catalog(client,include_all=bool(cluster_id),template=template)
+            template,catalog=await self.catalog(client,template=template,cluster_id=cluster_id or None)
         if cluster_id:
             catalog=[(b,specs) for b,specs in catalog if b['name']==cluster_id]
             if not catalog:raise ActionError('指定集群已不可用或与模板挂载不兼容，请重新选择。','cluster_unavailable',409)

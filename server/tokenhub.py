@@ -113,12 +113,17 @@ class TokenHub:
         self.snapshot_generation = None
         self.snapshot_tasks = set()
 
-    async def raw(self, method, path, token=None, **kwargs):
+    async def raw(self, method, path, token=None, *, client=None, **kwargs):
         if self.closed:
             raise TokenHubError()
         try:
-            async with httpx.AsyncClient(base_url=API + '/', timeout=20, follow_redirects=False, transport=self.transport) as client:
-                response = await client.request(method, path.lstrip('/'), headers={'Authorization': 'Bearer ' + token} if token else {}, **kwargs)
+            if client is None:
+                async with httpx.AsyncClient(base_url=API + '/', timeout=20, follow_redirects=False, transport=self.transport) as client:
+                    return await self.raw(method, path, token, client=client, **kwargs)
+            request = client.build_request(method, path.lstrip('/'), headers={'Authorization': 'Bearer ' + token} if token else {}, **kwargs)
+            # A snapshot shares connections, never upstream session cookies.
+            request.headers.pop('cookie', None)
+            response = await client.send(request)
             if response.status_code == 401:
                 raise TokenHubAuthRequired()
             if response.status_code >= 400:
@@ -145,18 +150,18 @@ class TokenHub:
             self.session.save(value)
             return value
 
-    async def request(self, path, params=None, *, method='GET', body=None):
+    async def request(self, path, params=None, *, method='GET', body=None, client=None):
         generation = self.generation
         current = self.session.load()
         if current['expires_at'] <= time.time() + 30:
             current = await self.renew(current['access_token'])
         try:
-            result = await self.raw(method, path, current['access_token'], params=params, **({'json': body} if body is not None else {}))
+            result = await self.raw(method, path, current['access_token'], client=client, params=params, **({'json': body} if body is not None else {}))
         except TokenHubAuthRequired:
             if method == 'PUT':
                 raise
             current = await self.renew(current['access_token'])
-            result = await self.raw(method, path, current['access_token'], params=params, **({'json': body} if body is not None else {}))
+            result = await self.raw(method, path, current['access_token'], client=client, params=params, **({'json': body} if body is not None else {}))
         if generation != self.generation:
             raise TokenHubAuthRequired()
         return result
@@ -166,9 +171,9 @@ class TokenHub:
         self.sections[name] = {**previous, 'data': previous.get('data'), 'updated_at': previous.get('updated_at'),
                                'status': 'stale' if previous.get('updated_at') else 'error', 'error': message}
 
-    async def read_section(self, name, path, normalize):
+    async def read_section(self, name, path, normalize, *, client=None):
         try:
-            data = normalize(await self.request(path))
+            data = normalize(await self.request(path, client=client))
             self.sections[name] = {'data': data, 'updated_at': iso(time.time()), 'status': 'ok', 'error': None}
         except TokenHubAuthRequired:
             self.stale(name, '登录已失效，数据未更新。')
@@ -209,21 +214,22 @@ class TokenHub:
                 self.status, self.connected = 'disconnected', False
                 return
             try:
-                old_id = (self.sections.get('account', {}).get('data') or {}).get('id')
-                await self.read_section('account', '/auth/me', account)
-                if self.sections['account']['status'] != 'ok':
-                    for name in self.sections:
-                        self.stale(name, '账户验证失败，数据未更新。')
-                    self.status = 'error'
-                    return
-                new_id = self.sections['account']['data']['id']
-                if old_id is not None and new_id != old_id:
-                    self.sections = {'account': self.sections['account']}
-                result = await asyncio.gather(
-                    self.read_section('stats', '/usage/dashboard/stats', stats),
-                    self.read_section('account_quotas', '/account-quotas', account_quotas),
-                    self.read_section('quotas', '/user/platform-quotas', quotas),
-                    self.read_section('subscriptions', '/subscriptions', subscriptions), return_exceptions=True)
+                async with httpx.AsyncClient(base_url=API + '/', timeout=20, follow_redirects=False, transport=self.transport) as client:
+                    old_id = (self.sections.get('account', {}).get('data') or {}).get('id')
+                    await self.read_section('account', '/auth/me', account, client=client)
+                    if self.sections['account']['status'] != 'ok':
+                        for name in self.sections:
+                            self.stale(name, '账户验证失败，数据未更新。')
+                        self.status = 'error'
+                        return
+                    new_id = self.sections['account']['data']['id']
+                    if old_id is not None and new_id != old_id:
+                        self.sections = {'account': self.sections['account']}
+                    result = await asyncio.gather(
+                        self.read_section('stats', '/usage/dashboard/stats', stats, client=client),
+                        self.read_section('account_quotas', '/account-quotas', account_quotas, client=client),
+                        self.read_section('quotas', '/user/platform-quotas', quotas, client=client),
+                        self.read_section('subscriptions', '/subscriptions', subscriptions, client=client), return_exceptions=True)
                 if any(isinstance(item, TokenHubAuthRequired) for item in result):
                     raise TokenHubAuthRequired()
                 self.connected = True

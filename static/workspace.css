@@ -1,4 +1,11 @@
 /* Presentation refinements for the shared workspace and its six pages. */
+.status-banner > div { min-width: 0; max-height: min(240px, 30dvh); overflow: auto; overflow-wrap: anywhere; }
+.action-message { max-height: min(240px, 30dvh); overflow: auto; overflow-wrap: anywhere; }
+@media (min-width: 761px) and (pointer: fine), (min-width: 1101px) {
+  .sidebar { overflow-y: auto; }
+  .sidebar > * { flex-shrink: 0; }
+  .acp-dialog .dialog-actions { position: sticky; bottom: -28px; z-index: 1; padding-bottom: 14px; background: var(--surface, #fff); }
+}
 .acp-panel > .section-heading { margin-bottom: 14px; }
 .acp-panel > .acp-helper {
   padding: 10px 13px; margin-bottom: 24px;
@@ -60,6 +67,7 @@
 .acp-dialog .acp-preview-details dt { color: #728778; }
 .acp-dialog .acp-preview-details dd { color: #355840; }
 .acp-dialog .acp-preview-details pre, .acp-dialog .restart-command { border: 1px solid #294345; border-radius: 8px; background: #12252e; color: #d9ebe4; padding: 13px; font: 12px/1.8 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.acp-dialog .acp-preview-details pre { max-height: min(340px, 40dvh); overflow: auto; }
 .acp-dialog .restart-command:focus-visible { outline: 2px solid #399b7a; outline-offset: 2px; }
 .acp-dialog .acp-notice { border-color: #dce8df; background: #f2f7f4; color: #567460; }
 .acp-dialog .dialog-actions { padding-top: 16px; border-top: 1px solid #e3ece6; gap: 9px; }
@@ -120,11 +128,11 @@
 #acp-release-restart-selected:hover:not(:disabled) { background: #f8efd9; }
 .detail-task-buttons .button:disabled { opacity: .55; }
 .detail-task-buttons { align-items: center; }
-/* Let the log body scroll inside a panel that fills the desktop task row. */
+/* Bound the desktop panel so long logs scroll instead of expanding the task row. */
 @media (min-width: 1101px) {
   .tasks-view .detail-panel.showing-logs:not([hidden]) {
     display: flex; flex-direction: column; align-self: stretch;
-    min-height: 0; max-height: none; overflow: visible;
+    height: max(420px, calc(100dvh - 240px)); min-height: 0; max-height: none; overflow-y: auto;
   }
   .tasks-view .showing-logs > :is(.detail-heading, .detail-tabs, .detail-task-actions) { flex-shrink: 0; }
   .tasks-view .showing-logs #detail-logs:not([hidden]) { display: flex; flex-direction: column; flex: 1; min-height: 0; }

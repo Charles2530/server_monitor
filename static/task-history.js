@@ -2,7 +2,7 @@
 (() => {
   const $ = id => document.getElementById(id), site = window.MonitorSite;
   let snapshot = null, page = 1, active = false, controller = null, timer = null, serial = 0;
-  let tableSignature = null;
+  let tableSignature = null, readError = "";
   const node = (tag, text, className) => {
     const el = document.createElement(tag); if (text !== undefined) el.textContent = text;
     if (className) el.className = className; return el;
@@ -14,7 +14,7 @@
     const seconds = Math.floor(value), days = Math.floor(seconds / 86400), hours = Math.floor(seconds % 86400 / 3600), minutes = Math.floor(seconds % 3600 / 60);
     return `${days ? `${days} 天 ` : ""}${hours ? `${hours} 小时 ` : ""}${minutes ? `${minutes} 分 ` : ""}${seconds % 60} 秒`;
   };
-  function render() {
+  function render(resetScroll = false) {
     if (!snapshot) return;
     const query = $("task-history-search").value.trim().toLowerCase();
     const kind = $("task-history-kind").value, status = $("task-history-state").value;
@@ -68,12 +68,14 @@
       row.append(...cells); body.append(row);
     }
     tableSignature = signature;
+    if (resetScroll) $("task-history-section").querySelector(".table-scroll").scrollTop = 0;
     const sources = Object.entries(snapshot.source_status || {}).map(([kind, s]) => `${kind} ${s.status === "error" ? "读取失败 · " : ""}${date(s.updated_at)}`).join("；");
-    $("task-history-status").textContent = `${snapshot.loading ? "正在更新，已取得的结果先显示" : "历史读取完成"} · ${sources}`;
+    $("task-history-status").textContent = `${readError ? "读取失败 · 当前为旧结果" : snapshot.loading ? "正在更新，已取得的结果先显示" : "历史读取完成"} · ${sources}`;
     const excluded = snapshot.filtered_stopped || {};
     $("task-history-excluded").hidden = false;
     $("task-history-excluded").textContent = `已过滤无运行依据的已停止任务：ACP ${excluded.ACP || 0} 条、CCI ${excluded.CCI || 0} 条${snapshot.loading ? "（统计中）" : ""}。`;
     const warnings = [...(snapshot.warnings || [])];
+    if (readError) warnings.unshift(readError);
     const failedSources = Object.entries(snapshot.source_status || {}).filter(([, source]) => source.status === "error").map(([kind]) => kind);
     if (failedSources.length && !warnings.length) warnings.unshift(`${failedSources.join(" / ")} 历史读取失败，当前结果可能不完整。`);
     $("task-history-warning").hidden = !warnings.length; $("task-history-warning").textContent = warnings.join(" ");
@@ -89,11 +91,12 @@
       if (!response.ok) throw new Error(data.error || "历史读取失败");
       if (!Array.isArray(data.tasks) || data.site !== site.id) throw new Error("历史数据与站点不一致");
       if (!active || request !== serial) return;
-      snapshot = data; render(); if (data.loading) delay = 2000;
+      snapshot = data; readError = ""; render(); if (data.loading) delay = 2000;
     } catch (error) {
       if (!active || request !== serial) return;
+      readError = `${error.name === "AbortError" ? "历史读取超时" : error.message}。${snapshot ? "保留上次结果，数据可能过期。" : "尚未取得历史任务，可刷新重试。"}`;
       $("task-history-warning").hidden = false;
-      $("task-history-warning").textContent = `${error.name === "AbortError" ? "历史读取超时" : error.message}。${snapshot ? "保留上次结果，数据可能过期。" : "尚未取得历史任务，可刷新重试。"}`;
+      $("task-history-warning").textContent = readError;
       $("task-history-status").textContent = "读取失败";
       if (!snapshot) { const cell = node("td", "历史数据未获取", "table-empty"), row = node("tr"); cell.colSpan = 6; row.append(cell); $("task-history-body").replaceChildren(row); }
     } finally {
@@ -106,13 +109,13 @@
     if (active && !document.hidden) refresh();
     else { serial += 1; controller?.abort(); controller = null; $("task-history-refresh").disabled = false; }
   }
-  for (const id of ["task-history-search", "task-history-kind", "task-history-state", "task-history-size"]) $(id).addEventListener("input", () => { page = 1; render(); });
+  for (const id of ["task-history-search", "task-history-kind", "task-history-state", "task-history-size"]) $(id).addEventListener("input", () => { page = 1; render(true); });
   $("task-history-reset").addEventListener("click", () => {
     for (const id of ["task-history-search", "task-history-kind", "task-history-state"]) $(id).value = "";
-    page = 1; render(); $("task-history-search").focus();
+    page = 1; render(true); $("task-history-search").focus();
   });
-  $("task-history-prev").addEventListener("click", () => { page -= 1; render(); });
-  $("task-history-next").addEventListener("click", () => { page += 1; render(); });
+  $("task-history-prev").addEventListener("click", () => { page -= 1; render(true); });
+  $("task-history-next").addEventListener("click", () => { page += 1; render(true); });
   $("task-history-refresh").addEventListener("click", refresh);
   $("refresh-button").addEventListener("click", () => { if (active) refresh(); });
   document.addEventListener("workspace-page", event => activate(event.detail));

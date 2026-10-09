@@ -49,8 +49,17 @@
       refresh();
       // Batch React updates; never change native controls, events, or attachment data.
       let scheduled = false;
-      const observer = new MutationObserver(() => {
+      const relevant = `${scope}, ${candidates}`;
+      const observer = new MutationObserver(changes => {
         if (scheduled) return;
+        // Streaming chat text does not change attachment layout. Inspect only
+        // changed subtrees before scheduling the existing attachment scan.
+        const changed = changes.some(change => {
+          const target = change.target.nodeType === 1 ? change.target : change.target.parentElement;
+          return target?.closest(relevant) || [...change.addedNodes, ...change.removedNodes].some(node =>
+            node.nodeType === 1 && (node.matches(relevant) || node.querySelector(relevant)));
+        });
+        if (!changed) return;
         scheduled = true;
         queueMicrotask(() => { scheduled = false; refresh(); });
       });

@@ -50,7 +50,7 @@ body:not(:has(#ide-frame:not([hidden]))) select { width: 100%; max-width: none; 
 body:not(:has(#ide-frame:not([hidden]))) #ide-open { min-height: 38px; }
 /* Keep state feedback and its recovery action together. */
 .session-status { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
-#ide-status { flex: 1; min-width: 0; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+#ide-status { flex: 1; min-width: 0; max-height: min(6em, 20dvh); overflow: auto; overscroll-behavior: contain; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
 #ide-retry { flex-shrink: 0; font-size: 11px; min-height: 30px; padding: 5px 9px; }
 body:not(:has(#ide-frame:not([hidden]))) .session-status:has(#ide-status[data-state=loading]) { background: #f2f7fb; border-color: #d9e5ef; }
 .session-status:has(#ide-status[data-state=error]) #ide-retry { color: #965429; border-color: #dec6ad; background: #fff; }
@@ -97,7 +97,7 @@ body:has(#ide-picker[hidden]) #ide-status[data-state=loading]::before { width: 1
   body:has(#ide-frame:not([hidden])) .ide-brand-icon .session-icon { width: 18px; height: 18px; }
   body:has(#ide-frame:not([hidden])) .ide-context { display: flex; align-items: baseline; gap: 10px; }
   body:has(#ide-frame:not([hidden])) .ide-context h1 { flex-shrink: 0; font-size: 14px; line-height: 1.5; }
-  body:has(#ide-frame:not([hidden])) #ide-task { margin: 0; font-size: 12px; line-height: 1.5; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+  body:has(#ide-frame:not([hidden])) #ide-task { margin: 0; min-width: 0; max-height: 3em; font-size: 12px; line-height: 1.5; white-space: normal; overflow: auto; overscroll-behavior: contain; overflow-wrap: anywhere; }
   body:has(#ide-frame:not([hidden])) .site-badge { padding: 2px 7px; font-size: 12px; flex-shrink: 0; }
   body:has(#ide-frame:not([hidden])) .ide-header .button { min-height: 30px; padding: 4px 9px; font-size: 12px; }
   body:has(#ide-frame:not([hidden])) .ide-setup { padding: 3px 10px; border-bottom: 1px solid #dce6df; }

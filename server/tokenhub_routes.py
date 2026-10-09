@@ -27,7 +27,7 @@ class KeyCopyRequest(BaseModel):
 def register_tokenhub_routes(app, hub):
     async def perform(callback):
         try:
-            return await callback()
+            return JSONResponse(await callback())
         except TokenHubError as exc:
             return JSONResponse({'error': str(exc), 'code': exc.code}, status_code=exc.status)
         except Exception:
@@ -39,10 +39,10 @@ def register_tokenhub_routes(app, hub):
 
     @app.get('/api/tokenhub/state')
     async def state(request: Request, refresh: bool = False):
-        data = await perform(lambda: hub.snapshot(force=refresh))
-        if isinstance(data, dict):
-            data = {**data, 'can_connect': not bool(request.headers.get('x-monitor-device'))}
-        return data
+        async def snapshot():
+            data = await hub.snapshot(force=refresh)
+            return {**data, 'can_connect': not bool(request.headers.get('x-monitor-device'))}
+        return await perform(snapshot)
 
     @app.get('/api/tokenhub/keys')
     async def keys(page: int = Query(default=1, ge=1, le=10000)):

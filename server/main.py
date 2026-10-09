@@ -207,7 +207,9 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
 
     @app.get('/api/storage')
     async def storage(runtime=Depends(current_site)):
-        return await perform(runtime.storage.snapshot)
+        async def snapshot_response():
+            return JSONResponse(await runtime.storage.snapshot())
+        return await perform(snapshot_response)
 
     @app.get('/api/utilization-queue')
     async def utilization_queue(runtime=Depends(current_site)):
