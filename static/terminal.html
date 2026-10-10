@@ -65,17 +65,18 @@
           <button id="terminal-fullscreen" type="button">全屏</button>
           <button id="terminal-disconnect" type="button">断开</button>
         </div>
+        <button id="terminal-focus" class="button" type="button" aria-pressed="true">退出专注</button>
         <div class="terminal-mobile-controls"><span id="terminal-mobile-status" role="status" aria-label="未连接" title="未连接"></span><button id="terminal-mobile-keyboard" type="button" aria-label="显示或收起键盘" title="键盘" aria-pressed="false"><svg class="terminal-ui-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 15h8"/></svg></button><button id="terminal-more" type="button" aria-label="更多终端工具" title="更多" aria-haspopup="dialog"><svg class="terminal-ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button></div>
       </div>
       <div id="terminal-screen" aria-label="命令行输入和输出"><div id="terminal-mount"></div></div>
       <div class="terminal-keyboard" aria-label="终端快捷键">
-        <button type="button" data-terminal-key="ctrl" aria-pressed="false">Ctrl</button><button type="button" data-terminal-key="interrupt">Ctrl+C</button><button type="button" data-terminal-key="tab">Tab</button><button type="button" data-terminal-key="escape">Esc</button>
-        <button type="button" data-terminal-key="up" aria-label="方向上">↑</button><button type="button" data-terminal-key="down" aria-label="方向下">↓</button>
-        <button type="button" data-terminal-key="left" aria-label="方向左">←</button><button type="button" data-terminal-key="right" aria-label="方向右">→</button>
-        <button type="button" data-terminal-key="backspace" aria-label="退格">⌫</button><button type="button" data-terminal-key="enter">Enter</button>
+        <button type="button" data-terminal-key="interrupt" title="中断当前命令">Ctrl+C</button>
+        <button type="button" data-terminal-key="paste" title="粘贴剪贴板内容">Ctrl+V</button>
+        <select id="terminal-tmux" aria-label="选择 tmux 会话" title="请在 Shell 提示符下选择会话；选择后立即进入" disabled><option value="">连接后读取 tmux 会话</option></select>
+        <button id="terminal-tmux-refresh" type="button" aria-label="刷新 tmux 会话" title="刷新 tmux 会话" disabled>↻</button>
       </div>
       <p id="terminal-input-notice" role="status" aria-live="polite"></p>
-      <p id="terminal-hint" class="terminal-hint" role="status">断开会关闭当前 Shell，其中的前台命令可能中断。</p>
+      <p id="terminal-hint" class="terminal-hint" role="status"></p>
     </section>
 
     <dialog id="terminal-menu" aria-labelledby="terminal-menu-title"><div class="terminal-menu-heading"><div><span class="terminal-menu-eyebrow">TERMINAL / WORKSPACE</span><h2 id="terminal-menu-title">终端工具</h2><p id="terminal-menu-target"></p></div><button id="terminal-menu-close" type="button" aria-label="关闭终端工具"><svg class="terminal-ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div><div id="terminal-menu-content"></div><a id="terminal-menu-back" class="terminal-menu-back">← 返回监控</a></dialog>

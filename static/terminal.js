@@ -7,6 +7,7 @@
   let targets = [], loading = false, term, fit, session = null, socket = null, alive = false, sequence = 0, cursor = 0;
   let inputQueue = [], sendingInput = false, inputTimer = null, outputQueue = Promise.resolve(), pending = null, ping = null, polling = null, generation = 0;
   let recovery = null, probeTimer = null, httpTransport = false, networkCheckPending = false, reopen = false;
+  let focusMode = true, tmuxRequest = 0, tmuxToken = null, tmuxEntered = false, shellInputPending = false;
   const mobile = new TerminalMobile({ getTerm: () => term, isAlive: () => alive, refit: () => scheduleFit() });
   $("terminal-back").href = window.MonitorTaskContext?.returnUrl(taskId, new URL(location.href).searchParams.get("task_view")) || `/?site=${encodeURIComponent(site.id)}#tasks`;
   $("terminal-mobile-back").href = $("terminal-menu-back").href = $("terminal-back").href;
@@ -16,7 +17,13 @@
   $("terminal-container-label").hidden = $("terminal-container").hidden = isACP;
   $("terminal-container-field").hidden = isACP;
 
-  function status(text, state = "loading", logState = state) { $("terminal-status").textContent = text; $("terminal-status").dataset.state = state; window.MonitorConnectionLog?.update(window.navigator?.onLine === false ? "offline" : logState, text); }
+  function applyFocus() {
+    document.body.classList.toggle("terminal-focused", focusMode && alive);
+    $("terminal-focus").textContent = focusMode ? "退出专注" : "专注模式";
+    $("terminal-focus").setAttribute("aria-pressed", String(focusMode));
+    scheduleFit();
+  }
+  function status(text, state = "loading", logState = state) { $("terminal-status").textContent = text; $("terminal-status").dataset.state = state; window.MonitorConnectionLog?.update(window.navigator?.onLine === false ? "offline" : logState, text); applyFocus(); }
   function connectionNote(message, state) { window.MonitorConnectionLog?.note(message, state); }
   function confirmNetwork() {
     clearTimeout(probeTimer); probeTimer = null;
@@ -59,6 +66,32 @@
     return url.href;
   }
   function option(value) { const node = document.createElement("option"); node.value = value; node.textContent = value; return node; }
+  function tmuxPlaceholder(text) {
+    const node = option(""); node.textContent = text;
+    $("terminal-tmux").replaceChildren(node); $("terminal-tmux").disabled = true;
+  }
+  async function refreshTmux() {
+    const target = selected(); if (!alive || !target || $("terminal-tmux-refresh").disabled) return;
+    const request = ++tmuxRequest;
+    $("terminal-tmux-refresh").disabled = true; tmuxPlaceholder("正在读取 tmux 会话…");
+    try {
+      const result = await api("/api/terminal/tmux", { task_id: taskId, instance: target.instance, container: target.container || "", session_id: session }, 60000);
+      if (request !== tmuxRequest || !alive) return;
+      if (!Array.isArray(result.sessions)) throw new Error("tmux 会话列表无效。");
+      tmuxPlaceholder(result.unavailable ? "当前容器未安装 tmux" : result.sessions.length ? "tmux · 选择会话进入" : "当前没有运行的 tmux 任务");
+      for (const item of result.sessions) {
+        if (!/^\$\d+$/.test(item.id)) continue;
+        const node = option(item.id);
+        node.textContent = `${item.name} · ${item.windows} 个窗口${item.attached ? " · 已连接" : ""}`;
+        $("terminal-tmux").append(node);
+      }
+      $("terminal-tmux").disabled = $("terminal-tmux").options.length < 2;
+      $("terminal-tmux").title = "首次请在 Shell 提示符下选择；进入后可直接切换会话";
+    } catch (error) {
+      if (request !== tmuxRequest || !alive) return;
+      tmuxPlaceholder("tmux 读取失败，请刷新重试"); $("terminal-tmux").title = error.message;
+    } finally { if (request === tmuxRequest) $("terminal-tmux-refresh").disabled = !alive; }
+  }
   function selected() { return targets.find(t => t.instance === $("terminal-instance").value && (isACP || t.container === $("terminal-container").value)); }
   function official() {
     const t = selected(); $("terminal-official").hidden = !t;
@@ -151,6 +184,8 @@
   }
   function enqueue(data, size = null) {
     if (!alive) return;
+    // Never append an automatic attach command to an unfinished shell input.
+    if (!size) for (const char of data) shellInputPending = !["\r", "\n", "\x03"].includes(char);
     const last = inputQueue.at(-1);
     // Coalesce keystrokes while one input is in flight (especially on mobile).
     if (!size && last && !last.size && last.data.length + data.length <= 4096) last.data += data;
@@ -230,6 +265,7 @@
   }
   function pauseTransport() {
     alive = false;
+    tmuxRequest++; tmuxPlaceholder("连接后读取 tmux 会话"); $("terminal-tmux-refresh").disabled = true;
     clearInterval(ping); clearTimeout(probeTimer); clearTimeout(inputTimer);
     ping = probeTimer = inputTimer = null; inputQueue = [];
     polling?.abort(); polling = null;
@@ -269,7 +305,7 @@
           $("terminal-led").classList.add("connected");
           $("terminal-transport").textContent = realtime ? "实时连接" : "兼容连接";
           $("terminal-hint").textContent = uncertain ? "原 Shell 已恢复；未确认输入不会重发，请先检查命令状态。" : "原 Shell 已恢复，屏幕与正在运行的命令保持不变。";
-          status("终端连接已恢复。", "ready"); return;
+          status("终端连接已恢复。", "ready"); $("terminal-tmux-refresh").disabled = false; refreshTmux(); return;
         } catch (error) {
           if (gen !== generation) return;
           if (error.code === "terminal_expired" || [404, 410].includes(error.status)) { await disconnect("原终端已失效，正在自动连接新的 Shell…", gen, true); return; }
@@ -311,6 +347,7 @@
       const result = await prepare("open", { task_id: taskId, instance: target.instance, container: target.container || "", cols: term.cols, rows: term.rows });
       if (gen !== generation) { api("/api/terminal/close", { session_id: result.session_id }).catch(() => {}); return; }
       session = result.session_id;
+      tmuxToken = /^[a-f0-9]{32}$/.test(result.tmux_token || "") ? result.tmux_token : null; tmuxEntered = false; shellInputPending = false;
       if (typeof session !== "string" || result.site !== site.id || result.task_id !== taskId) throw new Error("终端会话与所选任务不一致。");
       const realtime = !httpTransport && await useSocket(gen);
       if (gen !== generation) return;
@@ -327,9 +364,10 @@
       $("terminal-target-name").title = $("terminal-target-name").textContent;
       $("terminal-led").classList.add("connected");
       reopen = false;
-      $("terminal-hint").textContent = replacing ? "终端已连接到新的 Shell；旧会话状态未恢复，未重发旧命令。" : "断开会关闭当前 Shell，其中的前台命令可能中断。";
+      $("terminal-hint").textContent = replacing ? "终端已连接到新的 Shell；旧会话状态未恢复，未重发旧命令。" : "";
       $("terminal-instance").disabled = $("terminal-container").disabled = true;
       status(replacing ? $("terminal-hint").textContent : "终端已连接，认证由后台管理。", "ready");
+      $("terminal-tmux-refresh").disabled = false; refreshTmux();
     } catch (error) { if (gen === generation) { await disconnect(error.message, gen, replacing); status(replacing ? "自动重新连接暂未成功，将继续重试。" : error.message, "error"); } }
     finally { loading = false; official(); $("terminal-retry").hidden = false; }
   }
@@ -375,6 +413,41 @@
   });
   $("terminal-disconnect").addEventListener("click", () => disconnect());
   function focusTerminal() { if (alive) term?.focus(); }
+  $("terminal-focus").addEventListener("click", () => { focusMode = !focusMode; applyFocus(); focusTerminal(); });
+  $("terminal-tmux-refresh").addEventListener("click", refreshTmux);
+  $("terminal-tmux").addEventListener("change", async () => {
+    const id = $("terminal-tmux").value; $("terminal-tmux").value = "";
+    if (!/^\$\d+$/.test(id) || !mobile.allowShortcut()) return;
+    mobile.resetCtrl();
+    if (!tmuxToken) { $("terminal-hint").textContent = "请重新连接终端以启用 tmux 切换。"; return; }
+    if (!tmuxEntered) {
+      if (term.buffer.active.type !== "normal") { $("terminal-hint").textContent = "首次进入前请先返回 Shell 提示符。"; return; }
+      if (shellInputPending) { $("terminal-hint").textContent = "请先按 Ctrl+C 清空未提交的输入，再选择 tmux 会话。"; focusTerminal(); return; }
+      // Mark the terminal before replacing this shell with tmux. Subsequent
+      // switches use the backend and never write commands into the pane.
+      enqueue(`sh -c 't=$(tty); tmux set-option -gq "$2" "$t"; exec env TERM="${'${TERM:-xterm-256color}'}" tmux attach-session -t "$1"' sh '${id}' '@ilab-client-${tmuxToken}'\r`);
+      tmuxEntered = true; focusTerminal(); return;
+    }
+    const current = session, target = selected(), request = ++tmuxRequest;
+    $("terminal-tmux").disabled = $("terminal-tmux-refresh").disabled = true;
+    $("terminal-hint").textContent = "正在切换 tmux 会话…";
+    try {
+      const result = await api("/api/terminal/tmux", { task_id: taskId, instance: target.instance, container: target.container || "",
+        session_id: current, tmux_session: id }, 60000);
+      if (result.switched !== true) throw new Error("未能确认 tmux 切换，请刷新会话列表后重试。");
+      if (session === current && alive) $("terminal-hint").textContent = "已切换 tmux 会话。";
+    } catch (error) {
+      if (session === current && alive) {
+        if (term.buffer.active.type === "normal") tmuxEntered = false;
+        $("terminal-hint").textContent = error.message;
+      }
+    } finally {
+      if (request === tmuxRequest) {
+        $("terminal-tmux").disabled = $("terminal-tmux-refresh").disabled = !alive;
+        focusTerminal();
+      }
+    }
+  });
   for (const [id, delta] of [["terminal-font-down", -1], ["terminal-font-up", 1]]) $(id).addEventListener("click", () => { if (term) { term.options.fontSize = Math.max(10, Math.min(24, term.options.fontSize + delta)); fitScreen(); focusTerminal(); } });
   $("terminal-copy").addEventListener("click", async () => { try { await navigator.clipboard.writeText(term.getSelection()); } catch { $("terminal-hint").textContent = "无法访问剪贴板，请使用系统复制操作。"; } finally { focusTerminal(); } });
   $("terminal-paste").addEventListener("click", async () => { if (alive) { try { const text = await navigator.clipboard.readText(); mobile.resetCtrl(); term.paste(text); mobile.menu.close(); term.focus(); } catch { $("terminal-hint").textContent = "无法访问剪贴板，请使用系统粘贴操作。"; } } });
@@ -387,6 +460,7 @@
   document.querySelectorAll("[data-terminal-key]").forEach(button => button.addEventListener("click", () => {
     const key = button.dataset.terminalKey;
     if (key === "ctrl" || !mobile.allowShortcut()) return;
+    if (key === "paste") { $("terminal-paste").click(); return; }
     const arrows = { up: "A", down: "B", left: "D", right: "C" };
     const data = arrows[key] ? `\x1b${term.modes.applicationCursorKeysMode ? "O" : "["}${arrows[key]}` : keys[key];
     if (data) enqueue(mobile.input(data));

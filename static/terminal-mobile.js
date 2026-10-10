@@ -25,7 +25,7 @@ window.TerminalMobile = class {
     });
     document.getElementById("terminal-mobile-keyboard").addEventListener("pointerdown", e => e.preventDefault());
     this.ctrlButton = document.querySelector('[data-terminal-key="ctrl"]');
-    this.ctrlButton.addEventListener("click", () => {
+    this.ctrlButton?.addEventListener("click", () => {
       if (!this.allowShortcut()) return;
       this.ctrl = !this.ctrl; this.ctrlButton.setAttribute("aria-pressed", String(this.ctrl));
     });
@@ -130,7 +130,7 @@ window.TerminalMobile = class {
     indicator.title = enabled ? "已连接" : "未连接";
     document.querySelectorAll("[data-terminal-key]").forEach(button => { button.disabled = !enabled; });
     document.getElementById("terminal-mobile-keyboard").disabled = !enabled;
-    if (!enabled) { this.ctrl = false; this.ctrlButton.setAttribute("aria-pressed", "false"); }
+    if (!enabled) this.resetCtrl();
   }
   compositionNotice() {
     document.getElementById("terminal-hint").textContent = "请先确认输入法候选，再使用终端快捷键。";
@@ -143,7 +143,7 @@ window.TerminalMobile = class {
     if (this.composing) { this.compositionNotice(); return false; }
     return true;
   }
-  resetCtrl() { this.ctrl = false; this.ctrlButton.setAttribute("aria-pressed", "false"); }
+  resetCtrl() { this.ctrl = false; this.ctrlButton?.setAttribute("aria-pressed", "false"); }
   input(data) {
     if (!this.ctrl) return data;
     this.resetCtrl();

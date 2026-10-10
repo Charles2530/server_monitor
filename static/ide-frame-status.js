@@ -76,6 +76,28 @@
       const value = row.getAttribute(name);
       if (value) return value;
     }
+    // Codex 26.5908.31748's localTaskRow keeps conversationId on its React
+    // component instead of the DOM. Read only that row's component ancestors;
+    // titles, React keys and surrounding list/page IDs are not identities.
+    try {
+      const key = Object.keys(row).find(name => name.startsWith('__reactFiber$'));
+      const fiber = key && row[key];
+      if (!row.isConnected || fiber?.stateNode !== row) return '';
+      for (let node = fiber.return, depth = 0; node && depth < 16; node = node.return, depth++) {
+        if (node.stateNode != null) break;
+        const props = node.memoizedProps;
+        if (props && Object.hasOwn(props, 'conversationId')) {
+          const id = props.conversationId;
+          // React can share children between old/current trees. Never infer
+          // the committed owner from return/root pointers or use a stale ID.
+          const other = node.alternate?.memoizedProps;
+          if (node.alternate && (!other || !Object.hasOwn(other, 'conversationId')
+              || other.conversationId !== id || (other.hostId ?? 'local') !== (props.hostId ?? 'local'))) return '';
+          return (props.hostId == null || props.hostId === 'local')
+            && typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9-]{0,127}$/.test(id) ? id : '';
+        }
+      }
+    } catch (_) { /* Unknown component layouts retain their native rows. */ }
     return '';
   }
   function historyBanner(panel, visibleCount, rowCount, unknownCount) {
@@ -131,13 +153,15 @@
     for (const panel of panels) {
       observeHistoryPanel(panel);
       const previous = historySignatures.get(panel);
-      if (previous?.revision === historyRevision && previous.all === showUnclassified) { reported = true; continue; }
       const rows = previous?.rows || historyRows(panel);
-      historySignatures.set(panel, {revision: historyRevision, all: showUnclassified, rows});
+      const ids = rows.map(rowThreadId);
+      if (previous?.revision === historyRevision && previous.all === showUnclassified
+          && ids.every((id, index) => id === previous.ids[index])) { reported = true; continue; }
+      historySignatures.set(panel, {revision: historyRevision, all: showUnclassified, rows, ids});
       const allowedIds = new Set((historyPayload.records || []).map(row => row.thread_id).filter(Boolean));
       let visibleCount = 0, unknownCount = 0;
-      for (const row of rows) {
-        const id = rowThreadId(row);
+      for (const [index, row] of rows.entries()) {
+        const id = ids[index];
         const keep = !!historyPayload.error || showUnclassified || !id || allowedIds.has(id);
         // Keep native hidden/style state intact; only our scoped marker hides rows.
         row.dataset.ilabHistoryMatch = keep ? '1' : '0';
@@ -145,9 +169,10 @@
         else if (allowedIds.has(id) && !historyPayload.error) visibleCount += 1;
       }
       historyBanner(panel, visibleCount, rows.length, unknownCount);
-      const state = historyPayload.error || (rows.length && unknownCount === rows.length) ? 'unavailable' : (visibleCount || !rows.length ? 'ready' : 'empty');
+      const state = historyPayload.error || (rows.length && unknownCount === rows.length) ? 'unavailable'
+        : !rows.length && allowedIds.size ? 'loading' : visibleCount ? 'ready' : 'empty';
       if (embedded) window.parent.postMessage({type:'ilab-editor-codex-history-state', state, count: visibleCount,
-        workspace: historyPayload.workspace, revision: historyPayload.revision, supported: rows.length > unknownCount}, parentOrigin);
+        workspace: historyPayload.workspace, revision: historyPayload.revision, supported: rows.length ? rows.length > unknownCount : undefined}, parentOrigin);
       reported = true;
     }
     return reported;

@@ -131,3 +131,23 @@ body.terminal-compact.terminal-space-saving #terminal-input-notice { bottom: cal
   body:not(.terminal-compact) #terminal-workspace .terminal-keyboard [data-terminal-key="ctrl"][aria-pressed="true"] { background: #a0dbc22b; border-color: #a0dbc270; color: #c7f5e1; }
   body:not(.terminal-compact) #terminal-hint { color: #8b9ab0; font-size: 10px; }
 }
+
+/* Share the existing toolbar and mobile dock; focus only changes presentation. */
+#terminal-focus { flex-shrink: 0; min-height: 28px; padding: 3px 9px; font-size: 11px; color: var(--terminal-accent); background: #a0dbc212; border-color: #a0dbc225; }
+body.terminal-compact #terminal-focus { display: none; }
+#terminal-workspace .terminal-keyboard { display: flex; align-items: center; flex-wrap: nowrap; min-width: 0; gap: 6px; }
+#terminal-tmux { flex: 1; width: 0; min-width: 90px; min-height: 28px; padding: 3px 8px; color-scheme: dark; color: var(--terminal-muted); background: #ffffff04; border: 1px solid var(--terminal-line); border-radius: 6px; font-size: 11px; text-overflow: ellipsis; }
+#terminal-tmux:disabled { opacity: 1; }
+#terminal-tmux option { background: var(--terminal-panel); color: var(--terminal-text); }
+#terminal-workspace .terminal-keyboard button { flex-shrink: 0; }
+body #terminal-workspace #terminal-hint:empty { display: none; }
+@media (min-width: 761px) and (pointer: fine) {
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-keyboard { grid-column: 1 / -1; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-hint { grid-column: 1 / -1; grid-row: 4; }
+  body.terminal-focused > .terminal-header, body.terminal-focused > #terminal-setup,
+  body.terminal-focused .terminal-session, body.terminal-focused #terminal-tools > :not(#terminal-ide) { display: none; }
+  body.terminal-focused:not(.terminal-compact):has(#terminal-workspace:not([hidden])) #terminal-workspace { border-radius: 12px; }
+  body.terminal-focused:not(.terminal-compact) #terminal-workspace .terminal-toolbar { flex-wrap: nowrap; padding: 4px 10px; gap: 8px; }
+  body.terminal-focused:not(.terminal-compact) #terminal-workspace .connection-monitor { margin-left: 0; margin-right: auto; }
+  body.terminal-focused:not(.terminal-compact) #terminal-tools { flex-wrap: nowrap; margin-left: 0; }
+}

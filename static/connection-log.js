@@ -18,12 +18,17 @@
     '正在探测后台连接状态。', '正在确认编辑器页面响应。', '正在等待自动重试。',
     '连接暂不可用，将自动重试。', '连接超时，请重试。', '会话已过期，请重新连接。',
     '认证尚未完成，正在恢复连接。', '当前没有可连接的运行容器。',
+    'Codex 面板加载中。', 'Codex 面板已加载。', 'Codex 面板已隐藏。',
+    '正在识别 Codex 当前项目历史。', 'Codex 项目历史已读取，等待列表过滤确认。',
+    'Codex 当前项目聊天过滤完成。', 'Codex 当前项目暂无匹配聊天。',
+    'Codex 历史列表加载中，等待过滤。', 'Codex 项目聊天过滤暂不可用，已保留原生列表。',
+    'Codex 项目历史读取失败，已保留原生列表。',
   ];
   const allowed = new Set(messages);
   function safeMessage(message, state) {
     const text = typeof message === 'string' ? message : '';
     if (allowed.has(text)) return text;
-    if (/^API (targets|open|status|recover|details) · HTTP [1-5][0-9]{2} · [0-9]{1,6}ms$/.test(text)) return text;
+    if (/^API (targets|open|status|recover|details|history) · HTTP [1-5][0-9]{2} · [0-9]{1,6}ms$/.test(text)) return text;
     if (/^WebSocket 已关闭（代码 [0-9]{4}）。$/.test(text)) return text;
     if (/^正在建立终端连接/.test(text)) return '正在建立终端连接。';
     if (/离线/.test(text)) return '网络已离线，等待网络恢复。';

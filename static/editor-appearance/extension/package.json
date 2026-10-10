@@ -2,7 +2,7 @@
   "name": "workspace-appearance",
   "displayName": "iLab Workspace Appearance",
   "description": "Editor appearance and scoped Codex file, folder and selection references.",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "publisher": "ilab",
   "license": "MIT",
   "engines": {
@@ -13,6 +13,9 @@
   ],
   "extensionKind": [
     "workspace"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
   ],
   "contributes": {
     "iconThemes": [

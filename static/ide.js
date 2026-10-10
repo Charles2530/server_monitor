@@ -264,6 +264,11 @@
     if (!current?.origin || !current.historyPayload) return;
     $("ide-frame").contentWindow?.postMessage({ type: 'ilab-codex-history', ...current.historyPayload }, current.origin);
   }
+  function historyNote(message, state) {
+    if (connection.historyLog === message) return;
+    connection.historyLog = message;
+    window.MonitorConnectionLog?.note(message, state);
+  }
   async function refreshHistory(gen, current = connection) {
     if (!current?.workspace || !current.ready || current.entryExpired || current.codexPanel !== 'ready'
         || gen !== generation || !controller || controller.signal.aborted || busy || recoveryFailures || document.hidden || navigator.onLine === false
@@ -273,12 +278,13 @@
     current.historyRequest = request;
     current.historyWorkspace = workspace;
     current.historyNextCheck = Date.now() + 30000;
+    if (!current.historyPayload) historyNote('正在识别 Codex 当前项目历史。', 'loading');
     try {
       const result = await apiOnce('history', { task_id: taskId, instance: current.instance, container: current.container, workspace }, gen);
       identity(result);
       // The server resolves symlinks. Compare the captured request identity,
       // rather than rejecting its canonical workspace path.
-      if (gen !== generation || connection !== current || current.workspace !== workspace) return;
+      if (gen !== generation || connection !== current || current.workspace !== workspace || current.historyRequest !== request) return;
       // Cached history must not reset an already confirmed list filter.
       const payload = { workspace: result.workspace, records: Array.isArray(result.records) ? result.records : [], truncated: result.truncated === true, error: null, revision: current.historyPayload?.revision };
       if (JSON.stringify(payload) === JSON.stringify(current.historyPayload)) return;
@@ -288,13 +294,13 @@
       current.historyCount = 0;
       sendHistoryToFrame(current);
       setupStatus();
-      window.MonitorConnectionLog?.note('Codex 项目历史已读取，等待列表过滤确认。', 'loading');
+      historyNote('Codex 项目历史已读取，等待列表过滤确认。', 'loading');
     } catch (error) {
-      if (gen !== generation || connection !== current || current.workspace !== workspace) return;
+      if (gen !== generation || connection !== current || current.workspace !== workspace || current.historyRequest !== request) return;
       current.historyPayload = { workspace, records: [], error: 'history_unavailable', revision: ++historyRevision };
       current.historyState = 'unavailable'; current.historyCount = 0;
       sendHistoryToFrame(current); setupStatus();
-      window.MonitorConnectionLog?.note('Codex 项目历史读取失败，已保留原生列表。', 'error');
+      historyNote('Codex 项目历史读取失败，已保留原生列表。', 'error');
     } finally {
       if (current.historyRequest === request) current.historyRequest = null;
     }
@@ -314,7 +320,7 @@
       const alive = await workbenchAlive(gen); active(gen);
       if (alive) {
         connection.entryExpired = false; recoveryFailures = 0; initializationFailed = false;
-        connection.workspace = typeof result.workspace === 'string' ? result.workspace : connection.workspace;
+        connection.workspace ||= typeof result.workspace === 'string' ? result.workspace : null;
         nextCheck = Date.now() + 30000;
         setupStatus(result); busy = false; controls();
         void refreshHistory(gen, connection);
@@ -437,17 +443,23 @@
   window.addEventListener("message", event => {
     if (!connection || event.source !== $("ide-frame").contentWindow || event.origin !== connection.origin) return;
     if (event.data?.type === 'ilab-editor-codex' && ['loading', 'ready', 'hidden'].includes(event.data.state)) {
+      if (connection.codexPanel !== event.data.state) window.MonitorConnectionLog?.note({
+        loading: 'Codex 面板加载中。', ready: 'Codex 面板已加载。', hidden: 'Codex 面板已隐藏。',
+      }[event.data.state], event.data.state === 'ready' ? 'ready' : 'loading');
       connection.codexPanel = event.data.state; setupStatus();
       if (event.data.state === 'ready') void refreshHistory(generation, connection);
       return;
     }
-    if (event.data?.type === 'ilab-editor-codex-history-state' && ['ready', 'empty', 'unavailable'].includes(event.data.state)) {
+    if (event.data?.type === 'ilab-editor-codex-history-state' && ['loading', 'ready', 'empty', 'unavailable'].includes(event.data.state)) {
       if (!connection.historyPayload || event.data.revision !== connection.historyPayload.revision
           || event.data.workspace !== connection.historyPayload.workspace || !Number.isSafeInteger(event.data.count) || event.data.count < 0) return;
       connection.historyState = event.data.state;
       connection.historyCount = event.data.count;
       connection.historySupported = event.data.supported;
       setupStatus();
+      historyNote({ loading: 'Codex 历史列表加载中，等待过滤。', ready: 'Codex 当前项目聊天过滤完成。',
+        empty: 'Codex 当前项目暂无匹配聊天。', unavailable: 'Codex 项目聊天过滤暂不可用，已保留原生列表。',
+      }[event.data.state], event.data.state === 'unavailable' ? 'error' : event.data.state === 'loading' ? 'loading' : 'ready');
       if (connection.historySupported) void refreshHistory(generation, connection);
       return;
     }
@@ -460,9 +472,16 @@
       return;
     }
     if (event.data?.type !== "ilab-editor-ready") return;
+    const workspace = event.data.workspace;
+    if (typeof workspace === 'string' && workspace.startsWith('/') && workspace.length <= 4096 && !/[\u0000-\u001f\u007f]/.test(workspace)
+        && workspace !== connection.workspace) {
+      Object.assign(connection, { workspace, historyPayload: null, historyState: 'loading', historyCount: 0,
+        historySupported: undefined, historyWorkspace: null, historyRequest: null, historyLog: null });
+      setupStatus();
+      void refreshHistory(generation, connection);
+    }
     if (connection.ready) { sendHistoryToFrame(connection); return; }
     connection.entryExpired = false;
-    if (typeof event.data.workspace === 'string' && event.data.workspace.startsWith('/') && event.data.workspace.length <= 4096 && !/[\u0000-\u001f\u007f]/.test(event.data.workspace)) connection.workspace = event.data.workspace;
     connection.ready = true; recoveryFailures = 0; clearTimeout(retryTimer); retryTimer = null;
     sendHistoryToFrame(connection);
     const seconds = ((performance.now() - loadingStarted) / 1000).toFixed(1);

@@ -41,6 +41,12 @@ async function addReference(clicked, selected, mode = 'auto') {
   }
 }
 exports.activate = context => {
+  const recent = vscode.window.createStatusBarItem('ilab.recentProjects', vscode.StatusBarAlignment.Left, 1);
+  recent.name = '历史项目'; recent.text = '$(history) 历史项目';
+  recent.tooltip = '切换此容器中最近打开的文件夹或工作区';
+  recent.command = 'workbench.action.openRecent';
+  context.subscriptions.push(recent);
+  recent.show();
   for (const [name, mode] of [['addReference', 'auto'], ['addFileReference', 'file'],
     ['addFolderReference', 'file'], ['addSelectionReference', 'selection']]) {
     context.subscriptions.push(vscode.commands.registerCommand('ilab.codex.' + name,

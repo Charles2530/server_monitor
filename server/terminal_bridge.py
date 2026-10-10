@@ -42,6 +42,8 @@ class CloudConnection(connect):
 class Session:
     def __init__(self,socket,owner):
         self.socket,self.owner=socket,owner
+        self.tmux_token=secrets.token_hex(16)
+        self.tmux_control=None;self.tmux_lock=asyncio.Lock()
         self.created=self.touched=time.monotonic()
         self.frames=deque();self.size=0;self.cursor=0
         self.sequence=0;self.last_digest=None
@@ -67,12 +69,23 @@ class Session:
                     self.cursor+=1;self.size+=len(data);self.frames.append((self.cursor,data))
                     self.event.set()
                 elif frame[0]==3:
-                    self.error='云端终端会话已结束。';break
+                    # Channel 3 also carries upstream errors, not just shell exits.
+                    # Do not expose its raw text: providers may include credentials.
+                    try:status=json.loads(frame[1:])
+                    except ValueError:status=None
+                    exited=isinstance(status,dict) and (status.get('status')=='Success' or status.get('reason')=='NonZeroExitCode')
+                    self.retryable=not exited
+                    self.error='云端终端会话已结束。' if exited else '云端终端连接中断，正在重新连接。'
+                    break
+            else:
+                if not self.ended:
+                    self.error='云端连接已关闭，正在重新连接。';self.retryable=True
         except asyncio.CancelledError:raise
         except Exception:
             self.error='云端终端连接中断，请重新连接。';self.retryable=True
         finally:
             self.ended=True;self.event.set()
+            await self.close_tmux_control()
             await self.socket.close()
 
     async def keepalive(self):
@@ -88,14 +101,22 @@ class Session:
         except asyncio.CancelledError:raise
         except Exception:self.error='云端终端连接中断，请重新连接。'
         finally:
-            self.ended=True;self.event.set();self.pump.cancel()
+            if not self.ended:
+                self.ended=True;self.event.set();self.pump.cancel()
             await self.socket.close()
 
     async def close(self):
         self.ended=True;self.event.set()
         for job in (self.pump,self.heartbeat):job.cancel()
         await asyncio.gather(self.pump,self.heartbeat,return_exceptions=True)
+        await self.close_tmux_control()
         await self.socket.close()
+
+    async def close_tmux_control(self):
+        control=self.tmux_control
+        if control:
+            await control[1].close()
+            if self.tmux_control is control:self.tmux_control=None
 
 
 class TerminalBridge:
@@ -165,7 +186,7 @@ class TerminalBridge:
             now=time.monotonic()
             for key,s in list(self.sessions.items()):
                 if s.ended or (s.transport is None and now-s.touched>IDLE_SECONDS):
-                    await s.close();del self.sessions[key]
+                    await s.close();self.sessions.pop(key,None)
             if len(self.sessions)>=MAX_SESSIONS:raise ActionError('已打开太多终端，请先断开不使用的会话。','terminal_limit',429)
             started=time.monotonic()
             for attempt in range(2):
@@ -206,7 +227,8 @@ class TerminalBridge:
                 except Exception:raise ActionError('终端连接暂不可用，请稍后重试。','terminal_unavailable',502) from None
             key=secrets.token_urlsafe(32)
             self.sessions[key]=Session(socket,owner)
-            return {'session_id':key,'site':self.site.id,'task_id':data['task_id']}
+            self.sessions[key].target={field:data[field] for field in ('task_id','instance','container')}
+            return {'session_id':key,'site':self.site.id,'task_id':data['task_id'],'tmux_token':self.sessions[key].tmux_token}
 
     def get(self,key,owner):
         s=self.sessions.get(key) if isinstance(key,str) else None

@@ -61,13 +61,20 @@ def safe_progress(value):
     return result
 
 
-async def run_python(bridge, data, script, *, timeout=600, on_progress=None, verified_targets=None, cleanup_jobs=None, max_result_bytes=16384):
+async def run_python(bridge, data, script, *, timeout=600, on_progress=None, verified_targets=None, cleanup_jobs=None, max_result_bytes=16384, session_id=None):
     if type(max_result_bytes) is not int or not 1 <= max_result_bytes <= MAX_HISTORY_RESPONSE_BYTES:
         raise ValueError("invalid result byte limit")
     owner = 'cci-editor-bootstrap'
     verified = {'verified_targets': verified_targets} if verified_targets is not None else {}
-    opened = await bridge.open({**data, 'cols': 240, 'rows': 40}, owner, **verified)
-    key = opened['session_id']
+    sequence = cursor_start = 0
+    if session_id is None:
+        opened = await bridge.open({**data, 'cols': 240, 'rows': 40}, owner, **verified)
+        key = opened['session_id']
+    else:
+        # The caller serializes use of its dedicated control shell.
+        shell = bridge.get(session_id, owner)
+        if shell.ended or shell.target != data: raise ActionError('后台控制连接已失效。')
+        key, sequence, cursor_start = session_id, shell.sequence, shell.cursor
     tag = secrets.token_hex(16)
     reporter = "def _ilab_report_progress(stage, downloaded_bytes=None, total_bytes=None):\n    print(chr(30)+" + repr(tag) + "+json.dumps({'__ilab_progress__': {'stage': stage, 'downloaded_bytes': downloaded_bytes, 'total_bytes': total_bytes}})+chr(31), flush=True)\n"
     payload = 'import json\n' + reporter + 'try:\n' + '\n'.join('    ' + line for line in script.splitlines()) + '\nexcept Exception as exc:\n    RESULT = {"error": str(exc)}\nprint(chr(30)+' + repr(tag) + '+json.dumps(RESULT)+chr(31), flush=True)\n'
@@ -76,8 +83,8 @@ async def run_python(bridge, data, script, *, timeout=600, on_progress=None, ver
     command = "stty -echo; python3 - <<'ILAB_EDITOR_PY'\nimport base64\nexec(base64.b64decode(\n" + '\n'.join(repr(encoded[i:i+1000]) for i in range(0, len(encoded), 1000)) + "))\nILAB_EDITOR_PY\nstty echo\n"
     async def execute():
         for index, start in enumerate(range(0, len(command), 1800), 1):
-            await bridge.write(key, index, command[start:start+1800], None, owner)
-        raw = b''; cursor = 0
+            await bridge.write(key, sequence + index, command[start:start+1800], None, owner)
+        raw = b''; cursor = cursor_start
         marker = b'\x1e' + tag.encode()
         while True:
             result = await bridge.read(key, cursor, owner)
@@ -110,7 +117,9 @@ async def run_python(bridge, data, script, *, timeout=600, on_progress=None, ver
         completed = True
         return result
     finally:
-        if completed and cleanup_jobs is not None:
+        if completed and session_id is not None:
+            pass  # Keep the dedicated shell until its owning terminal closes.
+        elif completed and cleanup_jobs is not None:
             # The result is complete; closing this temporary shell can overlap
             # SSH setup. Its owner still joins cleanup during shutdown.
             job = asyncio.create_task(cleanup()); cleanup_jobs.add(job)
