@@ -8,6 +8,7 @@
     acp: ["ACP 任务", "CREATE ACP TASK", window.MonitorSite?.id === "sensecore" ? "先选 AFS 分区，再选集群和卡数，预览镜像与挂载后创建。" : "配置任务并预览创建；可指定集群，默认按优先规则选择。"],
     history: ["任务历史", "TASK HISTORY", "查看 charles 已成功、失败或停止的任务，并跳转云控制台。"],
     storage: ["存储管理", "AFS STORAGE", "查看 AFS 存储容量、分区与 charles 任务的挂载路径。"],
+    images: ["镜像管理", "IMAGE MANAGEMENT", "按当前云站点查看镜像仓库、版本信息与镜像传递方向。"],
     waiting: ["队列管理", "QUEUES", "查看所有用户的等待任务，以及运行中 ACP 任务的 GPU 利用率排名。"],
   };
   const aliases = { main: "overview", "tasks-section": "tasks", "acp-section": "acp", "waiting-section": "waiting", clusters: "overview", "clusters-section": "overview" };

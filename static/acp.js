@@ -7,6 +7,10 @@
   const pendingKeys = { create: siteKey("charles-monitor.acp.create.pending"), stop: siteKey("charles-monitor.acp.stop.pending") };
   const form = byId("acp-create-form");
   const command = byId("acp-command");
+  const imageSelect = byId("acp-image");
+  const imageNamespace = byId("acp-image-namespace"), imageRepository = byId("acp-image-repository");
+  const imageTabs = [...document.querySelectorAll("[data-acp-image-mode]")];
+  let imageMode = "template";
   let commandTouched = false, commandRevision = 0, pastePending = false;
   const partitioned = window.MonitorSite?.id === "sensecore";
   const partitionDrafts = new Map();
@@ -177,9 +181,80 @@
     });
   }
 
+  function imageChoice() {
+    return { mode: imageMode, namespace: imageNamespace.value, repository: imageRepository.value, path: imageSelect.value };
+  }
+
+  function imageOptions(select, values, selected, placeholder) {
+    const entries = new Map(values);
+    // Keep a deliberate choice while a progressive refresh is incomplete or unavailable.
+    if (selected && !entries.has(selected)) entries.set(selected, `${select === imageSelect ? selected.slice(selected.lastIndexOf(":") + 1) : selected}（目录暂未返回）`);
+    const empty = element("option", "", placeholder); empty.value = "";
+    select.replaceChildren(empty, ...[...entries].map(([value, label]) => {
+      const option = element("option", "", label); option.value = value; return option;
+    }));
+    select.value = selected || "";
+    select.disabled = !state.options || !entries.size;
+  }
+
+  function renderImageAddress() {
+    byId("acp-image-address").textContent = imageMode === "template"
+      ? (state.options?.template_config?.images || []).join("\n") || "正在读取模板…"
+      : imageSelect.value || "请选择命名空间、镜像仓库和版本";
+  }
+
+  function renderImageOptions(data, choice = imageChoice()) {
+    imageMode = choice.mode || "template";
+    const catalog = window.MonitorImages?.[window.MonitorSite?.id];
+    const rows = (catalog?.images || []).filter(image => image.path && image.tag);
+    const selected = rows.find(image => image.path === choice.path);
+    const namespaces = [...new Set([...(catalog?.namespaces || []), ...rows.map(image => image.namespace)])];
+    const namespace = selected?.namespace || choice.namespace || catalog?.default_namespace || catalog?.namespace || (namespaces.length === 1 ? namespaces[0] : "");
+    const repository = selected?.name || choice.repository || "";
+    imageOptions(imageNamespace, namespaces.map(name => [name, name]), namespace, "请选择命名空间");
+    const names = [...new Set(rows.filter(image => image.namespace === namespace).map(image => image.name))].sort();
+    imageOptions(imageRepository, names.map(name => [name, name]), repository, namespace ? "请选择镜像仓库" : "请先选择命名空间");
+    imageOptions(imageSelect, rows.filter(image => image.namespace === namespace && image.name === repository).map(image => [image.path, image.tag]), imageMode === "private" ? choice.path : "", "请选择版本");
+    imageSelect.required = imageMode === "private";
+    if (imageMode === "template") imageSelect.disabled = true;
+    for (const tab of imageTabs) {
+      const active = tab.dataset.acpImageMode === imageMode;
+      tab.setAttribute("aria-selected", String(active)); tab.tabIndex = active ? 0 : -1;
+    }
+    byId("acp-image-template").hidden = imageMode !== "template";
+    byId("acp-image-private").hidden = imageMode !== "private";
+    const missing = choice.path && !selected && imageMode === "private" ? "所选版本暂未在目录中返回，保留原地址，请确认其可用性。 " : "";
+    byId("acp-image-help").textContent = missing + (catalog?.warnings?.join(" ") || (catalog?.refreshing || !catalog
+      ? `正在读取镜像目录，已获取 ${rows.length} 个版本…`
+      : rows.length ? `当前命名空间可选 ${rows.length} 个版本；仅展示有 Tag 的私有镜像。` : "当前命名空间没有可选的私有镜像版本，可刷新重试或沿用模板。"));
+    byId("acp-image-refresh").disabled = Boolean(catalog?.refreshing);
+    renderImageAddress();
+    if (location.hash === "#acp" && namespace && catalog?.namespace !== namespace) document.dispatchEvent(new CustomEvent("monitor-image-namespace", {detail: namespace}));
+  }
+
+  function selectImageMode(mode, focus = false) {
+    const choice = imageChoice(); choice.mode = mode;
+    if (mode === "template") choice.path = "";
+    renderImageOptions(state.options, choice);
+    if (focus) imageTabs.find(tab => tab.dataset.acpImageMode === mode).focus();
+  }
+  imageTabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => selectImageMode(tab.dataset.acpImageMode));
+    tab.addEventListener("keydown", event => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === "Home" ? 0 : event.key === "End" ? imageTabs.length - 1 : (index + 1) % imageTabs.length;
+      selectImageMode(imageTabs[next].dataset.acpImageMode, true);
+    });
+  });
+  imageNamespace.addEventListener("change", () => renderImageOptions(state.options, {...imageChoice(), repository: "", path: ""}));
+  imageRepository.addEventListener("change", () => renderImageOptions(state.options, {...imageChoice(), path: ""}));
+  imageSelect.addEventListener("change", renderImageAddress);
+  document.addEventListener("monitor-images", () => { renderImageOptions(state.options); });
+
   function savePartitionDraft() {
     if (!state.options?.partition?.id) return;
-    partitionDrafts.set(state.options.partition.id, { command: command.value, touched: commandTouched, cluster: byId("acp-cluster").value, gpu: byId("acp-gpus").value });
+    partitionDrafts.set(state.options.partition.id, { command: command.value, touched: commandTouched, cluster: byId("acp-cluster").value, gpu: byId("acp-gpus").value, image: imageChoice() });
   }
 
   async function options(requestedPartition = partitionSelect?.value || "", switching = false) {
@@ -193,6 +268,8 @@
       byId("acp-preview-button").disabled = true;
       byId("acp-cluster").disabled = true;
       byId("acp-gpus").disabled = true;
+      imageSelect.disabled = true;
+      imageNamespace.disabled = true; imageRepository.disabled = true;
       byId("acp-command-restore").disabled = true;
       command.disabled = true;
       byId("acp-command-paste").disabled = true;
@@ -218,6 +295,7 @@
       const created = data.template.created_at ? new Date(data.template.created_at).toLocaleString("zh-CN", { hour12: false }) : "—";
       pair(config, "模板创建时间", created);
       renderTemplateConfig(config, data.template_config);
+      renderImageOptions(data, draft?.image || (switching ? {mode: "template"} : imageChoice()));
       if (!commandTouched) command.value = typeof data.default_command === "string" && data.default_command.trim() ? data.default_command : "sleep inf";
       byId("acp-command-source").textContent = data.command_source ? `来源：${data.command_source.name} · ${data.command_source.id}` : partitioned ? "所选分区模板未运行，默认 sleep inf" : "无可用的运行中任务命令，默认 sleep inf";
       byId("acp-command-restore").disabled = false;
@@ -398,12 +476,14 @@
     event.preventDefault();
     if (!state.options || optionsLoading || state.creating || state.createUnknown || state.storageError) return;
     if (!byId("acp-gpus").value) { message("acp-message", "请选择可用集群和 GPU 规格。"); return; }
+    if (imageMode === "private" && !imageSelect.value) { message("acp-message", "请选择完整的私有镜像版本，或切换为沿用模板。"); return; }
     const button = byId("acp-preview-button");
     button.disabled = true; button.textContent = "正在生成预览…";
     message("acp-message", "");
     try {
       const context = state.options, revision = optionsRequest;
       const submission = { display_name: byId("acp-name").value, replicas: Number(byId("acp-replicas").value), gpus_per_replica: Number(byId("acp-gpus").value), command: byId("acp-command").value, cluster_id: byId("acp-cluster").value };
+      if (imageSelect.value) submission.image_path = imageSelect.value;
       if (partitioned) submission.partition_id = context.partition.id;
       const data = await request("/api/acp/preview", submission);
       if (revision !== optionsRequest || context !== state.options) return;

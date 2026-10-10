@@ -19,11 +19,13 @@
     <link rel="stylesheet" href="/static/metrics.css">
     <link rel="stylesheet" href="/static/partitions.css">
     <link rel="stylesheet" href="/static/storage.css">
+    <link rel="stylesheet" href="/static/images.css">
     <link rel="stylesheet" href="/static/selects.css">
     <link rel="stylesheet" href="/static/workspace.css">
     <script src="/static/sites.js" defer></script>
     <script src="/static/task-context.js" defer></script>
     <script src="/static/navigation.js" defer></script>
+    <script src="/static/images.js" defer></script>
     <script src="/static/app.js" defer></script>
     <script src="/static/acp.js" defer></script>
     <script src="/static/logs.js" defer></script>
@@ -59,6 +61,7 @@
         <a class="nav-item" href="#acp"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>ACP 任务</a>
         <a class="nav-item" href="#waiting"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>队列管理</a>
         <a class="nav-item" href="#storage"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/></svg>存储管理</a>
+        <a class="nav-item" href="#images"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h4m-4 4h10m-10 0v2m4-2v2m4-2v2"/></svg>镜像管理</a>
         <a class="nav-item" href="#history"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v5l3 2"/></svg>任务历史</a>
       </nav>
       <div class="sidebar-bottom">
@@ -181,7 +184,24 @@
             <p class="command-help" id="acp-command-help">默认读取最新运行中 charles ACP 任务的启动命令；留空使用 sleep inf。提交时若末尾没有独立的 sleep inf，会自动补上。</p>
             <p class="command-help" id="acp-command-notice" role="status" hidden></p>
           </div>
-          <div class="acp-form-footer"><div class="acp-submit-summary"><span class="form-step" aria-hidden="true">03</span><p>配置总量 <strong id="acp-total">—</strong><small id="acp-cluster-policy">标准资源自动选集群：modeltoolchain_test → modeltoolchain → vigen</small></p></div><button id="acp-preview-button" class="button button-primary" type="submit" disabled>预览创建配置</button></div>
+          <section class="acp-image-config" aria-labelledby="acp-image-title">
+            <div class="form-block-heading"><span class="form-step" aria-hidden="true">03</span><div><h3 id="acp-image-title">镜像配置</h3><p>沿用任务模板，或从当前站点的私有仓库选择</p></div></div>
+            <div class="detail-tabs" role="tablist" aria-label="镜像配置方式">
+              <button id="acp-image-template-tab" type="button" role="tab" aria-selected="true" aria-controls="acp-image-template" data-acp-image-mode="template">沿用模板</button>
+              <button id="acp-image-private-tab" type="button" role="tab" aria-selected="false" aria-controls="acp-image-private" tabindex="-1" data-acp-image-mode="private">私有镜像</button>
+            </div>
+            <div id="acp-image-template" role="tabpanel" aria-labelledby="acp-image-template-tab"><p class="acp-image-note">使用所选任务模板中的镜像配置。</p></div>
+            <div id="acp-image-private" role="tabpanel" aria-labelledby="acp-image-private-tab" hidden>
+              <div class="acp-image-selectors">
+                <label>命名空间<select id="acp-image-namespace" disabled><option value="">正在读取…</option></select></label>
+                <label>镜像仓库<select id="acp-image-repository" disabled><option value="">请选择命名空间</option></select></label>
+                <label>版本（Tag）<select id="acp-image" name="image_path" disabled><option value="">请选择镜像仓库</option></select></label>
+              </div>
+              <div class="acp-image-status"><p id="acp-image-help" class="acp-image-note" role="status">正在读取当前站点的镜像目录…</p><button id="acp-image-refresh" type="button" class="button button-secondary">刷新镜像</button></div>
+            </div>
+            <div class="acp-image-resolved"><span>最终镜像地址</span><code id="acp-image-address" aria-live="polite">正在读取模板…</code></div>
+          </section>
+          <div class="acp-form-footer"><div class="acp-submit-summary"><span class="form-step" aria-hidden="true">04</span><p>配置总量 <strong id="acp-total">—</strong><small id="acp-cluster-policy">标准资源自动选集群：modeltoolchain_test → modeltoolchain → vigen</small></p></div><button id="acp-preview-button" class="button button-primary" type="submit" disabled>预览创建配置</button></div>
         </form>
       </section>
       <div id="tasks-view" class="workspace-view tasks-view" data-page="tasks" hidden>
@@ -227,6 +247,75 @@
         <div id="storage-summary" class="storage-summary" aria-label="当前筛选容量汇总"></div>
         <div class="table-scroll" role="region" aria-label="AFS 存储卷，可横向滚动" tabindex="0"><table class="resource-table storage-table"><thead><tr><th scope="col">存储卷 / 分区</th><th scope="col">容量 / 使用率</th><th scope="col">状态 / 到期时间</th><th scope="col">charles 最近挂载记录</th></tr></thead><tbody id="storage-body"><tr><td colspan="4" class="table-empty">等待读取存储信息</td></tr></tbody></table></div>
         <div class="table-note">只读查看，容量每 60 秒刷新，挂载记录后台补齐并缓存 5 分钟。容量为整个共享存储卷的用量，非 charles 独占用量；按 1000 进制展示 GB / TB。挂载记录包含历史任务，按服务类型和路径保留最新一条；无记录不代表存储卷未使用。“—” 表示未知。</div>
+      </section>
+      <section id="images-section" class="section-block workspace-view th-page" data-page="images" hidden>
+        <div class="dashboard-panel image-registry-card">
+          <div class="section-heading"><div><h2>当前镜像仓库 <span id="image-site-name" class="count-badge">—</span></h2><p id="image-site-description">正在读取仓库配置…</p></div><span id="image-data-status" class="image-status">读取中</span></div>
+          <p id="image-data-note" class="image-transfer-status" role="status" aria-live="polite"></p>
+        </div>
+        <div class="th-tabs images-tabs" role="tablist" aria-label="镜像管理分类">
+          <button id="image-list-tab" class="active" type="button" role="tab" aria-selected="true" aria-controls="image-list-panel" data-image-tab="list">镜像列表</button>
+          <button id="image-transfer-tab" type="button" role="tab" aria-selected="false" aria-controls="image-transfer-panel" data-image-tab="transfer" tabindex="-1">镜像传递</button>
+        </div>
+        <div id="image-list-panel" role="tabpanel" aria-labelledby="image-list-tab">
+          <section class="cluster-panel image-catalog-panel">
+            <div class="section-heading">
+              <div><h2>镜像列表 <span id="image-catalog-count" class="count-badge">—</span></h2><p id="image-catalog-note">每行对应一个镜像版本，可复制地址或传递到其他仓库。</p></div>
+              <div class="th-actions image-catalog-actions">
+                <button id="image-catalog-refresh" class="button button-secondary" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6.1 7a7 7 0 0 1 11.5-1L20 9M4 15l2.4 3A7 7 0 0 0 17.9 17"/></svg>刷新</button>
+                <button id="image-client-upload" class="button button-primary" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg>客户端上传</button>
+              </div>
+            </div>
+            <div class="th-filters image-toolbar">
+              <label>命名空间<select id="image-catalog-namespace" class="th-select" disabled><option>读取中</option></select></label>
+              <label>来源 / 用途<select id="image-catalog-source" class="th-select"><option value="">全部来源</option><option value="local">本地上传</option><option value="snapshot">快照</option><option value="cci">云容器实例</option><option value="copy">拷贝</option><option value="unknown">未知来源</option></select></label>
+              <label class="image-search">搜索镜像<span class="history-search-control"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="image-catalog-search" type="search" placeholder="名称、Tag、环境；空格组合关键词" autocomplete="off"></span></label>
+              <div class="image-env-filters" role="group" aria-label="环境筛选">
+                <label>CUDA<select id="image-filter-cuda" class="th-select"><option value="">全部</option></select></label>
+                <label>PyTorch<select id="image-filter-pytorch" class="th-select"><option value="">全部</option></select></label>
+                <label>Python<select id="image-filter-python" class="th-select"><option value="">全部</option></select></label>
+                <label>架构<select id="image-filter-architecture" class="th-select"><option value="">全部</option></select></label>
+              </div>
+              <div class="image-filter-help"><span>版本按主次版本分组；选项数字为匹配数。可点击下方环境标签筛选。</span><button id="image-filter-reset" class="button button-secondary" type="button" hidden>清空筛选</button></div>
+            </div>
+            <div class="table-scroll" role="region" aria-label="镜像列表" tabindex="0"><table class="resource-table image-table"><thead><tr><th scope="col">镜像 / 地址 / 环境</th><th scope="col">命名空间</th><th scope="col">来源 / 用途</th><th scope="col">Tag</th><th scope="col">大小</th><th scope="col">创建时间</th><th scope="col">操作</th></tr></thead><tbody id="image-catalog-body"></tbody></table></div>
+            <div class="image-pagination"><span id="image-page-status"></span><button id="image-page-prev" class="button button-secondary" type="button">上一页</button><button id="image-page-next" class="button button-secondary" type="button">下一页</button></div>
+            <div class="table-note">来源与用途来自平台标签；环境版本来自镜像配置声明，不等于已运行核验。未声明的字段显示“未知”。</div>
+          </section>
+        </div>
+        <div id="image-transfer-panel" role="tabpanel" aria-labelledby="image-transfer-tab" hidden>
+          <article class="dashboard-panel image-transfer-card">
+            <div class="panel-heading"><div><h2>镜像传递与上传</h2><p>选择仓库与镜像版本，生成可复制的执行命令。</p></div><span class="subtle-badge">终端执行</span></div>
+            <p id="image-transfer-help">按 registry.sh 的参数生成命令。服务器需已配置对应账号并启动 Docker；目标 tag 已存在时可能被覆盖。页面不会自动执行。</p>
+            <div class="image-transfer-groups">
+              <fieldset class="image-transfer-group">
+                <legend><span class="form-step" aria-hidden="true">01</span>传递方式</legend>
+                <div class="image-transfer-fields">
+                  <label>操作<select id="image-transfer-mode" class="th-select"><option value="transfer">跨仓库传递</option><option value="push">客户端上传（push）</option></select></label>
+                  <label>执行位置<select id="image-transfer-location" class="th-select"><option value="server">服务器 · sudo bash docker/registry.sh</option><option value="local">本机 · bash registry.sh 绝对路径</option></select></label>
+                </div>
+              </fieldset>
+              <fieldset class="image-transfer-group">
+                <legend><span class="form-step" aria-hidden="true">02</span>源镜像</legend>
+                <div class="image-transfer-fields">
+                  <label id="image-transfer-source-field" class="image-field-wide">源仓库<select id="image-transfer-source" class="th-select"></select></label>
+                  <label><span id="image-transfer-name-label">源镜像名</span><input id="image-transfer-image" type="text" placeholder="repo 或 namespace/repo" autocomplete="off" spellcheck="false"></label>
+                  <label>源 Tag<input id="image-transfer-tag" type="text" placeholder="必填" autocomplete="off" spellcheck="false"></label>
+                </div>
+              </fieldset>
+              <fieldset class="image-transfer-group">
+                <legend><span class="form-step" aria-hidden="true">03</span>目标镜像</legend>
+                <div class="image-transfer-fields">
+                  <label class="image-field-wide">目标仓库<select id="image-transfer-target" class="th-select"></select></label>
+                  <label>目标名称<input id="image-transfer-name" type="text" placeholder="留空沿用源名称" autocomplete="off" spellcheck="false"></label>
+                  <label>目标 Tag<input id="image-transfer-target-tag" type="text" placeholder="留空沿用源 Tag" autocomplete="off" spellcheck="false"></label>
+                </div>
+              </fieldset>
+            </div>
+            <div class="image-command-row"><h3>命令预览</h3><button id="image-transfer-copy" class="button button-secondary" type="button" disabled>复制命令</button><pre id="image-transfer-command" class="image-command">—</pre></div>
+            <p id="image-transfer-status" class="image-transfer-status" role="status" aria-live="polite"></p>
+          </article>
+        </div>
       </section>
       <section id="task-history-section" class="section-block cluster-panel workspace-view" data-page="history" hidden>
         <div class="section-heading"><div><h2>历史记录 <span id="task-history-count" class="count-badge">—</span></h2></div><button id="task-history-refresh" class="button button-secondary" type="button"><span aria-hidden="true">↻</span> 刷新历史</button></div>

@@ -37,7 +37,7 @@ def integer(value,label,maximum=1024):
 
 def validate_form(data):
     required={'display_name','replicas','gpus_per_replica','command'}
-    if not isinstance(data,dict) or not required <= set(data) <= required | {'cluster_id','partition_id'}:
+    if not isinstance(data,dict) or not required <= set(data) <= required | {'cluster_id','partition_id','image_path'}:
         raise ActionError('请填写显示名称、副本数、每副本 GPU 数和启动命令。')
     partition=data.get('partition_id','')
     if not isinstance(partition,str) or len(partition)>253 or (partition and not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_+\-]*',partition)):
@@ -51,6 +51,9 @@ def validate_form(data):
     integer(data['replicas'],'副本数');integer(data['gpus_per_replica'],'每副本 GPU 数',64)
     if not isinstance(data['command'],str) or len(data['command'])>65536 or '\x00' in data['command']:
         raise ActionError('启动命令必须是有效文本，最多 65536 字符。')
+    image_path=data.get('image_path')
+    if image_path is not None and (not isinstance(image_path,str) or not 1 <= len(image_path) <= 512 or any(c.isspace() or ord(c)<32 for c in image_path)):
+        raise ActionError('镜像地址必须是 1 到 512 字符且不含空白的文本。')
     command=data['command'].replace('\r\n','\n').strip()
     if command and not re.fullmatch(r'sleep[ \t]+inf[ \t]*;?',command.splitlines()[-1].strip()):
         command += '\nsleep inf'
@@ -106,7 +109,7 @@ def build_payload(template,binding,spec,form,name):
         raise ActionError('最新模板的训练框架暂不支持复制。','unsupported_template',409)
     payload.update(name=name,display_name=form['display_name'],framework=framework,
         roles=[{'name':'Worker','resource_spec':[{'name':spec['name'],'replicas':0}],
-                'total_replicas':form['replicas'],'startup_script':form['command'],'image_path':roles[0]['image_path']}],
+                'total_replicas':form['replicas'],'startup_script':form['command'],'image_path':form.get('image_path') or roles[0]['image_path']}],
         resource_pool={'name':binding['name'],'zone':binding['id'].split('/zones/')[1].split('/')[0],'vpc_id':binding['vpc_id']})
     payload.setdefault('scheduling',{})['quota_type']='RESERVED'
     return payload
@@ -322,8 +325,10 @@ class ACPManager:
         binding,spec,enough=next((c for c in candidates if c[2]),candidates[0])
         token=uuid.uuid4().hex;now=time.time();name='cm-'+token[:24]
         payload=build_payload(template,binding,spec,form,name)
+        selected_config=template_config(template)
+        if form.get('image_path'):selected_config['images']=[form['image_path']]
         preview={**({'partition':public_partition(template)} if self.partitioned else {}),
-                 'preview_id':token,'expires_at':iso(now+PREVIEW_TTL),'template_config':template_config(template),'template':public_template(template),
+                 'preview_id':token,'expires_at':iso(now+PREVIEW_TTL),'template_config':selected_config,'template':public_template(template),
                  'selection_mode':'manual' if cluster_id else 'auto',
                  'capacity_checks':checks,
                  'cluster':{'id':binding['name'],'name':binding.get('display_name') or binding['name']},

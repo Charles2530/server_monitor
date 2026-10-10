@@ -22,6 +22,7 @@ from .terminal_routes import register_terminal_routes
 from .cci_ide import CCIEditor
 from .ide_routes import register_ide_routes
 from .storage import StorageManager
+from .images import ImageManager
 from .task_history import TaskHistory
 from .utilization_queue import UtilizationQueue
 from .tokenhub import TokenHub
@@ -53,6 +54,7 @@ class SiteRuntime:
     ide: object = None
     utilization_queue: object = None
     renamer: object = None
+    images: object = None
 
 
 def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=None, tokenhub=None):
@@ -74,6 +76,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         if runtime.terminal_bridge is None:runtime.terminal_bridge=TerminalBridge(runtime.site,runtime.terminal,runtime.acp_terminal)
         if runtime.ide is None:runtime.ide=CCIEditor(runtime.site,runtime.terminal_bridge,runtime.terminal)
         if runtime.storage is None:runtime.storage=StorageManager(runtime.site)
+        if runtime.images is None:runtime.images=ImageManager(runtime.site)
         if runtime.task_history is None:runtime.task_history=TaskHistory(runtime.monitor.store,runtime.site)
         if runtime.utilization_queue is None:runtime.utilization_queue=UtilizationQueue(runtime.site)
     def current_site(request: Request):
@@ -104,6 +107,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
                 await runtime.terminal_bridge.close()
                 await runtime.monitor.close()
                 if hasattr(runtime.storage,"close"):await runtime.storage.close()
+                await runtime.images.close()
                 if hasattr(runtime.task_history,"close"):await runtime.task_history.close()
                 await runtime.utilization_queue.close()
             if lock_file:
@@ -198,6 +202,12 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     register_ide_routes(app,current_site,perform,action_body)
     register_tokenhub_routes(app,tokenhub)
 
+    @app.get('/api/images')
+    async def images(refresh: bool=False, namespace: str="", runtime=Depends(current_site)):
+        async def snapshot_response():
+            return JSONResponse(await runtime.images.snapshot(force=refresh, **({"namespace": namespace} if namespace else {})))
+        return await perform(snapshot_response)
+
     @app.get('/api/task-history')
     async def task_history(runtime=Depends(current_site)):
         async def snapshot_response():
@@ -259,7 +269,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     async def acp_preview(request:Request,runtime=Depends(current_site)):
         actions,monitor=runtime.actions,runtime.monitor
         async def run():
-            data=await action_body(request,('display_name','replicas','gpus_per_replica','command'),optional=('cluster_id','partition_id'))
+            data=await action_body(request,('display_name','replicas','gpus_per_replica','command'),optional=('cluster_id','partition_id','image_path'))
             return await actions.preview(data)
         return await read_only(run)
 

@@ -31,7 +31,7 @@
   }
 
   let selected = null, snapshot = null;
-  const tabs = document.querySelector('.detail-tabs'), terminal = document.getElementById('cci-terminal-selected');
+  const tabs = detail.querySelector('.detail-tabs'), terminal = document.getElementById('cci-terminal-selected');
   const tabsMarker = document.createComment('task-tabs'), terminalMarker = document.createComment('task-terminal');
   tabs.before(tabsMarker); terminal.before(terminalMarker);
   const tools = document.createElement('div'); tools.id = 'mobile-task-tools'; tools.hidden = true;
