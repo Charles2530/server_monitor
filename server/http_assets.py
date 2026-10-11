@@ -1,4 +1,4 @@
-"""Compress bundled assets without buffering API responses or terminal traffic."""
+"""Compress bundled assets and image catalogs without buffering other API traffic."""
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.datastructures import MutableHeaders
 
@@ -33,7 +33,8 @@ class StaticAssetCompression:
     async def __call__(self, scope, receive, send):
         static = (scope['type'] == 'http' and scope['method'] in ('GET', 'HEAD')
                   and scope['path'].startswith('/static/'))
-        compress = (static and scope['method'] == 'GET'
+        compress = (scope['type'] == 'http' and scope['method'] == 'GET'
+                    and (static or scope['path'] == '/api/images')
                     and not any(key == b'range' for key, _ in scope['headers'])
                     and accepts_gzip(scope['headers']))
         if compress:

@@ -14,7 +14,6 @@
     <link rel="stylesheet" href="/static/vendor/tabler.min.css">
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="/static/theme.css">
-    <script src="/static/vendor/echarts.min.js" defer></script>
     <link rel="stylesheet" href="/static/sites.css">
     <link rel="stylesheet" href="/static/metrics.css">
     <link rel="stylesheet" href="/static/partitions.css">
@@ -250,12 +249,18 @@
       </section>
       <section id="images-section" class="section-block workspace-view th-page" data-page="images" hidden>
         <div class="dashboard-panel image-registry-card">
-          <div class="section-heading"><div><h2>当前镜像仓库 <span id="image-site-name" class="count-badge">—</span></h2><p id="image-site-description">正在读取仓库配置…</p></div><span id="image-data-status" class="image-status">读取中</span></div>
+          <div class="section-heading">
+            <div class="image-registry-identity">
+              <span class="image-registry-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"/></svg></span>
+              <div><span class="image-eyebrow">CONTAINER REGISTRY</span><h2>当前镜像仓库 <span id="image-site-name" class="count-badge">—</span></h2><p id="image-site-description">正在读取仓库配置…</p></div>
+            </div>
+            <span id="image-data-status" class="image-status" role="status">读取中</span>
+          </div>
           <p id="image-data-note" class="image-transfer-status" role="status" aria-live="polite"></p>
         </div>
         <div class="th-tabs images-tabs" role="tablist" aria-label="镜像管理分类">
-          <button id="image-list-tab" class="active" type="button" role="tab" aria-selected="true" aria-controls="image-list-panel" data-image-tab="list">镜像列表</button>
-          <button id="image-transfer-tab" type="button" role="tab" aria-selected="false" aria-controls="image-transfer-panel" data-image-tab="transfer" tabindex="-1">镜像传递</button>
+          <button id="image-list-tab" class="active" type="button" role="tab" aria-selected="true" aria-controls="image-list-panel" data-image-tab="list"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>镜像列表</button>
+          <button id="image-transfer-tab" type="button" role="tab" aria-selected="false" aria-controls="image-transfer-panel" data-image-tab="transfer" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16m-4-4 4 4-4 4M20 17H4m4-4-4 4 4 4"/></svg>镜像传递</button>
         </div>
         <div id="image-list-panel" role="tabpanel" aria-labelledby="image-list-tab">
           <section class="cluster-panel image-catalog-panel">
@@ -270,22 +275,25 @@
               <label>命名空间<select id="image-catalog-namespace" class="th-select" disabled><option>读取中</option></select></label>
               <label>来源 / 用途<select id="image-catalog-source" class="th-select"><option value="">全部来源</option><option value="local">本地上传</option><option value="snapshot">快照</option><option value="cci">云容器实例</option><option value="copy">拷贝</option><option value="unknown">未知来源</option></select></label>
               <label class="image-search">搜索镜像<span class="history-search-control"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="image-catalog-search" type="search" placeholder="名称、Tag、环境；空格组合关键词" autocomplete="off"></span></label>
-              <div class="image-env-filters" role="group" aria-label="环境筛选">
+              <details id="image-environment-details" class="image-environment-details" open>
+                <summary>环境筛选 <span id="image-environment-summary">全部环境</span></summary>
+                <div class="image-env-filters" role="group" aria-label="环境筛选">
                 <label>CUDA<select id="image-filter-cuda" class="th-select"><option value="">全部</option></select></label>
                 <label>PyTorch<select id="image-filter-pytorch" class="th-select"><option value="">全部</option></select></label>
                 <label>Python<select id="image-filter-python" class="th-select"><option value="">全部</option></select></label>
                 <label>架构<select id="image-filter-architecture" class="th-select"><option value="">全部</option></select></label>
-              </div>
-              <div class="image-filter-help"><span>版本按主次版本分组；选项数字为匹配数。可点击下方环境标签筛选。</span><button id="image-filter-reset" class="button button-secondary" type="button" hidden>清空筛选</button></div>
+                </div>
+              </details>
+              <div class="image-filter-help"><span>版本按系列分组 · 可点击镜像环境标签筛选</span><button id="image-filter-reset" class="button button-secondary" type="button" hidden>清空筛选</button></div>
             </div>
             <div class="table-scroll" role="region" aria-label="镜像列表" tabindex="0"><table class="resource-table image-table"><thead><tr><th scope="col">镜像 / 地址 / 环境</th><th scope="col">命名空间</th><th scope="col">来源 / 用途</th><th scope="col">Tag</th><th scope="col">大小</th><th scope="col">创建时间</th><th scope="col">操作</th></tr></thead><tbody id="image-catalog-body"></tbody></table></div>
-            <div class="image-pagination"><span id="image-page-status"></span><button id="image-page-prev" class="button button-secondary" type="button">上一页</button><button id="image-page-next" class="button button-secondary" type="button">下一页</button></div>
+            <div class="image-pagination"><label>每页<select id="image-page-size" class="history-select"><option value="5">5 条</option><option value="10">10 条</option><option value="20">20 条</option><option value="50">50 条</option></select></label><span id="image-page-status" role="status" aria-live="polite" aria-atomic="true"></span><div class="image-page-controls"><button id="image-page-prev" class="button button-secondary" type="button">上一页</button><form id="image-page-jump"><input id="image-page-number" type="number" min="1" max="1" step="1" value="1" required aria-label="跳转页码"><button class="button button-secondary" type="submit">跳转</button></form><button id="image-page-next" class="button button-secondary" type="button">下一页</button></div></div>
             <div class="table-note">来源与用途来自平台标签；环境版本来自镜像配置声明，不等于已运行核验。未声明的字段显示“未知”。</div>
           </section>
         </div>
         <div id="image-transfer-panel" role="tabpanel" aria-labelledby="image-transfer-tab" hidden>
           <article class="dashboard-panel image-transfer-card">
-            <div class="panel-heading"><div><h2>镜像传递与上传</h2><p>选择仓库与镜像版本，生成可复制的执行命令。</p></div><span class="subtle-badge">终端执行</span></div>
+            <div class="panel-heading"><div><h2>镜像传递与上传</h2><p>选择仓库与镜像版本，生成可复制的执行命令。</p></div><button id="image-transfer-reset" class="button button-secondary" type="button">重置表单</button></div>
             <p id="image-transfer-help">按 registry.sh 的参数生成命令。服务器需已配置对应账号并启动 Docker；目标 tag 已存在时可能被覆盖。页面不会自动执行。</p>
             <div class="image-transfer-groups">
               <fieldset class="image-transfer-group">
@@ -312,7 +320,7 @@
                 </div>
               </fieldset>
             </div>
-            <div class="image-command-row"><h3>命令预览</h3><button id="image-transfer-copy" class="button button-secondary" type="button" disabled>复制命令</button><pre id="image-transfer-command" class="image-command">—</pre></div>
+            <div class="image-command-row"><div class="image-command-heading"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 6 6 6-6 6m9 0h7"/></svg><h3>命令预览</h3><span>Shell</span></div><button id="image-transfer-copy" class="button button-secondary" type="button" disabled>复制命令</button><pre id="image-transfer-command" class="image-command">—</pre></div>
             <p id="image-transfer-status" class="image-transfer-status" role="status" aria-live="polite"></p>
           </article>
         </div>

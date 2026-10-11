@@ -27,26 +27,39 @@ else:
             RESULT['sessions'].append({'id': key, 'name': name, 'windows': int(windows), 'attached': int(attached)})
 '''
 
-TMUX_SWITCH_SCRIPT = r'''
+TMUX_CLIENT_SCRIPT = r'''
 import subprocess
 marker = subprocess.run(['tmux', 'show-options', '-gqv', '@ilab-client-' + TMUX_TOKEN],
                         capture_output=True, text=True, timeout=8, check=True).stdout.strip()
-clients = subprocess.run(['tmux', 'list-clients', '-F', '#{client_pid}\t#{client_tty}\t#{client_name}'],
+clients = subprocess.run(['tmux', 'list-clients', '-F', '#{client_pid}\t#{client_tty}\t#{client_name}\t#{session_id}'],
                          capture_output=True, text=True, timeout=8, check=True)
-matched = []
+matched = []; current_sessions = {}
 for line in clients.stdout.splitlines():
-    fields = line.split('\t', 2)
-    if len(fields) == 3 and marker in (fields[1], fields[0] + ':' + fields[1]):
+    fields = line.split('\t')
+    if len(fields) >= 3 and marker in (fields[1], fields[0] + ':' + fields[1]):
         matched.append(fields[2])
+        if len(fields) == 4: current_sessions[fields[2]] = fields[3]
     elif line == marker and ':' in line:
         # Keep compatibility with older tmux output used by existing clients.
         matched.append(line.split(':', 1)[1])
+'''
+
+TMUX_SWITCH_SCRIPT = TMUX_CLIENT_SCRIPT + r'''
 if len(matched) != 1:
     RESULT = {'error': 'client_not_identified'}
 else:
     subprocess.run(['tmux', 'switch-client', '-c', matched[0], '-t', TMUX_TARGET],
                    capture_output=True, text=True, timeout=8, check=True)
     RESULT = {'switched': True}
+'''
+
+
+TMUX_CURRENT_SCRIPT = TMUX_CLIENT_SCRIPT + r'''
+RESULT['current_session'] = None
+if len(matched) == 1:
+    current = current_sessions.get(matched[0])
+    if any(item['id'] == current for item in RESULT['sessions']):
+        RESULT['current_session'] = current
 '''
 
 
@@ -86,6 +99,9 @@ def register_terminal_routes(app,current_site,perform,action_body,runtimes):
                     raise ActionError('tmux 切换参数无效。')
                 session=runtime.terminal_bridge.get(key,owner(request))
                 if session.ended or session.target != data:raise ActionError('tmux 与当前终端不一致，请重新连接。')
+            if session and not switching:
+                script += '\nif RESULT["sessions"]:\n' + '\n'.join('    ' + line for line in (
+                    'TMUX_TOKEN = ' + json.dumps(session.tmux_token) + '\n' + TMUX_CURRENT_SCRIPT).splitlines())
             if switching:
                 script='TMUX_TOKEN = '+json.dumps(session.tmux_token)+'\nTMUX_TARGET = '+json.dumps(target)+'\n'+TMUX_SWITCH_SCRIPT
             result=await asyncio.wait_for(run_tmux(runtime.terminal_bridge,data,script,session),45)

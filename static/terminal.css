@@ -42,7 +42,7 @@ select.terminal-select { min-height: 36px; font-size: 12px; width: 100%; }
 .terminal-led { width: 6px; height: 6px; background: #81998c; border-radius: 50%; flex-shrink: 0; }
 .terminal-led.connected { background: #70d6a5; box-shadow: 0 0 8px #70d6a54d; }
 .terminal-session > .session-icon { width: 15px; height: 15px; flex-shrink: 0; color: #8dc5a6; }
-.terminal-tools a { display: inline-flex; align-items: center; text-decoration: none; white-space: nowrap; }
+#terminal-ide { display: inline-flex; align-items: center; text-decoration: none; white-space: nowrap; }
 .terminal-tools button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
 #terminal-copy::before, #terminal-paste::before, #terminal-fullscreen::before, #terminal-disconnect::before { content: ""; width: 14px; height: 14px; flex-shrink: 0; background: currentColor; opacity: .8; mask: var(--terminal-tool-icon) center / contain no-repeat; }
 #terminal-copy { --terminal-tool-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='8' y='8' width='12' height='12' rx='2'/%3E%3Cpath d='M16 8V4a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h4'/%3E%3C/svg%3E"); }
@@ -54,18 +54,17 @@ select.terminal-select { min-height: 36px; font-size: 12px; width: 100%; }
 #terminal-disconnect { color: #ebbbac; border-color: #635045; background: #372d27; }
 .terminal-tools :is(button, a):hover, .terminal-keyboard button:hover { background: #375446; }
 .terminal-tools :is(button, a):focus-visible, .terminal-keyboard button:focus-visible { outline-color: #9ae5be; }
-#terminal-tools #terminal-ide { gap: 8px; min-height: 32px; margin-inline-end: 5px; padding: 5px 10px; border: 1px solid #365b75; border-radius: 8px; background: #1d3447; color: #dceeff; font: 600 12px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; box-shadow: inset 0 1px 0 #ffffff07, 0 1px 3px #0002; }
+#terminal-ide { gap: 8px; min-height: 32px; margin-inline-end: 5px; padding: 5px 10px; border: 1px solid #365b75; border-radius: 8px; background: #1d3447; color: #dceeff; font: 600 12px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; box-shadow: inset 0 1px 0 #ffffff07, 0 1px 3px #0002; }
 #terminal-ide .terminal-editor-icon { width: 18px; height: 18px; flex-shrink: 0; color: #7cc5ff; }
 #terminal-ide .terminal-editor-arrow { width: 13px; height: 13px; flex-shrink: 0; margin-left: 2px; color: #94b5ce; }
-#terminal-tools #terminal-ide:hover { background: #254760; border-color: #5993ba; color: #f2f8ff; }
-#terminal-tools #terminal-ide:hover .terminal-editor-arrow { color: #c1e3ff; }
-#terminal-tools #terminal-ide:focus-visible { outline: 2px solid #88caff; outline-offset: 3px; }
-#terminal-tools #terminal-ide:active { background: #172d3e; box-shadow: inset 0 1px 3px #0003; }
+#terminal-ide:hover { background: #254760; border-color: #5993ba; color: #f2f8ff; }
+#terminal-ide:hover .terminal-editor-arrow { color: #c1e3ff; }
+#terminal-ide:focus-visible { outline: 2px solid #88caff; outline-offset: 3px; }
+#terminal-ide:active { background: #172d3e; box-shadow: inset 0 1px 3px #0003; }
 #terminal-screen { flex: 1; min-height: 0; min-width: 0; padding: 12px; overflow: hidden; }
 #terminal-mount { width: 100%; height: 100%; }
 #terminal-screen .xterm { height: 100%; }
 .terminal-keyboard { padding: 7px 12px 0; border-top: 1px solid #2a3c37; flex-shrink: 0; }
-.terminal-hint { margin: 0; padding: 6px 12px 8px; color: #8fae9d; font-size: 10px; line-height: 1.5; flex-shrink: 0; }
 .terminal-workspace:fullscreen { width: 100vw; height: 100dvh; border-radius: 0; border: 0; }
 /* Setup is spacious before connecting; the live shell keeps the compact toolbar. */
 .terminal-setup { flex-shrink: 0; min-width: 0; }
@@ -127,10 +126,8 @@ body:has(#terminal-picker[hidden]) #terminal-status[data-state=loading]::before 
   .terminal-tools :is(button, a), .terminal-keyboard button { min-height: 34px; }
   #terminal-screen { padding: 8px; }
   .terminal-keyboard { padding: 6px 8px 0; }
-  .terminal-hint { padding: 6px 8px; }
 }
 @media(max-height:500px) {
-  .terminal-hint { display: none; }
   .terminal-toolbar { padding-block: 5px; }
 }
 
@@ -157,9 +154,8 @@ body:has(#terminal-picker[hidden]) #terminal-status[data-state=loading]::before 
   body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) #terminal-picker { top: 35px; }
   body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) #terminal-workspace { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; border: 1px solid var(--terminal-line); border-radius: 0 0 12px 12px; box-shadow: 0 12px 30px #10182614; }
   body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-toolbar { grid-column: 1 / -1; }
-  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) #terminal-screen { grid-column: 1 / -1; grid-row: 2; padding: 10px 14px; }
+  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) #terminal-screen { grid-column: 1 / -1; grid-row: 2; padding: 4px 6px; }
   body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-keyboard { grid-column: 1; grid-row: 3; align-items: center; }
-  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-hint { grid-column: 2; grid-row: 3; display: flex; justify-content: flex-end; align-items: center; padding: 5px 14px; border-top: 1px solid var(--terminal-line); overflow-wrap: anywhere; }
   body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) #terminal-workspace:fullscreen { border: 0; border-radius: 0; box-shadow: none; }
 }
 @media (min-width: 761px) and (max-width: 1050px) {

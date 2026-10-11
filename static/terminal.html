@@ -52,16 +52,16 @@
         <a id="terminal-mobile-back" class="button terminal-mobile-back" aria-label="返回监控"><svg class="terminal-ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h12"/></svg></a>
         <div class="terminal-session"><svg class="session-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 6 6 6-6 6M13 18h6"/></svg><span id="terminal-led" class="terminal-led"></span><strong id="terminal-target-name">Terminal</strong><span id="terminal-transport">连接中</span><span id="terminal-size" aria-label="终端列数与行数"></span></div>
         <div data-connection-log></div>
-        <div id="terminal-tools" class="terminal-tools">
           <a id="terminal-ide" target="_blank" rel="noopener noreferrer" title="在新标签页打开当前 CCI 容器的 VS Code" hidden>
             <svg class="terminal-editor-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16"/></svg>
-            <span>打开 VS Code</span>
+            <span>VS Code</span>
             <svg class="terminal-editor-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12 12 4M5 4h7v7"/></svg>
           </a>
+        <div id="terminal-tools" class="terminal-tools">
           <button id="terminal-font-down" type="button" title="缩小字号" aria-label="缩小字号">A−</button>
           <button id="terminal-font-up" type="button" title="放大字号" aria-label="放大字号">A＋</button>
-          <button id="terminal-copy" type="button">复制选中</button>
-          <button id="terminal-paste" type="button">粘贴</button>
+          <button id="terminal-copy" type="button" title="复制选中内容到剪贴板">复制选中</button>
+          <button id="terminal-paste" type="button" title="粘贴剪贴板内容（Ctrl+V / ⌘V）">粘贴</button>
           <button id="terminal-fullscreen" type="button">全屏</button>
           <button id="terminal-disconnect" type="button">断开</button>
         </div>
@@ -70,13 +70,13 @@
       </div>
       <div id="terminal-screen" aria-label="命令行输入和输出"><div id="terminal-mount"></div></div>
       <div class="terminal-keyboard" aria-label="终端快捷键">
-        <button type="button" data-terminal-key="interrupt" title="中断当前命令">Ctrl+C</button>
-        <button type="button" data-terminal-key="paste" title="粘贴剪贴板内容">Ctrl+V</button>
+        <button type="button" data-terminal-key="interrupt" title="中断当前命令（Ctrl+C）">中断</button>
+        <button type="button" data-terminal-key="copy" title="复制选中内容到剪贴板">复制</button>
+        <button type="button" data-terminal-key="paste" title="粘贴剪贴板内容（Ctrl+V / ⌘V）">粘贴</button>
         <select id="terminal-tmux" aria-label="选择 tmux 会话" title="请在 Shell 提示符下选择会话；选择后立即进入" disabled><option value="">连接后读取 tmux 会话</option></select>
         <button id="terminal-tmux-refresh" type="button" aria-label="刷新 tmux 会话" title="刷新 tmux 会话" disabled>↻</button>
       </div>
-      <p id="terminal-input-notice" role="status" aria-live="polite"></p>
-      <p id="terminal-hint" class="terminal-hint" role="status"></p>
+      <div id="terminal-input-notice" hidden><span id="terminal-hint" role="status" aria-live="polite"></span><button id="terminal-notice-close" type="button" aria-label="关闭提示" title="关闭提示"><svg class="terminal-ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div>
     </section>
 
     <dialog id="terminal-menu" aria-labelledby="terminal-menu-title"><div class="terminal-menu-heading"><div><span class="terminal-menu-eyebrow">TERMINAL / WORKSPACE</span><h2 id="terminal-menu-title">终端工具</h2><p id="terminal-menu-target"></p></div><button id="terminal-menu-close" type="button" aria-label="关闭终端工具"><svg class="terminal-ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div><div id="terminal-menu-content"></div><a id="terminal-menu-back" class="terminal-menu-back">← 返回监控</a></dialog>

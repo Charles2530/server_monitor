@@ -8,6 +8,8 @@
   const messages = [
     '本机监控请求连接失败。', '正在检查连接。', '正在建立 WebSocket 连接。', 'WebSocket 握手成功。',
     'WebSocket 暂不可用，切换兼容连接。', '已使用兼容连接。',
+    'SSH 预连接失败，正在重试 SSH。', 'SSH 连接失败，正在切换云端通道。',
+    '已通过 SSH 连接。', '已通过云端通道连接。',
     '正在恢复原 Shell 连接。', '原 Shell 连接已恢复。', '重连尝试未成功。',
     '用户请求重新连接。', '用户已断开终端。', '终端会话已结束。',
     '网络已离线，等待网络恢复。', '网络已恢复，正在检查连接。',
@@ -74,6 +76,8 @@
     host.classList.add('connection-monitor');
     host.innerHTML = '<button class="connection-log-button" type="button" aria-haspopup="dialog" aria-controls="connection-log-dialog">连接日志</button><span class="connection-current-state" role="status" aria-live="polite"></span><time class="connection-updated" aria-label="最后更新时间"></time>';
     const button = host.querySelector('button');
+    button.setAttribute('aria-label', '连接日志');
+    button.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>';
     button.addEventListener('click', () => { opener = button; dialog.showModal(); scrollToLatest(); });
     return { host, label: host.querySelector('.connection-current-state'), time: host.querySelector('time') };
   });
@@ -103,6 +107,7 @@
     const text = safeMessage(message, current), time = timestamp();
     controls.forEach(({ host, label, time: updated }) => {
       host.dataset.state = current; label.textContent = labels[current];
+      host.title = `${labels[current]} · 最后更新 ${time.display} · 点击查看连接日志`;
       updated.dateTime = time.iso; updated.textContent = time.display;
       updated.title = `最后更新 ${time.display}`;
     });

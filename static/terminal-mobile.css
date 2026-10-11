@@ -7,26 +7,24 @@
   --terminal-muted: #91a0b5;
   --terminal-accent: #a0dbc2;
 }
-.terminal-workspace { background: var(--terminal-bg); color: var(--terminal-text); }
+.terminal-workspace { position: relative; background: var(--terminal-bg); color: var(--terminal-text); }
 .terminal-toolbar { background: #181f29; border-color: var(--terminal-line); }
-.terminal-keyboard { border-color: var(--terminal-line); }
+.terminal-keyboard { border-color: var(--terminal-line); background: #181f29; }
 .terminal-tools button, .terminal-keyboard button { background: #222c39; border-color: #ffffff0b; color: var(--terminal-text); }
 .terminal-tools button:hover, .terminal-keyboard button:hover { background: #2d3949; }
-.terminal-hint, #terminal-size { color: var(--terminal-muted); }
+#terminal-size { color: var(--terminal-muted); }
 #terminal-transport { background: #ffffff04; border-color: var(--terminal-line); color: var(--terminal-muted); }
 /* The live toolbar has its own dark surface in both page themes. */
-#terminal-workspace .connection-monitor { gap: 8px; color: var(--terminal-muted); }
+#terminal-workspace .connection-monitor { gap: 5px; color: var(--terminal-muted); }
 #terminal-workspace .connection-log-button { background: transparent; border-color: transparent; border-radius: 7px; color: #b4c0d1; }
 #terminal-workspace .connection-log-button:hover { background: #ffffff08; border-color: #ffffff14; color: #e8effa; }
 #terminal-workspace .connection-current-state { background: #ffffff05; color: #bdc9d9; }
-#terminal-workspace .connection-monitor[data-state="ready"] .connection-current-state { background: #a0dbc20d; color: var(--terminal-accent); }
+#terminal-workspace .connection-monitor[data-state="ready"] .connection-current-state { background: transparent; color: var(--terminal-accent); }
 #terminal-workspace .connection-monitor:is([data-state="error"], [data-state="offline"], [data-state="reconnecting"]) .connection-current-state { background: #efb88a10; color: #efbd98; }
 #terminal-workspace .connection-updated { color: #8291a7; font-size: 10px; }
 .terminal-led.connected { background: var(--terminal-accent); box-shadow: 0 0 0 3px #a0dbc210; }
 .terminal-ui-icon { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
 .terminal-mobile-controls, .terminal-mobile-back { display: none; }
-#terminal-input-notice:empty { display: none; }
-#terminal-input-notice { position: absolute; z-index: 4; bottom: 58px; left: 12px; right: 12px; margin: 0; padding: 9px 12px; background: #293a36; color: #d6f0e4; border: 1px solid #a0dbc22b; border-radius: 9px; pointer-events: none; font-size: 12px; box-shadow: 0 4px 16px #0003; }
 #terminal-menu { width: min(420px, calc(100vw - 20px)); max-height: calc(var(--terminal-viewport-height, 100dvh) - 20px); margin: auto auto 10px; padding: 0; border: 1px solid #ffffff14; border-radius: 20px; color: var(--terminal-text); background: var(--terminal-panel); overflow: auto; box-shadow: 0 20px 70px #0007; color-scheme: dark; }
 #terminal-menu::backdrop { background: #080d1480; backdrop-filter: blur(5px); }
 .terminal-menu-heading { position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; padding: 18px 18px 12px; background: var(--terminal-panel); z-index: 3; }
@@ -48,13 +46,13 @@ body.terminal-compact #terminal-menu #terminal-connection summary { color: var(-
 #terminal-menu label { color: var(--terminal-muted); }
 #terminal-menu select.terminal-select { color: var(--terminal-text); background-color: #222c39; border-color: #ffffff20; }
 #terminal-menu .official-link { display: block; color: var(--terminal-accent); font-size: 12px; text-decoration: none; }
-#terminal-menu .terminal-hint { display: block; color: var(--terminal-muted); border: 0; padding: 0; font-size: 11px; line-height: 1.7; }
 body.terminal-compact { position: fixed; top: var(--terminal-viewport-top, 0px); left: 0; width: 100%; padding: 0; gap: 0; background: var(--terminal-bg); }
 body.terminal-compact > .terminal-header { display: none; }
 body.terminal-compact #terminal-workspace { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; border: 0; border-radius: 0; height: 100%; min-height: 0; padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); box-shadow: none; }
 body.terminal-compact .terminal-toolbar { grid-column: 1; grid-row: 1; flex-wrap: nowrap; gap: 8px; padding: 6px 10px; min-width: 0; padding-top: max(6px, env(safe-area-inset-top)); }
 body.terminal-compact .terminal-session { flex: 1 1 0; min-width: 0; gap: 9px; font-size: 12px; }
-body.terminal-compact .terminal-session > svg, body.terminal-compact #terminal-size { display: none; }
+body.terminal-compact .terminal-session > svg, body.terminal-compact .terminal-led,
+body.terminal-compact #terminal-transport, body.terminal-compact #terminal-size { display: none; }
 body.terminal-compact #terminal-target-name { min-width: 0; flex: 1; font-size: 12px; font-weight: 500; letter-spacing: .1px; }
 body.terminal-compact #terminal-transport { flex-shrink: 0; font-size: 10px; padding: 3px 6px; max-width: 72px; border: 0; background: transparent; overflow: hidden; text-overflow: ellipsis; }
 body.terminal-compact .terminal-mobile-back { display: inline-flex; flex-shrink: 0; width: 30px; min-height: 36px; padding: 0; border: 0; background: transparent; color: var(--terminal-muted); }
@@ -76,7 +74,6 @@ body.terminal-compact button:focus-visible, #terminal-menu button:focus-visible 
   body.terminal-compact #terminal-screen { padding: 3px 8px; }
   body.terminal-compact .terminal-keyboard { padding: 2px 8px max(2px, env(safe-area-inset-bottom)); }
   body.terminal-compact .terminal-keyboard button { min-height: 36px; }
-  #terminal-input-notice { bottom: 44px; padding: 6px 10px; }
   #terminal-menu { margin: auto; border-radius: 14px; }
   .terminal-menu-heading { padding: 10px 14px; }
   .terminal-menu-eyebrow { display: none; }
@@ -116,38 +113,50 @@ body.terminal-compact.terminal-space-saving #terminal-input-notice { bottom: cal
   body:not(.terminal-compact) #terminal-workspace .terminal-session > .session-icon { box-sizing: content-box; width: 15px; height: 15px; padding: 5px; border: 1px solid #a0dbc21a; border-radius: 6px; background: #a0dbc209; color: #a0dbc2; }
   body:not(.terminal-compact) #terminal-target-name { color: #dde6f2; font: 500 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
   body:not(.terminal-compact) #terminal-transport { border: 0; border-radius: 4px; padding: 3px 6px; font-size: 10px; }
-  body:not(.terminal-compact) #terminal-tools { align-items: center; gap: 4px; margin-left: auto; }
-  body:not(.terminal-compact) #terminal-tools button { min-height: 32px; padding: 5px 9px; border-color: transparent; border-radius: 7px; background: transparent; color: #b8c5d7; font-size: 11px; }
-  body:not(.terminal-compact) #terminal-tools button:hover { color: #f0f5ff; background: #ffffff09; border-color: #ffffff10; }
-  body:not(.terminal-compact) #terminal-tools :is(#terminal-font-down, #terminal-font-up) { min-width: 30px; padding-inline: 7px; background: #ffffff04; border-color: #ffffff0b; color: #b2bfd2; }
-  body:not(.terminal-compact) #terminal-tools #terminal-font-down { border-radius: 7px 0 0 7px; margin-right: -5px; }
-  body:not(.terminal-compact) #terminal-tools #terminal-font-up { border-radius: 0 7px 7px 0; margin-right: 5px; }
-  body:not(.terminal-compact) #terminal-tools #terminal-disconnect { margin-left: 5px; color: #dba7a3; }
-  body:not(.terminal-compact) #terminal-tools #terminal-disconnect:hover { color: #ffd1cb; background: #dc7b7112; border-color: #dc7b7125; }
-  body:not(.terminal-compact) #terminal-tools #terminal-ide { padding-inline: 11px; margin-inline-end: 8px; }
+  body:not(.terminal-compact) .terminal-toolbar #terminal-tools { align-items: center; gap: 4px; margin-left: auto; }
+  body:not(.terminal-compact) .terminal-toolbar #terminal-tools button { min-height: 32px; padding: 5px 9px; border-color: transparent; border-radius: 7px; background: transparent; color: #b8c5d7; font-size: 11px; }
+  body:not(.terminal-compact) .terminal-toolbar #terminal-tools button:hover { color: #f0f5ff; background: #ffffff09; border-color: #ffffff10; }
+  body:not(.terminal-compact) .terminal-toolbar #terminal-tools :is(#terminal-font-down, #terminal-font-up) { min-width: 30px; padding-inline: 7px; background: #ffffff04; border-color: #ffffff0b; color: #b2bfd2; }
+  body:not(.terminal-compact) .terminal-toolbar #terminal-tools #terminal-font-down { border-radius: 7px 0 0 7px; margin-right: -5px; }
+  body:not(.terminal-compact) .terminal-toolbar #terminal-tools #terminal-font-up { border-radius: 0 7px 7px 0; margin-right: 5px; }
+  body:not(.terminal-compact) .terminal-toolbar #terminal-tools #terminal-disconnect { margin-left: 5px; color: #dba7a3; }
+  body:not(.terminal-compact) .terminal-toolbar #terminal-tools #terminal-disconnect:hover { color: #ffd1cb; background: #dc7b7112; border-color: #dc7b7125; }
+  body:not(.terminal-compact) #terminal-ide { min-height: 28px; padding: 4px 8px; margin: 0; gap: 5px; font-size: 11px; }
+  body:not(.terminal-compact) .terminal-toolbar #terminal-tools :is(#terminal-copy, #terminal-paste) { display: none; }
   body:not(.terminal-compact) #terminal-workspace .terminal-keyboard { gap: 5px; padding: 6px 14px; }
-  body:not(.terminal-compact) #terminal-workspace .terminal-keyboard button { min-height: 24px; border-radius: 5px; background: #ffffff04; border-color: #ffffff0a; color: #9eafc5; font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  body:not(.terminal-compact) #terminal-workspace .terminal-keyboard button { min-height: 28px; border-radius: 5px; background: #ffffff04; border-color: var(--terminal-line); color: #bdc9d9; font: 11px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
   body:not(.terminal-compact) #terminal-workspace .terminal-keyboard button:hover { background: #ffffff0d; color: #e5edfa; }
   body:not(.terminal-compact) #terminal-workspace .terminal-keyboard [data-terminal-key="ctrl"][aria-pressed="true"] { background: #a0dbc22b; border-color: #a0dbc270; color: #c7f5e1; }
-  body:not(.terminal-compact) #terminal-hint { color: #8b9ab0; font-size: 10px; }
 }
 
 /* Share the existing toolbar and mobile dock; focus only changes presentation. */
 #terminal-focus { flex-shrink: 0; min-height: 28px; padding: 3px 9px; font-size: 11px; color: var(--terminal-accent); background: #a0dbc212; border-color: #a0dbc225; }
 body.terminal-compact #terminal-focus { display: none; }
 #terminal-workspace .terminal-keyboard { display: flex; align-items: center; flex-wrap: nowrap; min-width: 0; gap: 6px; }
-#terminal-tmux { flex: 1; width: 0; min-width: 90px; min-height: 28px; padding: 3px 8px; color-scheme: dark; color: var(--terminal-muted); background: #ffffff04; border: 1px solid var(--terminal-line); border-radius: 6px; font-size: 11px; text-overflow: ellipsis; }
+#terminal-tmux { flex: 1; width: 0; max-width: 280px; margin-left: auto; min-width: 90px; min-height: 28px; padding: 3px 8px; color-scheme: dark; color: var(--terminal-muted); background: #ffffff04; border: 1px solid var(--terminal-line); border-radius: 6px; font-size: 11px; text-overflow: ellipsis; }
 #terminal-tmux:disabled { opacity: 1; }
 #terminal-tmux option { background: var(--terminal-panel); color: var(--terminal-text); }
 #terminal-workspace .terminal-keyboard button { flex-shrink: 0; }
-body #terminal-workspace #terminal-hint:empty { display: none; }
 @media (min-width: 761px) and (pointer: fine) {
   body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-keyboard { grid-column: 1 / -1; }
-  body:not(.terminal-compact):has(#terminal-workspace:not([hidden])) .terminal-hint { grid-column: 1 / -1; grid-row: 4; }
+  #terminal-menu { margin: 60px 16px auto auto; max-height: calc(100dvh - 76px); border-radius: 12px; }
   body.terminal-focused > .terminal-header, body.terminal-focused > #terminal-setup,
-  body.terminal-focused .terminal-session, body.terminal-focused #terminal-tools > :not(#terminal-ide) { display: none; }
+  body.terminal-focused .terminal-toolbar #terminal-tools,
+  body.terminal-focused .terminal-session > :not(#terminal-target-name) { display: none; }
   body.terminal-focused:not(.terminal-compact):has(#terminal-workspace:not([hidden])) #terminal-workspace { border-radius: 12px; }
   body.terminal-focused:not(.terminal-compact) #terminal-workspace .terminal-toolbar { flex-wrap: nowrap; padding: 4px 10px; gap: 8px; }
-  body.terminal-focused:not(.terminal-compact) #terminal-workspace .connection-monitor { margin-left: 0; margin-right: auto; }
-  body.terminal-focused:not(.terminal-compact) #terminal-tools { flex-wrap: nowrap; margin-left: 0; }
+  body.terminal-focused:not(.terminal-compact) #terminal-workspace .connection-monitor { margin-left: 0; }
+  body.terminal-focused:not(.terminal-compact) .terminal-toolbar #terminal-tools { flex-wrap: nowrap; margin-left: 0; }
 }
+
+/* One shared notice follows the active surface without taking terminal rows. */
+#terminal-input-notice { position: absolute; grid-area: auto; z-index: 4; bottom: 58px; right: 12px; display: flex; align-items: flex-start; gap: 8px; width: max-content; max-width: calc(100% - 24px); margin: 0; padding: 9px 10px 9px 12px; background: #293a36; color: #d6f0e4; border: 1px solid #a0dbc22b; border-radius: 9px; font-size: 12px; line-height: 1.5; box-shadow: 0 4px 16px #0003; }
+#terminal-input-notice[data-type=error] { background: #3a3029; color: #f4cfb4; border-color: #efb88a35; }
+#terminal-hint { min-width: 0; max-height: min(8em, 30dvh); overflow: auto; overflow-wrap: anywhere; }
+#terminal-notice-close { display: grid; place-items: center; flex-shrink: 0; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+#terminal-notice-close:hover { background: #ffffff12; }
+#terminal-menu #terminal-input-notice { position: static; width: 100%; max-width: 100%; }
+body.terminal-focused:not(.terminal-compact) .terminal-mobile-controls { display: flex; }
+body:not(.terminal-compact) #terminal-mobile-keyboard { display: none; }
+.terminal-mobile-controls button:hover { background: #ffffff09; border-color: #ffffff14; }
+@media (max-height: 500px) { #terminal-input-notice { bottom: 44px; padding: 6px 10px; } }

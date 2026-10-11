@@ -212,6 +212,22 @@ h2 { color: #30463f; font-size: 15px; font-weight: 650; }
 .empty-state { background: #fff; border-color: #dce8dd; border-radius: 11px; }
 .empty-state h3 { color: #607e69; font-size: 14px; }
 .empty-state p { color: #687e71; font-size: 12px; }
+
+/* Keep the shared panel language light while deferring long, below-fold work. */
+:is(.summary-card, .cluster-panel, .dashboard-panel, .detail-panel, .acp-panel) {
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+:is(.summary-card, .cluster-panel, .dashboard-panel, .detail-panel, .acp-panel):is(:hover, :focus-within) {
+  border-color: #c9ded1;
+  box-shadow: 0 7px 22px #163e360b;
+  transform: translateY(-1px);
+}
+:is(#overview-view > #clusters-section, #overview-view > .th-summary, #overview-view > .overview-panels,
+    #tokenhub-view > [data-tokenhub-panel], #tasks-view, #acp-section, #queue-view,
+    #storage-section, #task-history-section) {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 320px;
+}
 @media(min-width:1650px) {
   :root { --sidebar: 240px; }
   .main-content { padding-left: 42px; padding-right: 42px; }

@@ -127,7 +127,7 @@
   }
 
   function drawTrend() {
-    if (!trendData || selectedTab !== "dashboard" || route !== "tokenhub") return;
+    if (!trendData || !relevant() || selectedTab !== "dashboard" || route !== "tokenhub") return;
     const rows = trendData.trend;
     const complete = rows.length === trendData.days && rows.every((row) => known(row.actual_cost));
     const sum = rows.reduce((value, row) => value + (known(row.actual_cost) ? row.actual_cost : 0), 0);
@@ -139,7 +139,7 @@
     $("tokenhub-trend-summary").replaceChildren(main, period);
     const byDate = new Map(rows.map((row) => [row.date, row]));
     const dates = Array.from({ length: trendData.days }, (_, index) => new Date(Date.parse(trendData.start_date + "T00:00:00Z") + index * 86400000).toISOString().slice(0, 10));
-    if (!window.echarts) { $("tokenhub-trend-status").textContent = "图表组件不可用，请刷新页面。"; return; }
+    if (!window.echarts) return;
     chart = chart || echarts.init($("tokenhub-trend-chart"));
     chart.setOption(costChartOptions(dates, dates.map((day) => known(byDate.get(day)?.actual_cost) ? byDate.get(day).actual_cost : null)), true);
     chart.resize();
@@ -171,7 +171,7 @@
   }
 
   function drawHourly() {
-    if (!hourlyData || selectedTab !== "dashboard" || route !== "tokenhub") return;
+    if (!hourlyData || !relevant() || selectedTab !== "dashboard" || route !== "tokenhub") return;
     const start = Date.parse(hourlyData.start_hour), byHour = new Map(hourlyData.trend.map((row) => [Date.parse(row.date), row.actual_cost]));
     const hours = Array.from({ length: 24 }, (_, i) => start + i * 3600000);
     const labels = hours.map((hour) => new Date(hour + 8 * 3600000).toISOString().slice(0, 16).replace("T", " "));
@@ -185,7 +185,7 @@
     ]) {
       const metric = node("div"); metric.append(node("span", label), amountLabel(value), node("small", detail)); summary.append(metric);
     }
-    if (!window.echarts) { $("tokenhub-hourly-status").textContent = "图表组件不可用，请刷新页面。"; return; }
+    if (!window.echarts) return;
     hourlyChart = hourlyChart || echarts.init($("tokenhub-hourly-chart"));
     hourlyChart.setOption(costChartOptions(labels, values, true), true); hourlyChart.resize();
     $("tokenhub-hourly-chart").setAttribute("aria-label", `近 24 小时费用，${labels[0]} 至 ${labels[23]}，北京时间，已记录费用 ${recorded.length ? money(sum) : "未知"} USD，${recorded.length} 个小时有费用记录`);
@@ -202,7 +202,10 @@
       const data = await request("/api/tokenhub/trend?granularity=hour", { signal: controller.signal });
       if (serial !== hourlySerial) return;
       if (!Array.isArray(data.trend) || data.hours !== 24 || !Number.isFinite(Date.parse(data.start_hour)) || Date.parse(data.end_hour) - Date.parse(data.start_hour) !== 23 * 3600000) throw new Error("小时费用格式无法识别。");
-      hourlyData = data; drawHourly();
+      hourlyData = data;
+      await window.MonitorCharts.load();
+      if (serial !== hourlySerial || !relevant() || route !== "tokenhub" || selectedTab !== "dashboard") return;
+      drawHourly();
       $("tokenhub-hourly-status").textContent = `更新 ${date(data.updated_at)} · 当前小时未结束；无使用显示 $0`;
     } catch (error) {
       if (serial !== hourlySerial) return;
@@ -223,7 +226,10 @@
       const data = await request(`/api/tokenhub/trend?days=${days}`, { signal: controller.signal });
       if (serial !== trendSerial) return;
       if (!Array.isArray(data.trend) || data.days !== days) throw new Error("趋势数据格式无法识别。");
-      trendData = data; drawTrend();
+      trendData = data;
+      await window.MonitorCharts.load();
+      if (serial !== trendSerial || !relevant() || route !== "tokenhub" || selectedTab !== "dashboard") return;
+      drawTrend();
       $("tokenhub-trend-status").textContent = `更新 ${date(data.updated_at)} · 今日尚未结束；无使用显示 $0`;
     } catch (error) {
       if (serial !== trendSerial) return;

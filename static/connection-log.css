@@ -5,7 +5,7 @@
 .connection-current-state { padding: 4px 7px; border-radius: 6px; background: var(--surface-raised); font-weight: 550; }
 .connection-current-state::before, #connection-log-state::before { display: inline-block; content: ''; width: 6px; height: 6px; margin: 0 6px 1px 0; border-radius: 50%; background: currentColor; }
 .connection-monitor[data-state='ready'] .connection-current-state, #connection-log-dialog[data-state='ready'] #connection-log-state { color: var(--accent); }
-.connection-monitor[data-state='ready'] .connection-current-state { background: var(--accent-soft); }
+.connection-monitor[data-state='ready'] .connection-current-state { background: transparent; }
 .connection-monitor:is([data-state='error'], [data-state='offline'], [data-state='reconnecting']) .connection-current-state { color: var(--warning-ink); }
 .connection-updated { font-variant-numeric: tabular-nums; }
 #connection-log-dialog { width: min(700px, calc(100vw - 24px)); max-height: min(660px, calc(100dvh - 32px)); padding: 0; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); color: var(--ink); box-shadow: var(--dialog-shadow); overflow: hidden; }
@@ -29,11 +29,22 @@
 #connection-log-list :is([data-state='error'], [data-state='offline'], [data-state='reconnecting']) .connection-event-state { color: var(--warning-ink); background: color-mix(in srgb, var(--warning-ink) 10%, var(--surface)); }
 #connection-log-list [data-state='error'] > span:last-child { color: var(--warning-ink); }
 #connection-log-list:focus-visible { outline: 2px solid var(--focus); outline-offset: -3px; }
-body.ide-focused:has(#ide-frame:not([hidden])) .ide-header > #ide-connection-monitor { display: flex; margin-right: auto; }
+body.ide-focused:has(#ide-frame:not([hidden])) .ide-header > #ide-connection-monitor { display: flex; }
+.connection-monitor { gap: 5px; }
+.connection-monitor .connection-log-button { width: 28px; min-height: 28px; padding: 5px; }
+.connection-monitor .connection-current-state { padding: 3px 5px; background: transparent; }
+.connection-monitor .connection-updated { display: none; }
+body.ide-focused:has(#ide-frame:not([hidden])) .ide-header { gap: 8px; padding: 4px 10px; flex-wrap: nowrap; }
+body.ide-focused:has(#ide-frame:not([hidden])) .ide-header > .ide-context:not(#ide-focus) { display: flex; flex: 1; min-width: 0; }
+body.ide-focused .ide-context h1 { display: none; }
+body.ide-focused:has(#ide-frame:not([hidden])) #ide-task { margin: 0; min-width: 0; max-height: none; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; }
+body.ide-focused:has(#ide-frame:not([hidden])) .ide-header > .site-badge:not(#ide-focus) { display: block; padding: 2px 6px; font-size: 11px; }
 body:has(#terminal-workspace:not([hidden])) .terminal-header > .connection-monitor { display: none; }
 .terminal-toolbar > .connection-monitor { margin-left: auto; }
 @media (max-width: 1050px) { .terminal-toolbar .connection-updated { display: none; } }
 @media (max-width: 760px), (pointer: coarse) {
+  .connection-monitor .connection-log-button { width: 36px; min-height: 36px; }
+  body.ide-focused:has(#ide-frame:not([hidden])) .ide-header > .site-badge:not(#ide-focus) { display: none; }
   .connection-monitor { gap: 5px; }
   .connection-updated { display: none; }
   .connection-log-button { min-height: 36px; }

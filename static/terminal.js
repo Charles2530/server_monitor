@@ -4,10 +4,10 @@
   const taskId = new URL(location.href).searchParams.get("task_id"), isACP = taskId?.startsWith("ACP:"), kind = isACP ? "ACP" : "CCI";
   const editorMedia = matchMedia("(max-width:760px), (pointer:coarse)");
   const consoleBase = site.id === "sensecore" ? "https://console.sensecore.cn/cn-sh-01" : "https://console.ms-sc-01.maoshanwangtech.com";
-  let targets = [], loading = false, term, fit, session = null, socket = null, alive = false, sequence = 0, cursor = 0;
+  let taskName = taskId, targets = [], loading = false, term, fit, session = null, socket = null, alive = false, sequence = 0, cursor = 0;
   let inputQueue = [], sendingInput = false, inputTimer = null, outputQueue = Promise.resolve(), pending = null, ping = null, polling = null, generation = 0;
   let recovery = null, probeTimer = null, httpTransport = false, networkCheckPending = false, reopen = false;
-  let focusMode = true, tmuxRequest = 0, tmuxToken = null, tmuxEntered = false, shellInputPending = false;
+  let focusMode = true, tmuxRequest = 0, tmuxToken = null, tmuxEntered = false, tmuxCurrent = "", shellInputPending = false;
   const mobile = new TerminalMobile({ getTerm: () => term, isAlive: () => alive, refit: () => scheduleFit() });
   $("terminal-back").href = window.MonitorTaskContext?.returnUrl(taskId, new URL(location.href).searchParams.get("task_view")) || `/?site=${encodeURIComponent(site.id)}#tasks`;
   $("terminal-mobile-back").href = $("terminal-menu-back").href = $("terminal-back").href;
@@ -73,23 +73,26 @@
   async function refreshTmux() {
     const target = selected(); if (!alive || !target || $("terminal-tmux-refresh").disabled) return;
     const request = ++tmuxRequest;
-    $("terminal-tmux-refresh").disabled = true; tmuxPlaceholder("正在读取 tmux 会话…");
+    $("terminal-tmux-refresh").disabled = true; tmuxPlaceholder("tmux · 正在读取…");
     try {
       const result = await api("/api/terminal/tmux", { task_id: taskId, instance: target.instance, container: target.container || "", session_id: session }, 60000);
       if (request !== tmuxRequest || !alive) return;
       if (!Array.isArray(result.sessions)) throw new Error("tmux 会话列表无效。");
-      tmuxPlaceholder(result.unavailable ? "当前容器未安装 tmux" : result.sessions.length ? "tmux · 选择会话进入" : "当前没有运行的 tmux 任务");
+      tmuxPlaceholder(result.unavailable ? "tmux · 未安装" : result.sessions.length ? "tmux · 选择会话" : "tmux · 暂无会话");
       for (const item of result.sessions) {
         if (!/^\$\d+$/.test(item.id)) continue;
         const node = option(item.id);
-        node.textContent = `${item.name} · ${item.windows} 个窗口${item.attached ? " · 已连接" : ""}`;
+        node.textContent = `${item.name} · ${item.windows} 个窗口${item.id === result.current_session ? " · 本页当前" : ""}${item.attached ? ` · ${item.attached} 个客户端` : ""}`;
         $("terminal-tmux").append(node);
       }
+      tmuxCurrent = result.current_session || "";
+      $("terminal-tmux").value = tmuxCurrent;
+      if (tmuxCurrent) tmuxEntered = true;
       $("terminal-tmux").disabled = $("terminal-tmux").options.length < 2;
       $("terminal-tmux").title = "首次请在 Shell 提示符下选择；进入后可直接切换会话";
     } catch (error) {
       if (request !== tmuxRequest || !alive) return;
-      tmuxPlaceholder("tmux 读取失败，请刷新重试"); $("terminal-tmux").title = error.message;
+      tmuxPlaceholder("tmux · 读取失败，请刷新"); $("terminal-tmux").title = error.message; mobile.notice(error.message);
     } finally { if (request === tmuxRequest) $("terminal-tmux-refresh").disabled = !alive; }
   }
   function selected() { return targets.find(t => t.instance === $("terminal-instance").value && (isACP || t.container === $("terminal-container").value)); }
@@ -117,6 +120,10 @@
       // Keep the rendered grid and cloud PTY within the same supported bounds,
       // including ultrawide screens and browser zoom-out.
       if (size && Number.isFinite(size.cols) && Number.isFinite(size.rows)) {
+        // FitAddon reserves 15px even for overlay scrollbars; use the actual viewport.
+        const viewport = term.element.querySelector(".xterm-viewport"), grid = term.element.querySelector(".xterm-screen");
+        const cellWidth = grid && parseFloat(grid.style.width) / term.cols;
+        if (viewport && cellWidth > 0) size.cols = Math.max(2, Math.floor(viewport.clientWidth / cellWidth));
         const cols = Math.max(2, Math.min(500, size.cols)), rows = Math.max(1, Math.min(200, size.rows));
         if (term.cols !== cols || term.rows !== rows) term.resize(cols, rows);
       }
@@ -130,15 +137,17 @@
   }
   function initialize() {
     if (term) { term.reset(); return; }
-    term = new Terminal({ cursorBlink: true, fontSize: mobile.query.matches ? 12 : 14, lineHeight: 1.22, scrollback: 5000,
+    let fontSize = mobile.query.matches ? 12 : 14;
+    try { const saved = Number(localStorage.getItem(site.key("terminal-font-size"))); if (Number.isInteger(saved) && saved >= 10 && saved <= 24) fontSize = saved; } catch {}
+    term = new Terminal({ cursorBlink: true, fontSize, lineHeight: 1.22, scrollback: 5000,
       fontFamily: '"SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace', allowProposedApi: false, disableStdin: true,
-      theme: { background: "#11161e", foreground: "#d6deeb", cursor: "#a0dbc2", selectionBackground: "#3a4d6380", black: "#182722", red: "#f28585", green: "#89d4a4", yellow: "#e4ce89", blue: "#89b7ec", magenta: "#c5a4e4", cyan: "#82d1cf", white: "#dfebe4", brightBlack: "#7c9588", brightRed: "#ffa3a3", brightGreen: "#aaf0bf", brightYellow: "#f8e5ae", brightBlue: "#b2d4ff", brightMagenta: "#e0c0ff", brightCyan: "#a8f0ed", brightWhite: "#ffffff" } });
+      theme: { background: "#11161e", foreground: "#d6deeb", cursor: "#b6efd5", cursorAccent: "#11161e", selectionBackground: "#456281", selectionInactiveBackground: "#35475f", black: "#182722", red: "#f28585", green: "#89d4a4", yellow: "#e4ce89", blue: "#89b7ec", magenta: "#c5a4e4", cyan: "#82d1cf", white: "#dfebe4", brightBlack: "#7c9588", brightRed: "#ffa3a3", brightGreen: "#aaf0bf", brightYellow: "#f8e5ae", brightBlue: "#b2d4ff", brightMagenta: "#e0c0ff", brightCyan: "#a8f0ed", brightWhite: "#ffffff" } });
     fit = new FitAddon.FitAddon(); term.loadAddon(fit); term.open($("terminal-mount"));
     mobile.bind(term);
     term.onData(data => {
       data = mobile.input(data);
       // Preserve unicode codepoints while bounding each input frame, including long pastes.
-      if (new TextEncoder().encode(data).length > 65536) { $("terminal-hint").textContent = "一次粘贴最多 64 KiB，请分段粘贴。"; return; }
+      if (new TextEncoder().encode(data).length > 65536) { mobile.notice("一次粘贴最多 64 KiB，请分段粘贴。"); return; }
       let chunk = "";
       for (const char of data) { chunk += char; if (chunk.length >= 2048) { enqueue(chunk); chunk = ""; } }
       if (chunk) enqueue(chunk);
@@ -280,7 +289,7 @@
     const uncertain = !!pending || sendingInput;
     pauseTransport();
     status(message, "loading", window.navigator?.onLine === false ? "offline" : "reconnecting"); $("terminal-transport").textContent = "正在重连";
-    $("terminal-hint").textContent = uncertain ? "部分输入结果未确认，不会自动重发；恢复后请检查命令状态。" : "保留当前 Shell 与屏幕内容，正在恢复连接。";
+    mobile.notice(uncertain ? "部分输入结果未确认，不会自动重发；恢复后请检查命令状态。" : "保留当前 Shell 与屏幕内容，正在恢复连接。", uncertain ? "error" : "info");
     connectionNote("正在恢复原 Shell 连接。", "reconnecting");
     recovery = (async () => {
       // Finish any queued xterm write before taking the resume cursor.
@@ -304,7 +313,7 @@
           term.options.disableStdin = false;
           $("terminal-led").classList.add("connected");
           $("terminal-transport").textContent = realtime ? "实时连接" : "兼容连接";
-          $("terminal-hint").textContent = uncertain ? "原 Shell 已恢复；未确认输入不会重发，请先检查命令状态。" : "原 Shell 已恢复，屏幕与正在运行的命令保持不变。";
+          mobile.notice(uncertain ? "原 Shell 已恢复；未确认输入不会重发，请先检查命令状态。" : "原 Shell 已恢复，屏幕与正在运行的命令保持不变。", uncertain ? "error" : "info", uncertain ? 0 : 2200);
           status("终端连接已恢复。", "ready"); $("terminal-tmux-refresh").disabled = false; refreshTmux(); return;
         } catch (error) {
           if (gen !== generation) return;
@@ -327,7 +336,7 @@
     pauseTransport(); sendingInput = false;
     if (term) term.options.disableStdin = true;
     $("terminal-led").classList.remove("connected"); $("terminal-transport").textContent = "已断开";
-    $("terminal-hint").textContent = message; $("terminal-retry").hidden = false;
+    mobile.notice(message); $("terminal-retry").hidden = false;
     status(message, "idle", old ? "offline" : "idle");
     $("terminal-instance").disabled = $("terminal-container").disabled = false;
     if (old) $("terminal-connection").open = true;
@@ -347,7 +356,7 @@
       const result = await prepare("open", { task_id: taskId, instance: target.instance, container: target.container || "", cols: term.cols, rows: term.rows });
       if (gen !== generation) { api("/api/terminal/close", { session_id: result.session_id }).catch(() => {}); return; }
       session = result.session_id;
-      tmuxToken = /^[a-f0-9]{32}$/.test(result.tmux_token || "") ? result.tmux_token : null; tmuxEntered = false; shellInputPending = false;
+      tmuxToken = /^[a-f0-9]{32}$/.test(result.tmux_token || "") ? result.tmux_token : null; tmuxEntered = false; tmuxCurrent = ""; shellInputPending = false;
       if (typeof session !== "string" || result.site !== site.id || result.task_id !== taskId) throw new Error("终端会话与所选任务不一致。");
       const realtime = !httpTransport && await useSocket(gen);
       if (gen !== generation) return;
@@ -360,11 +369,11 @@
       $("terminal-transport").textContent = realtime ? "实时连接" : "兼容连接";
       if (!realtime) { connectionNote("已使用兼容连接。", "ready"); poll(gen); }
       term.options.disableStdin = false; if (!mobile.compact) term.focus();
-      $("terminal-target-name").textContent = target.instance + (target.container ? ` / ${target.container}` : "");
-      $("terminal-target-name").title = $("terminal-target-name").textContent;
+      $("terminal-target-name").textContent = `${taskName} · ${target.container || target.instance}`;
+      $("terminal-target-name").title = `${site.id} · ${taskName} · ${taskId} · ${target.instance}${target.container ? ` / ${target.container}` : ""}`;
       $("terminal-led").classList.add("connected");
       reopen = false;
-      $("terminal-hint").textContent = replacing ? "终端已连接到新的 Shell；旧会话状态未恢复，未重发旧命令。" : "";
+      mobile.notice(replacing ? "终端已连接到新的 Shell；旧会话状态未恢复，未重发旧命令。" : "");
       $("terminal-instance").disabled = $("terminal-container").disabled = true;
       status(replacing ? $("terminal-hint").textContent : "终端已连接，认证由后台管理。", "ready");
       $("terminal-tmux-refresh").disabled = false; refreshTmux();
@@ -383,7 +392,8 @@
       const data = await prepare("targets", { task_id: taskId });
       if (data.site !== site.id || data.task_id !== taskId || !Array.isArray(data.targets)) throw new Error("终端配置与当前站点或任务不一致。");
       targets = data.targets.map(t => ({ ...t, url: safeURL(t) }));
-      $("terminal-task").textContent = `${data.name} · ${taskId}`;
+      taskName = data.name || taskId;
+      $("terminal-task").textContent = `${taskName} · ${taskId}`;
       $("terminal-task").title = $("terminal-task").textContent;
       if (!targets.length) throw new Error("当前没有可连接的运行容器，请稍后重新读取。");
       $("terminal-instance").replaceChildren(...[...new Set(targets.map(t => t.instance))].map(option));
@@ -413,54 +423,83 @@
   });
   $("terminal-disconnect").addEventListener("click", () => disconnect());
   function focusTerminal() { if (alive) term?.focus(); }
+  function showNotice(message) { mobile.notice(message, "info", 2200); }
   $("terminal-focus").addEventListener("click", () => { focusMode = !focusMode; applyFocus(); focusTerminal(); });
   $("terminal-tmux-refresh").addEventListener("click", refreshTmux);
   $("terminal-tmux").addEventListener("change", async () => {
-    const id = $("terminal-tmux").value; $("terminal-tmux").value = "";
+    const id = $("terminal-tmux").value; $("terminal-tmux").value = tmuxCurrent;
+    if (id === tmuxCurrent) return;
     if (!/^\$\d+$/.test(id) || !mobile.allowShortcut()) return;
     mobile.resetCtrl();
-    if (!tmuxToken) { $("terminal-hint").textContent = "请重新连接终端以启用 tmux 切换。"; return; }
+    if (!tmuxToken) { mobile.notice("请重新连接终端以启用 tmux 切换。"); return; }
     if (!tmuxEntered) {
-      if (term.buffer.active.type !== "normal") { $("terminal-hint").textContent = "首次进入前请先返回 Shell 提示符。"; return; }
-      if (shellInputPending) { $("terminal-hint").textContent = "请先按 Ctrl+C 清空未提交的输入，再选择 tmux 会话。"; focusTerminal(); return; }
+      if (term.buffer.active.type !== "normal") { mobile.notice("首次进入前请先返回 Shell 提示符。"); return; }
+      if (shellInputPending) { mobile.notice("请先按 Ctrl+C 清空未提交的输入，再选择 tmux 会话。"); focusTerminal(); return; }
       // Mark the terminal before replacing this shell with tmux. Subsequent
       // switches use the backend and never write commands into the pane.
       enqueue(`sh -c 't=$(tty); tmux set-option -gq "$2" "$t"; exec env TERM="${'${TERM:-xterm-256color}'}" tmux attach-session -t "$1"' sh '${id}' '@ilab-client-${tmuxToken}'\r`);
-      tmuxEntered = true; focusTerminal(); return;
+      mobile.notice("");
+      tmuxEntered = true;
+      const current = session;
+      setTimeout(() => { if (session === current && alive) refreshTmux(); }, 1200);
+      focusTerminal(); return;
     }
     const current = session, target = selected(), request = ++tmuxRequest;
     $("terminal-tmux").disabled = $("terminal-tmux-refresh").disabled = true;
-    $("terminal-hint").textContent = "正在切换 tmux 会话…";
+    mobile.notice("正在切换 tmux 会话…", "info");
     try {
       const result = await api("/api/terminal/tmux", { task_id: taskId, instance: target.instance, container: target.container || "",
         session_id: current, tmux_session: id }, 60000);
       if (result.switched !== true) throw new Error("未能确认 tmux 切换，请刷新会话列表后重试。");
-      if (session === current && alive) $("terminal-hint").textContent = "已切换 tmux 会话。";
+      if (session === current && alive) { tmuxCurrent = id; $("terminal-tmux").value = id; showNotice("已切换 tmux 会话。"); }
     } catch (error) {
       if (session === current && alive) {
         if (term.buffer.active.type === "normal") tmuxEntered = false;
-        $("terminal-hint").textContent = error.message;
+        mobile.notice(error.message);
       }
     } finally {
       if (request === tmuxRequest) {
         $("terminal-tmux").disabled = $("terminal-tmux-refresh").disabled = !alive;
         focusTerminal();
+        if (tmuxCurrent === id) refreshTmux();
       }
     }
   });
-  for (const [id, delta] of [["terminal-font-down", -1], ["terminal-font-up", 1]]) $(id).addEventListener("click", () => { if (term) { term.options.fontSize = Math.max(10, Math.min(24, term.options.fontSize + delta)); fitScreen(); focusTerminal(); } });
-  $("terminal-copy").addEventListener("click", async () => { try { await navigator.clipboard.writeText(term.getSelection()); } catch { $("terminal-hint").textContent = "无法访问剪贴板，请使用系统复制操作。"; } finally { focusTerminal(); } });
-  $("terminal-paste").addEventListener("click", async () => { if (alive) { try { const text = await navigator.clipboard.readText(); mobile.resetCtrl(); term.paste(text); mobile.menu.close(); term.focus(); } catch { $("terminal-hint").textContent = "无法访问剪贴板，请使用系统粘贴操作。"; } } });
-  $("terminal-fullscreen").addEventListener("click", async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await $("terminal-workspace").requestFullscreen(); } catch { $("terminal-hint").textContent = "当前浏览器不支持全屏。"; } finally { focusTerminal(); } });
+  for (const [id, delta] of [["terminal-font-down", -1], ["terminal-font-up", 1]]) $(id).addEventListener("click", () => { if (term) { term.options.fontSize = Math.max(10, Math.min(24, term.options.fontSize + delta)); try { localStorage.setItem(site.key("terminal-font-size"), term.options.fontSize); } catch {} fitScreen(); focusTerminal(); } });
+  $("terminal-copy").addEventListener("click", async () => {
+    const text = term?.getSelection();
+    if (!text) { showNotice("请先选中文字"); return; }
+    try { await navigator.clipboard.writeText(text); mobile.menu.close(); showNotice("已复制选中内容"); }
+    catch { mobile.notice("无法访问剪贴板，请使用系统复制操作。"); }
+    focusTerminal();
+  });
+  $("terminal-paste").addEventListener("click", async () => {
+    if (!mobile.allowShortcut()) return;
+    const current = session;
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!alive || session !== current) return;
+      mobile.resetCtrl(); term.paste(text); mobile.menu.close(); term.focus();
+    } catch { mobile.notice("无法访问剪贴板，请使用系统粘贴操作。"); }
+  });
+  $("terminal-fullscreen").addEventListener("click", async () => {
+    mobile.menu.close();
+    try { if (document.fullscreenElement) await document.exitFullscreen(); else await $("terminal-workspace").requestFullscreen(); }
+    catch { mobile.notice("当前浏览器不支持全屏。"); }
+    finally { focusTerminal(); }
+  });
   document.addEventListener("fullscreenchange", () => {
+    if (mobile.menu.open) mobile.menu.close();
+    (document.fullscreenElement || document.body).append(mobile.menu);
     $("terminal-fullscreen").textContent = document.fullscreenElement ? "退出全屏" : "全屏";
     scheduleFit();
   });
   const keys = { backspace: "\x7f", interrupt: "\x03", tab: "\t", escape: "\x1b", up: "\x1b[A", down: "\x1b[B", left: "\x1b[D", right: "\x1b[C", enter: "\r" };
   document.querySelectorAll("[data-terminal-key]").forEach(button => button.addEventListener("click", () => {
     const key = button.dataset.terminalKey;
+    if (key === "copy") { $("terminal-copy").click(); return; }
     if (key === "ctrl" || !mobile.allowShortcut()) return;
-    if (key === "paste") { $("terminal-paste").click(); return; }
+    if (key === "paste") { $(`terminal-${key}`).click(); return; }
     const arrows = { up: "A", down: "B", left: "D", right: "C" };
     const data = arrows[key] ? `\x1b${term.modes.applicationCursorKeysMode ? "O" : "["}${arrows[key]}` : keys[key];
     if (data) enqueue(mobile.input(data));

@@ -45,8 +45,17 @@
   const site = window.MonitorSite.id;
   const element = (tag, text, className = "") => Object.assign(document.createElement(tag), {textContent: text, className});
   const labels = {local: "本地上传", snapshot: "快照", copy: "拷贝", cci: "云容器实例", acp: "高性能算力池", aicl: "云开发机", unknown: "未知来源"};
-  let data = {images: [], accounts: {}, refreshing: false}, timer, controller, page = 1, accountKey = "", loaded = false, catalogNamespace = "";
+  let data = {images: [], accounts: {}, refreshing: false}, timer, controller, page = 1, accountKey = "", catalogNamespace = "";
+  let filterKey = "", filteredImages = null, filteredRows = [], tableKey = "", pageDraft = false;
   const environmentSelects = Object.fromEntries(Object.keys(environmentFields).map(field => [field, byId(`image-filter-${field}`)]));
+  const pageSizeSelect = byId("image-page-size"), pageSizeKey = window.MonitorSite.key("ilab.images.page-size");
+  try {
+    const saved = localStorage.getItem(pageSizeKey);
+    if (["5", "10", "20", "50"].includes(saved)) pageSizeSelect.value = saved;
+  } catch { /* Keep the default when storage is unavailable. */ }
+  const compact = window.matchMedia("(max-width: 760px), (pointer: coarse) and (max-width: 1100px)");
+  const arrangeFilters = () => { byId("image-environment-details").open = !compact.matches; };
+  compact.addEventListener("change", arrangeFilters); arrangeFilters();
   window.MonitorImages = window.MonitorImages || {};
   const tabs = [...document.querySelectorAll("[data-image-tab]")];
   function selectTab(name, focus = false) {
@@ -86,7 +95,13 @@
     try { await navigator.clipboard.writeText(command.textContent); status.textContent = "命令已复制，尚未执行。"; }
     catch { status.textContent = "浏览器未允许复制，请手动选择命令。"; }
   });
-  byId("image-client-upload").addEventListener("click", () => { mode.value = "push"; target.value = site; updateTransfer(); selectTab("transfer"); name.focus(); });
+  function resetTransfer() {
+    for (const input of [name, tag, targetName, targetTag]) input.value = "";
+    source.value = site === "sensecore" ? "maoshanwang" : "sensecore";
+    target.value = site; updateTransfer(); name.focus();
+  }
+  byId("image-transfer-reset").addEventListener("click", resetTransfer);
+  byId("image-client-upload").addEventListener("click", () => { mode.value = "push"; selectTab("transfer"); resetTransfer(); });
   function publishCatalog() {
     window.MonitorImages[site] = data;
     document.dispatchEvent(new CustomEvent("monitor-images", {detail: site}));
@@ -105,9 +120,13 @@
     }
     const namespaces = [...new Set([...(data.namespaces || []), data.namespace].filter(Boolean))];
     const select = byId("image-catalog-namespace");
-    select.replaceChildren(...namespaces.map(namespace => {
-      const option = element("option", namespace); option.value = namespace; return option;
-    }));
+    const namespaceKey = JSON.stringify(namespaces);
+    if (select.dataset.namespaces !== namespaceKey) {
+      select.replaceChildren(...namespaces.map(namespace => {
+        const option = element("option", namespace); option.value = namespace; return option;
+      }));
+      select.dataset.namespaces = namespaceKey;
+    }
     select.value = data.namespace || ""; select.disabled = !namespaces.length;
   }
   function size(bytes) {
@@ -115,44 +134,71 @@
     const value = Number(bytes), unit = value >= 1024 ** 3 ? 3 : value >= 1024 ** 2 ? 2 : value >= 1024 ? 1 : 0;
     return `${(value / 1024 ** unit).toFixed(unit ? 2 : 0)} ${["B", "KiB", "MiB", "GiB"][unit]}`;
   }
-  function renderCatalog() {
+  function renderCatalog(syncPage = false) {
     const sourceFilter = byId("image-catalog-source").value, query = byId("image-catalog-search").value;
     const environment = Object.fromEntries(Object.entries(environmentSelects).map(([field, select]) => [field, select.value]));
-    const rows = filterImages(data.images, sourceFilter, query, environment);
-    for (const [field, select] of Object.entries(environmentSelects)) {
-      const all = element("option", "全部"); all.value = "";
-      select.replaceChildren(all, ...imageFacetOptions(data.images, field, sourceFilter, query, environment).map(({value, count}) => {
-        const label = value === "__unknown__" ? "未知" : field !== "architecture" && /^\d+\.\d+$/.test(value) ? `${value} 系列` : value;
-        const option = element("option", `${label} · ${count}`); option.value = value;
-        option.disabled = count === 0 && value !== environment[field]; return option;
-      }));
-      select.value = environment[field];
+    const key = JSON.stringify([sourceFilter, query, environment]);
+    if (filteredImages !== data.images || filterKey !== key) {
+      filteredRows = filterImages(data.images, sourceFilter, query, environment);
+      for (const [field, select] of Object.entries(environmentSelects)) {
+        const all = element("option", "全部"); all.value = "";
+        select.replaceChildren(all, ...imageFacetOptions(data.images, field, sourceFilter, query, environment).map(({value, count}) => {
+          const label = value === "__unknown__" ? "未知" : field !== "architecture" && /^\d+\.\d+$/.test(value) ? `${value} 系列` : value;
+          const option = element("option", `${label} · ${count}`); option.value = value;
+          option.disabled = count === 0 && value !== environment[field]; return option;
+        }));
+        select.value = environment[field];
+      }
+      filteredImages = data.images; filterKey = key;
+      const selected = Object.entries(environment).filter(([, value]) => value);
+      byId("image-environment-summary").textContent = selected.length ? `已选 ${selected.length} 项 · ${selected
+        .map(([field, value]) => `${environmentFields[field]} ${value === "__unknown__" ? "未知" : value}`).join(" · ")}` : "全部环境";
     }
+    const rows = filteredRows;
     byId("image-filter-reset").hidden = !(sourceFilter || query || Object.values(environment).some(Boolean));
-    const pages = Math.max(1, Math.ceil(rows.length / 30)); page = Math.min(page, pages);
+    const pageSize = Number(byId("image-page-size").value), pages = Math.max(1, Math.ceil(rows.length / pageSize)); page = Math.max(1, Math.min(page, pages));
     byId("image-catalog-count").textContent = `${rows.length} / ${data.images.length} 个版本`;
-    byId("image-page-status").textContent = `第 ${page} / ${pages} 页`;
+    const pageStatus = `第 ${page} / ${pages} 页 · ${rows.length} 条`;
+    if (byId("image-page-status").textContent !== pageStatus) byId("image-page-status").textContent = pageStatus;
+    const pageInput = byId("image-page-number");
+    if (syncPage) pageDraft = false;
+    if (!pageDraft) pageInput.value = page;
+    pageInput.max = pages;
     byId("image-page-prev").disabled = page === 1; byId("image-page-next").disabled = page === pages;
-    const rendered = rows.slice((page - 1) * 30, page * 30).map(image => {
+    const pageRows = rows.slice((page - 1) * pageSize, page * pageSize);
+    const emptyText = rows.length ? "" : data.refreshing ? "正在读取真实镜像…" : data.status === "error" ? "镜像读取失败，请刷新重试" : data.images.length ? "没有匹配的镜像" : "该命名空间暂无镜像";
+    const signature = JSON.stringify([pageRows, environment, emptyText, byId("image-filter-reset").hidden]);
+    if (tableKey === signature) return;
+    const body = byId("image-catalog-body"), focused = document.activeElement;
+    const focusedPath = focused.closest("[data-image-path]")?.dataset.imagePath;
+    const opened = new Set([...body.querySelectorAll("details[open]")].map(item => item.closest("tr").dataset.imagePath));
+    const rendered = pageRows.map(image => {
       const row = element("tr", ""), identity = element("td", "");
-      identity.append(element("strong", image.name), element("small", image.path, "image-address"));
+      row.dataset.imagePath = image.path;
+      identity.append(element("strong", image.name));
+      const details = element("details", "", "image-details"), summary = element("summary", "地址与详情");
+      summary.dataset.imageAction = "details"; details.open = opened.has(image.path);
+      details.append(summary, element("small", image.path, "image-address"));
       const chips = element("div", "", "image-chips");
       for (const [field, label] of Object.entries(environmentFields)) {
         const value = imageEnvironmentValue(image, field), version = String(image[field] || "").trim() || "未知";
         const chip = element("button", `${label} ${version}`, "meta-pill"); chip.type = "button";
+        chip.dataset.imageAction = field;
         chip.title = `${environment[field] === value ? "取消" : "按"} ${label} ${value === "__unknown__" ? "未知" : value} 筛选`;
         chip.setAttribute("aria-pressed", String(environment[field] === value));
         chip.addEventListener("click", () => {
           environmentSelects[field].value = environment[field] === value ? "" : value;
-          page = 1; renderCatalog(); environmentSelects[field].focus();
+          page = 1; renderCatalog(true); byId("image-environment-details").open = true; environmentSelects[field].focus();
         });
-        chips.append(chip);
+        if (value === "__unknown__") details.append(chip); else chips.append(chip);
       }
-      identity.append(chips);
+      identity.append(chips, details);
       const origin = element("td", "");
       for (const value of new Set([image.source, ...image.products])) origin.append(element("span", labels[value] || value, `image-source image-source-${Object.hasOwn(labels, value) ? value : "unknown"}`));
       const actions = element("td", ""), transfer = element("button", "传递", "button button-secondary"), addressCopy = element("button", "复制地址", "button button-secondary");
       transfer.type = addressCopy.type = "button"; transfer.disabled = !image.tag;
+      transfer.dataset.imageAction = "transfer"; addressCopy.dataset.imageAction = "copy";
+      addressCopy.setAttribute("aria-live", "polite");
       transfer.title = image.tag ? "填入传递表单" : "该镜像没有 tag，registry.sh 需要显式 tag";
       transfer.addEventListener("click", () => {
         mode.value = "transfer"; source.value = site; target.value = site === "sensecore" ? "maoshanwang" : "sensecore";
@@ -160,8 +206,9 @@
         updateTransfer(); selectTab("transfer"); name.focus();
       });
       addressCopy.addEventListener("click", async () => {
-        try { await navigator.clipboard.writeText(image.path); byId("image-data-note").textContent = "镜像地址已复制。"; }
-        catch { byId("image-data-note").textContent = "复制失败，请手动选择镜像地址。"; }
+        try { await navigator.clipboard.writeText(image.path); addressCopy.textContent = "已复制"; }
+        catch { details.open = true; addressCopy.textContent = "请手动复制"; }
+        setTimeout(() => { addressCopy.textContent = "复制地址"; }, 2000);
       });
       actions.className = "image-row-actions"; actions.append(transfer, addressCopy);
       const date = image.created_at ? new Date(image.created_at) : null;
@@ -172,25 +219,50 @@
       return row;
     });
     if (!rendered.length) {
-      const row = element("tr", ""), cell = element("td", data.refreshing ? "正在读取真实镜像…" : data.status === "error" ? "镜像读取失败，请查看上方提示后重试" : data.images.length ? "没有匹配的镜像" : "该命名空间暂无镜像", "table-empty");
+      const row = element("tr", ""), cell = element("td", emptyText, "table-empty");
+      if (!byId("image-filter-reset").hidden) {
+        const reset = element("button", "清空筛选", "button button-secondary"); reset.type = "button";
+        reset.addEventListener("click", () => byId("image-filter-reset").click()); cell.append(reset);
+      }
       cell.colSpan = 7; row.append(cell); rendered.push(row);
     }
-    byId("image-catalog-body").replaceChildren(...rendered);
+    body.replaceChildren(...rendered); tableKey = signature;
+    if (focusedPath) {
+      const row = rendered.find(item => item.dataset.imagePath === focusedPath);
+      const control = [...(row?.querySelectorAll("[data-image-action]") || [])].find(item => item.dataset.imageAction === focused.dataset.imageAction);
+      (control || body.closest(".table-scroll")).focus({preventScroll: true});
+    }
   }
-  ["image-catalog-source", "image-catalog-search"].forEach(id => byId(id).addEventListener(id.endsWith("search") ? "input" : "change", () => {page = 1; renderCatalog();}));
-  Object.values(environmentSelects).forEach(select => select.addEventListener("change", () => {page = 1; renderCatalog();}));
+  ["image-catalog-source", "image-catalog-search"].forEach(id => byId(id).addEventListener(id.endsWith("search") ? "input" : "change", () => {page = 1; renderCatalog(true);}));
+  Object.values(environmentSelects).forEach(select => select.addEventListener("change", () => {page = 1; renderCatalog(true);}));
   byId("image-filter-reset").addEventListener("click", () => {
     for (const select of Object.values(environmentSelects)) select.value = "";
     byId("image-catalog-source").value = ""; byId("image-catalog-search").value = "";
-    page = 1; renderCatalog(); byId("image-catalog-search").focus();
+    page = 1; renderCatalog(true); byId("image-catalog-search").focus();
   });
-  byId("image-page-prev").addEventListener("click", () => {page -= 1; renderCatalog();});
-  byId("image-page-next").addEventListener("click", () => {page += 1; renderCatalog();});
+  function goToPage(next) {
+    page = next; renderCatalog(true);
+    const scroll = byId("image-catalog-body").closest(".table-scroll");
+    scroll.scrollTop = 0; scroll.scrollIntoView({block: "start", behavior: "instant"});
+  }
+  pageSizeSelect.addEventListener("change", () => {
+    try { localStorage.setItem(pageSizeKey, pageSizeSelect.value); } catch { /* Keep the choice for this page. */ }
+    goToPage(1);
+  });
+  byId("image-page-prev").addEventListener("click", () => goToPage(page - 1));
+  byId("image-page-next").addEventListener("click", () => goToPage(page + 1));
+  byId("image-page-number").addEventListener("input", () => { pageDraft = true; });
+  byId("image-page-jump").addEventListener("submit", event => {
+    event.preventDefault();
+    if (!byId("image-page-number").reportValidity()) return;
+    goToPage(Number(byId("image-page-number").value));
+  });
   const active = () => ["#images", "#acp"].includes(location.hash) && !document.hidden;
   async function load(force = false) {
     if (controller || !active()) return;
     clearTimeout(timer); controller = new AbortController(); byId("image-catalog-refresh").disabled = true;
-    let aborted = false;
+    let aborted = false, timedOut = false;
+    const current = controller, timeout = setTimeout(() => { timedOut = true; current.abort(); }, 15000);
     const requestedNamespace = catalogNamespace;
     try {
       const params = new URLSearchParams();
@@ -200,7 +272,8 @@
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "镜像读取失败");
       if (requestedNamespace !== catalogNamespace) return;
-      data = result; catalogNamespace = data.namespace || ""; loaded = true;
+      if (JSON.stringify(result.images) === JSON.stringify(data.images)) result.images = data.images;
+      data = result; catalogNamespace = data.namespace || "";
       configure(); renderCatalog();
       byId("image-site-name").textContent = site;
       byId("image-site-description").textContent = `${data.registry || "仓库未配置"}/${data.namespace || "—"} · ${data.repository_count} 个镜像仓库 · ${data.images.length} 个版本`;
@@ -209,17 +282,18 @@
       byId("image-data-note").textContent = data.warnings.join(" ") || (data.refreshing ? "正在读取镜像版本，已读取的记录会逐步显示。" : data.updated_at ? `最近完整更新：${new Date(data.updated_at).toLocaleString("zh-CN", {hour12: false})}` : "");
       publishCatalog();
     } catch (error) {
-      aborted = error.name === "AbortError";
-      if (error.name !== "AbortError" && requestedNamespace === catalogNamespace) {
+      aborted = error.name === "AbortError" && !timedOut;
+      if (!aborted && requestedNamespace === catalogNamespace) {
         data.refreshing = false;
         byId("image-data-status").dataset.status = "error";
         byId("image-data-status").textContent = "连接失败";
-        byId("image-data-note").textContent = `${error.message}；保留已读取的记录，请刷新重试。`;
-        if (!loaded) { data.status = "error"; renderCatalog(); }
+        byId("image-data-note").textContent = `${timedOut ? "镜像读取超时" : error.message}；保留已读取的记录，请刷新重试。`;
         data = {...data, status: "error", warnings: [byId("image-data-note").textContent]};
+        renderCatalog();
         publishCatalog();
       }
     } finally {
+      clearTimeout(timeout);
       controller = null; byId("image-catalog-refresh").disabled = data.refreshing;
       if (active()) timer = setTimeout(() => load(), aborted ? 0 : data.refreshing || data.namespaces_refreshing ? 2000 : 60000);
     }
@@ -228,12 +302,13 @@
     if (!namespace || namespace === catalogNamespace) return;
     catalogNamespace = namespace; controller?.abort(); page = 1;
     data = {...data, namespace, images: [], repository_count: 0, completed_repositories: 0, refreshing: true, warnings: [], status: "loading"};
-    configure(); renderCatalog(); publishCatalog();
+    configure(); renderCatalog(true); publishCatalog();
     if (!controller) load();
   }
   byId("image-catalog-namespace").addEventListener("change", event => selectNamespace(event.target.value));
   document.addEventListener("monitor-image-namespace", event => { if (location.hash === "#acp") selectNamespace(event.detail); });
   byId("image-catalog-refresh").addEventListener("click", () => load(true));
+  byId("refresh-button").addEventListener("click", () => { if (location.hash === "#images") load(true); });
   byId("acp-image-refresh").addEventListener("click", () => load(true));
   function visibility() {
     clearTimeout(timer);

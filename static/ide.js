@@ -18,6 +18,27 @@
     focusMode = !focusMode; applyFocus();
     try { localStorage.setItem('ilab-ide-focus', focusMode ? '1' : '0'); } catch (_) {}
   });
+  $("ide-tools").addEventListener("beforetoggle", event => {
+    if (event.newState === "open") $("ide-tools").style.top = `${$("ide-more").getBoundingClientRect().bottom + 6}px`;
+  });
+  $("ide-fullscreen").addEventListener("click", async () => {
+    $("ide-tools-hint").hidden = true;
+    $("ide-tools").hidePopover();
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+      $("ide-frame").focus();
+    } catch (_) {
+      $("ide-tools-hint").textContent = "无法进入或退出全屏，请检查浏览器权限后重试。";
+      $("ide-tools-hint").hidden = false;
+      $("ide-tools").showPopover();
+    }
+  });
+  document.addEventListener("fullscreenchange", () => {
+    const fullscreen = !!document.fullscreenElement;
+    $("ide-fullscreen").querySelector("span").textContent = fullscreen ? "退出全屏" : "全屏";
+    $("ide-fullscreen").title = fullscreen ? "退出全屏（Esc）" : "全屏显示编辑器";
+  });
   function setupStatus(result) {
     if (!connection) return;
     if (result) {
@@ -155,7 +176,13 @@
     }
   }
   async function prepare(action, data, gen) {
-    let start = await api(action, data, gen), restarted = false;
+    let start = await api(action, data, gen), restarted = false, eventCount = 0;
+    const transportMessages = {
+      ssh_retry: ['SSH 预连接失败，正在重试 SSH。', 'reconnecting'],
+      ssh_failed: ['SSH 连接失败，正在切换云端通道。', 'error'],
+      ssh_connected: ['已通过 SSH 连接。', 'ready'],
+      cloud_connected: ['已通过云端通道连接。', 'ready'],
+    };
     const deadline = Date.now() + 15 * 60 * 1000;
     while (Date.now() < deadline) {
       if (typeof start.request_id !== "string" || !start.request_id) throw new Error("准备请求无效，请重试。");
@@ -168,8 +195,14 @@
         restarted = true;
         status("连接准备状态已失效，正在重新建立连接…");
         start = await api(action, data, gen);
+        eventCount = 0;
         continue;
       }
+      const events = Array.isArray(result.connection_events) ? result.connection_events : [];
+      for (const event of events.slice(eventCount)) {
+        if (Object.hasOwn(transportMessages, event)) window.MonitorConnectionLog?.note(...transportMessages[event]);
+      }
+      eventCount = events.length;
       if (result.pending === false) {
         progress(null);
         if (result.error) throw new Error(result.error);
@@ -177,7 +210,8 @@
       }
       if (result.pending !== true) throw new Error("准备状态无效，请重试。");
       progress(result.progress);
-      if (typeof result.message === "string" && result.message && (action !== "recover" || !connection?.ready)) status(result.message);
+      if (typeof result.message === "string" && result.message && !Object.hasOwn(transportMessages, result.progress?.stage)
+          && (action !== "recover" || !connection?.ready)) status(result.message);
       active(gen);
     }
     throw new Error("编辑器准备超过 15 分钟，请重试以核对当前状态。");
@@ -338,6 +372,7 @@
       try { localStorage.setItem(recentKey, JSON.stringify({ task_id: taskId, instance: target.instance, container: target.container, saved_at: Date.now() })); } catch (_) {}
     }
     $("ide-task").textContent = `${result.name || taskId} · ${taskId}`;
+    $("ide-task").title = `${site.id} · ${$("ide-task").textContent} · ${target.instance} / ${target.container}`;
     connection = { instance: target.instance, container: target.container, port: result.port, origin: destination.origin, entry: destination.pathname,
       workspace: typeof result.workspace === 'string' ? result.workspace : null, historyState: 'loading', historyCount: 0,
       historyPayload: null, ready: false, loadDeadline: Date.now() + 60000 };
@@ -347,7 +382,7 @@
     busy = false; controls();
     setupNextCheck = Date.now() + 5000;
     setupStatus(result);
-    $("ide-focus").hidden = false; applyFocus();
+    $("ide-focus").hidden = $("ide-more").hidden = false; applyFocus();
     status("连接已建立，正在加载编辑器…");
   }
   async function reconnect() {

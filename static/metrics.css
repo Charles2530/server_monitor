@@ -1,4 +1,5 @@
 /* Keep both GPU measurements visible, including narrow task previews. */
+.overview-task{min-width:0}
 .overview-task-gpu{display:grid;grid-template-columns:repeat(2,minmax(64px,auto));gap:12px;flex-shrink:0}
 .overview-task-gpu>.overview-task-metric{display:block}
 .overview-task-gpu>[data-metric="gpu_memory"]:not(.is-stale) strong{color:#b17a15}

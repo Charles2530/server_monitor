@@ -5,7 +5,7 @@ window.TerminalMobile = class {
     this.getTerm = getTerm; this.isAlive = isAlive; this.refit = refit;
     this.composing = false; this.ctrl = false; this.compact = false;
     this.menu = document.getElementById("terminal-menu");
-    this.panels = ["terminal-tools", "terminal-setup", "terminal-hint", "terminal-official"].map(id => {
+    this.panels = ["terminal-tools", "terminal-setup", "terminal-official", "terminal-input-notice"].map(id => {
       const node = document.getElementById(id), marker = document.createComment(id);
       node.before(marker); return { node, marker };
     });
@@ -15,8 +15,11 @@ window.TerminalMobile = class {
       if (this.composing) { this.compositionNotice(); return; }
       document.getElementById("terminal-menu-target").textContent = document.getElementById("terminal-target-name").textContent;
       this.menu.showModal();
+      this.placePanels();
     });
     document.getElementById("terminal-menu-close").addEventListener("click", () => this.menu.close());
+    this.menu.addEventListener("close", () => this.placePanels());
+    document.getElementById("terminal-notice-close").addEventListener("click", () => this.notice(""));
     this.menu.addEventListener("click", e => { if (e.target === this.menu) this.menu.close(); });
     document.getElementById("terminal-mobile-keyboard").addEventListener("click", () => {
       const term = this.getTerm();
@@ -128,15 +131,26 @@ window.TerminalMobile = class {
     const indicator = document.getElementById("terminal-mobile-status");
     indicator.setAttribute("aria-label", enabled ? "已连接" : "未连接");
     indicator.title = enabled ? "已连接" : "未连接";
-    document.querySelectorAll("[data-terminal-key]").forEach(button => { button.disabled = !enabled; });
+    document.querySelectorAll("[data-terminal-key]").forEach(button => { button.disabled = button.dataset.terminalKey === "copy" ? !this.getTerm() : !enabled; });
+    document.getElementById("terminal-copy").disabled = !this.getTerm();
+    document.getElementById("terminal-paste").disabled = !enabled;
     document.getElementById("terminal-mobile-keyboard").disabled = !enabled;
     if (!enabled) this.resetCtrl();
   }
-  compositionNotice() {
-    document.getElementById("terminal-hint").textContent = "请先确认输入法候选，再使用终端快捷键。";
-    document.getElementById("terminal-input-notice").textContent = "请先确认输入法候选";
+  notice(message, type = "error", duration = 0) {
+    const notice = document.getElementById("terminal-input-notice");
     clearTimeout(this.noticeTimer);
-    this.noticeTimer = setTimeout(() => { document.getElementById("terminal-input-notice").textContent = ""; }, 2500);
+    document.getElementById("terminal-hint").textContent = message;
+    notice.dataset.type = type; notice.hidden = !message;
+    if (message && duration) this.noticeTimer = setTimeout(() => this.notice(""), duration);
+  }
+  compositionNotice() { this.notice("请先确认输入法候选，再使用终端快捷键。", "info", 2500); }
+  placePanels() {
+    for (const { node, marker } of this.panels) {
+      const inMenu = node.id === "terminal-input-notice" ? this.menu.open : this.compact || (this.menu.open && node.id === "terminal-tools");
+      if (inMenu) document.getElementById("terminal-menu-content").append(node);
+      else marker.after(node);
+    }
   }
   allowShortcut() {
     if (!this.isAlive()) return false;
@@ -159,10 +173,7 @@ window.TerminalMobile = class {
     if (compact !== this.compact) {
       this.compact = compact;
       if (this.menu.open) this.menu.close();
-      for (const { node, marker } of this.panels) {
-        if (compact) document.getElementById("terminal-menu-content").append(node);
-        else marker.after(node);
-      }
+      this.placePanels();
       document.body.classList.toggle("terminal-compact", compact);
     }
     const viewport = window.visualViewport;

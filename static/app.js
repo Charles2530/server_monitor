@@ -1,6 +1,29 @@
 "use strict";
 
 (() => {
+  let chartLibraryPromise = null;
+  window.MonitorCharts = {
+    load() {
+      if (window.echarts) return Promise.resolve(window.echarts);
+      if (chartLibraryPromise) return chartLibraryPromise;
+      chartLibraryPromise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        const finish = (error) => {
+          clearTimeout(timeout); script.onload = script.onerror = null;
+          if (error) { script.remove(); chartLibraryPromise = null; reject(error); }
+          else resolve(window.echarts);
+        };
+        const timeout = setTimeout(() => finish(new Error("图表组件加载超时，请刷新重试。")), 15000);
+        script.src = "/static/vendor/echarts.min.js";
+        script.async = true;
+        script.onload = () => finish(window.echarts ? null : new Error("图表组件加载失败，请刷新重试。"));
+        script.onerror = () => finish(new Error("图表组件加载失败，请刷新重试。"));
+        document.head.append(script);
+      });
+      return chartLibraryPromise;
+    },
+  };
+
   const METRICS = [
     { key: "cpu", label: "CPU", color: "#3b82f6" },
     { key: "gpu", label: "GPU 利用率", color: "#14b8a6" },
@@ -344,7 +367,6 @@
       if (url.origin === new URL(model.snapshot?.site?.console || "https://console.ms-sc-01.maoshanwangtech.com").origin && !url.username && !url.password) { link.href = url.href; link.hidden = false; }
     } catch { /* A task without a trusted console URL simply has no link. */ }
     if (historyVisible()) {
-      if (!model.chart && window.echarts) model.chart = window.echarts.init(byId("history-chart"), null, { renderer: "canvas" });
       model.chart?.resize();
       if (model.chartNeedsRender && model.chartSeries && model.chartTaskId === model.selected) renderChart(model.chartSeries);
     }
@@ -457,11 +479,23 @@
     cancelHistory();
     const requestId = model.historyRequest, controller = new AbortController();
     model.historyController = controller; model.historyPendingKey = key;
+    if (model.chartTaskId !== taskId) { model.chart?.clear(); model.chartSeries = null; model.historyKey = null; }
     chartMessage("正在读取历史采样…");
     model.historyPromise = (async () => {
       try {
         const history = await request(`/api/history?task_id=${encodeURIComponent(taskId)}&hours=${hours}`, "GET", controller.signal);
-        if (requestId !== model.historyRequest) return;
+        if (requestId !== model.historyRequest || !historyVisible()) return;
+        if (!model.chart) {
+          chartMessage("正在加载图表组件…");
+          let library;
+          try { library = await window.MonitorCharts.load(); }
+          catch (error) {
+            if (requestId === model.historyRequest && historyVisible()) chartMessage(error.message);
+            return;
+          }
+          if (requestId !== model.historyRequest || !historyVisible() || taskId !== model.selected || hours !== model.hours) return;
+          model.chart = library.getInstanceByDom(byId("history-chart")) || library.init(byId("history-chart"), null, { renderer: "canvas" });
+        }
         if (!renderChart(history.series)) return;
         model.historyKey = key;
         model.historyMessage = byId("chart-message").textContent;
@@ -535,7 +569,7 @@
       if (taskDataChanged) { renderTasks(); renderDetail(); }
       if (clusterDataChanged) renderClusters();
       // History owns its cancellation/errors; a slow chart must not hold state polling.
-      if (changed || previousSelection !== model.selected) loadHistory();
+      if (changed || previousSelection !== model.selected || (historyVisible() && !model.chart)) loadHistory();
     } catch {
       model.unavailable = true;
       document.dispatchEvent(new CustomEvent("monitor-snapshot", { detail: { snapshot: model.snapshot, unavailable: true } }));
@@ -572,7 +606,7 @@
   }));
   byId("task-search").addEventListener("input", (event) => { model.search = event.target.value.trim().toLocaleLowerCase(); renderTasks(); renderDetail(); loadHistory(); });
   byId("refresh-button").addEventListener("click", () => {
-    if (location.hash !== "#tokenhub") action("refresh-button", "/api/refresh", "已请求刷新。采集完成后，页面会自动更新。");
+    if (!["#tokenhub", "#images"].includes(location.hash)) action("refresh-button", "/api/refresh", "已请求刷新。采集完成后，页面会自动更新。");
   });
   byId("connect-button").addEventListener("click", () => action("connect-button", "/api/connect", "自动登录已开始，连接状态将自动更新。"));
   document.addEventListener("monitor-task-renamed", event => {

@@ -109,7 +109,15 @@ body:has(#ide-picker[hidden]) #ide-status[data-state=loading]::before { width: 1
 /* Preparation state is independent from transport heartbeats. */
 .ide-setup-status { margin: 3px 0; font-size: 11px; line-height: 1.6; color: var(--muted, #627b6e); overflow-wrap: anywhere; }
 .ide-setup-status[data-attention="true"] { color: var(--ink, #456451); }
-body.ide-focused:has(#ide-frame:not([hidden])) .ide-header > :not(#ide-focus) { display: none; }
+body.ide-focused:has(#ide-frame:not([hidden])) .ide-header > :not(#ide-focus, #ide-more) { display: none; }
 body.ide-focused:has(#ide-frame:not([hidden])) .ide-header { justify-content: flex-end; padding: 2px 8px; }
 body.ide-focused:has(#ide-frame:not([hidden])) #ide-focus { min-height: 24px; padding: 2px 8px; font-size: 11px; }
 body.ide-focused .ide-setup:has(#ide-status[data-state="ready"]):not(:has(#ide-setup-status[data-attention="true"])) { display: none; }
+
+/* Keep the same compact three-dot entry in normal, focused and fullscreen views. */
+.ide-tool-icon { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+body:has(#ide-frame:not([hidden])) .ide-header #ide-more { width: 30px; min-height: 28px; padding: 4px; flex-shrink: 0; border-color: transparent; background: transparent; color: var(--muted); }
+body:has(#ide-frame:not([hidden])) .ide-header #ide-more:hover { color: var(--ink); background: var(--surface-hover); }
+#ide-tools { position: fixed; inset: auto 10px auto auto; margin: 0; width: 180px; max-width: calc(100vw - 20px); padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); box-shadow: var(--dialog-shadow); }
+#ide-fullscreen { width: 100%; justify-content: flex-start; gap: 9px; border-color: transparent; }
+#ide-tools-hint { margin: 6px; color: var(--warning-ink); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
