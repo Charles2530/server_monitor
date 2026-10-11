@@ -209,23 +209,23 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         return await perform(snapshot_response)
 
     @app.get('/api/task-history')
-    async def task_history(runtime=Depends(current_site)):
+    async def task_history(refresh:bool=False,runtime=Depends(current_site)):
         async def snapshot_response():
             # History is already normalized to JSON values, like state and queue.
-            return JSONResponse(await runtime.task_history.snapshot())
+            return JSONResponse(await runtime.task_history.snapshot(force=refresh))
         return await perform(snapshot_response)
 
     @app.get('/api/storage')
-    async def storage(runtime=Depends(current_site)):
+    async def storage(refresh:bool=False,runtime=Depends(current_site)):
         async def snapshot_response():
-            return JSONResponse(await runtime.storage.snapshot())
+            return JSONResponse(await runtime.storage.snapshot(force=refresh))
         return await perform(snapshot_response)
 
     @app.get('/api/utilization-queue')
-    async def utilization_queue(runtime=Depends(current_site)):
+    async def utilization_queue(refresh:bool=False,runtime=Depends(current_site)):
         async def snapshot_response():
             # The queue already produces normalized, redacted JSON values.
-            return JSONResponse(await runtime.utilization_queue.snapshot())
+            return JSONResponse(await runtime.utilization_queue.snapshot(force=refresh))
         return await perform(snapshot_response)
 
     @app.get('/api/logs/targets')

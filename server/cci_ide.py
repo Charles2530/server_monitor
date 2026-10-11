@@ -22,6 +22,7 @@ from .ide_origins import EditorOriginRegistry
 from .ide_history import MAX_HISTORY_RESPONSE_BYTES, _normal_path, history_script, sanitize_history_result
 from .sites import MAOSHANWANG
 from .cci_terminal import VerifiedCCITargets
+from .cloud_forward import CloudForward, forward_alive
 
 
 def private_ipv4(value):
@@ -47,7 +48,12 @@ PROGRESS_MESSAGES = {
     'connect': '正在建立编辑器连接…',
     'authenticate': '正在完成编辑器认证…',
     'reuse': '正在复用已有编辑器…',
+    'ssh_retry': 'SSH 预连接失败，正在重试 SSH。',
+    'ssh_failed': 'SSH 连接失败，正在切换云端通道。',
+    'ssh_connected': '已通过 SSH 连接。',
+    'cloud_connected': '已通过云端通道连接。',
 }
+TRANSPORT_STAGES = ('ssh_retry', 'ssh_failed', 'ssh_connected', 'cloud_connected')
 
 
 def safe_progress(value):
@@ -265,11 +271,13 @@ class CCIEditor:
             key = next((k for k, v in self.requests.items() if v['task'].done()), None)
             if key is None: break
             del self.requests[key]
-        progress_state = {}
+        progress_state, connection_events = {}, []
         def progress(value):
             safe = safe_progress(value)
             if safe is not None:
                 progress_state.clear(); progress_state.update(safe)
+                if safe['stage'] in TRANSPORT_STAGES:
+                    connection_events.append(safe['stage']); del connection_events[:-16]
         async def prepare():
             try:
                 operation = self.targets(data['task_id']) if action == 'targets' else (self.recover(data, origin, progress=progress) if action == 'recover' else self.open(data, origin, progress=progress))
@@ -280,7 +288,7 @@ class CCIEditor:
                 message = '编辑器连接暂不可用；已保留当前页面，请检查本机网络和 SSH 跳板后重试。' if action == 'recover' else '编辑器准备失败，请检查容器网络、Python 3 和本机 SSH 配置后重试。'
                 return {'pending': False, 'error': message}
         key = secrets.token_urlsafe(32)
-        self.requests[key] = {'task': asyncio.create_task(prepare()), 'created': now, 'origin': origin, 'action': action, 'data': dict(data), 'progress': progress_state}
+        self.requests[key] = {'task': asyncio.create_task(prepare()), 'created': now, 'origin': origin, 'action': action, 'data': dict(data), 'progress': progress_state, 'connection_events': connection_events}
         if self.reaper is None: self.reaper = asyncio.create_task(self.reap())
         return {'request_id': key}
 
@@ -289,12 +297,13 @@ class CCIEditor:
         if not item or item['origin'] != origin: raise ActionError('编辑器请求已过期，请重试。', 'ide_expired', 404)
         # Bound polling without cancelling preparation shared by other tabs.
         if not item['task'].done(): await asyncio.wait([item['task']], timeout=1)
+        events = {'connection_events': list(item['connection_events'])} if item.get('connection_events') else {}
         if not item['task'].done():
             message = '正在读取最新实例与容器…' if item['action'] == 'targets' else '正在检查已有编辑器并建立连接，请稍候…'
             progress = item.get('progress')
-            if progress: return {'pending': True, 'message': PROGRESS_MESSAGES[progress['stage']], 'progress': dict(progress)}
-            return {'pending': True, 'message': message}
-        result = item['task'].result()
+            if progress: return {'pending': True, 'message': PROGRESS_MESSAGES[progress['stage']], 'progress': dict(progress), **events}
+            return {'pending': True, 'message': message, **events}
+        result = {**item['task'].result(), **events}
         if item['action'] == 'open' and isinstance(result.get('result'), dict) and 'port' in result['result']:
             data = item['data']
             session = self.sessions.get((data['task_id'], data['instance'], data['container'], origin))
@@ -331,7 +340,7 @@ class CCIEditor:
         return result, private_ipv4(target['address'])
 
     async def healthy(self, session, *, retry=True):
-        if session['forward'].process.returncode is not None: return False
+        if not forward_alive(session['forward']): return False
         if await session['proxy'].healthy(): return True
         if not retry: return False
         # One slow response must not tear down a live editor or its browser origin.
@@ -345,39 +354,70 @@ class CCIEditor:
                 raise ActionError('编辑器自动认证失败，请重新打开编辑器页面。')
             return '; '.join(k + '=' + v for k, v in client.cookies.items())
 
-    def make_forward(self, address, port, session=None):
+    def make_forward(self, address, port, session=None, *, target=None, cloud=False):
+        old = session['forward'] if session else None
+        if cloud or isinstance(old, CloudForward) or (old is None and self.site.id == 'sensecore'):
+            if isinstance(old, CloudForward): target = old.target
+            if target is None: raise ActionError('编辑器容器选择缺失。')
+            target = dict(target)
+            async def verify():
+                self.target_leases.pop(target['task_id'], None)
+                _, current = await self.resolve(target)
+                if current != address: raise ActionError('容器地址已变化，请重新打开编辑器。')
+            return CloudForward(self.bridge, target, address, port, verify=verify)
         env_key = 'SENSECORE_CCI_IDE_SSH_HOST' if self.site.id == 'sensecore' else 'MONITOR_CCI_IDE_SSH_HOST'
         alias = session['forward'].alias if session else os.environ.get(env_key, 'sensecore' if self.site.id == 'sensecore' else 'maoshanwangtech')
         return SSHForward(alias, address, port)
 
     async def connect(self, address, port, password, origin, notify, session=None, *, prepared_forward=None, target=None):
-        forward = prepared_forward or self.make_forward(address, port, session)
+        forward = prepared_forward or self.make_forward(address, port, session, target=target)
         forward.remote_port = port
         proxy = None
         try:
-            notify({'stage': 'connect'})
-            try: await forward.start()
-            except (ActionError, OSError, asyncio.TimeoutError):
-                if prepared_forward is None: raise
-                # A failed prewarm/control request gets one ordinary SSH attempt.
-                # Never rerun the container bootstrap or retry cancellation.
-                await forward.close()
-                forward = self.make_forward(address, port, session)
-                await forward.start()
-            notify({'stage': 'authenticate'})
-            cookie = await self.authenticate(forward.port, password)
+            for attempt in range(2):
+                authenticating = False
+                try:
+                    notify({'stage': 'connect'})
+                    try: await forward.start()
+                    except (ActionError, OSError, asyncio.TimeoutError):
+                        if prepared_forward is None: raise
+                        notify({'stage': 'ssh_retry'})
+                        await forward.close()
+                        forward = self.make_forward(address, port, session, target=target)
+                        await forward.start()
+                    authenticating = True
+                    notify({'stage': 'authenticate'})
+                    cookie = await self.authenticate(forward.port, password)
+                    break
+                except (ActionError, OSError, httpx.TransportError, asyncio.TimeoutError) as error:
+                    if (attempt or self.site.id != 'maoshanwang' or not isinstance(forward, SSHForward)
+                            or target is None or (authenticating and isinstance(error, ActionError))): raise
+                    notify({'stage': 'ssh_failed'})
+                    await forward.close()
+                    forward = self.make_forward(address, port, target=target, cloud=True)
+                    prepared_forward = None
+            notify({'stage': 'cloud_connected' if isinstance(forward, CloudForward) else 'ssh_connected'})
+            websocket_forward = lambda: self.make_forward(address, port, {'forward': forward}, target=target)
             if session:
                 # Commit the replacement only after authentication succeeds. The local
                 # listener, browser cookie and existing iframe document stay intact.
                 previous = session['forward']
-                await previous.close()
-                session['proxy'].upstream = 'http://127.0.0.1:' + str(forward.port)
-                session['proxy'].cookie = cookie
-                session.update(forward=forward, password=password, address=address)
+                async with session['proxy'].websocket_forward_lock:
+                    if (isinstance(forward, CloudForward) != isinstance(previous, CloudForward)
+                            or session.get('address', address) != address or previous.remote_port != port):
+                        stale = session['proxy'].websocket_forward_instance
+                        session['proxy'].websocket_forward_instance = None
+                        if stale: await stale.close()
+                    await previous.close()
+                    session['proxy'].upstream = 'http://127.0.0.1:' + str(forward.port)
+                    session['proxy'].cookie = cookie
+                    session['proxy'].websocket_forward = websocket_forward
+                    session.update(forward=forward, password=password, address=address)
                 return session
             origin_identity = (self.site.id, target['task_id'], target['instance'], target['container'], origin, address) if target else None
             proxy = EditorProxy(forward.port, cookie, origin, cache_dir=self.site.data / 'ide-assets',
-                                origin_registry=self.origin_registry, origin_identity=origin_identity)
+                                origin_registry=self.origin_registry, origin_identity=origin_identity,
+                                websocket_forward=websocket_forward)
             await proxy.start()
             return {'forward': forward, 'proxy': proxy, 'address': address, 'password': password}
         except BaseException:
@@ -392,6 +432,13 @@ class CCIEditor:
             session = self.sessions.get(identity)
             if not session:
                 raise ActionError('编辑器连接已过期；请保留当前页面中的未保存内容，再重新打开编辑器页面。', 'ide_expired', 404)
+            if progress is None:
+                def notify(value):
+                    if value.get('stage') in TRANSPORT_STAGES:
+                        events = session.setdefault('connection_events', [])
+                        events.append(value['stage']); del events[:-16]
+            else:
+                for stage in session.pop('connection_events', []): notify({'stage': stage})
             session['proxy'].touched = time.monotonic()
             # A proxy failure already supplied the first failure signal. Confirm
             # once before replacement; routine heartbeats still get two probes.
@@ -404,7 +451,7 @@ class CCIEditor:
                     raise ActionError('容器地址已变化；请保留未保存内容后重新打开编辑器页面。')
                 if not session.get('password'):
                     raise ActionError('编辑器连接无法自动恢复，请保留未保存内容后重新打开编辑器页面。')
-                await self.connect(session['address'], session['forward'].remote_port, session['password'], origin, notify, session)
+                await self.connect(session['address'], session['forward'].remote_port, session['password'], origin, notify, session, target=data)
             session['proxy'].touched = time.monotonic()
             return self.details(data, origin)
 
@@ -467,7 +514,7 @@ class CCIEditor:
         session['optional_attempted'] = time.monotonic()
         async def prepare():
             try:
-                prepared = await run_python(self.bridge, data, bootstrap_script(data['instance'], session['address']), cleanup_jobs=self.cleanup_jobs)
+                prepared = await run_python(self.bridge, data, bootstrap_script(data['instance'], session['address'], download_proxy=self.download_proxy()), cleanup_jobs=self.cleanup_jobs)
                 if 'error' not in prepared and self.sessions.get(identity) is session:
                     session.update(codex=prepared.get('codex', {}), appearance=prepared.get('appearance', {}),
                                   workspace=prepared.get('workspace') or session.get('workspace'))
@@ -479,7 +526,12 @@ class CCIEditor:
                 pass
         self.optional_jobs[identity] = asyncio.create_task(prepare())
 
+    def download_proxy(self):
+        prefix = 'SENSECORE' if self.site.id == 'sensecore' else 'MONITOR'
+        return os.environ.get(prefix + '_CCI_IDE_DOWNLOAD_PROXY') or None
+
     def opened(self, identity, session, data, origin, notify):
+        for stage in session.pop('connection_events', []): notify({'stage': stage})
         session['proxy'].repair = lambda failed_upstream: self.recover(data, origin, failed_upstream=failed_upstream)
         self.prepare_optional(identity, session, data)
         notify({'stage': 'reuse'})
@@ -506,7 +558,7 @@ class CCIEditor:
             async with self.preparation_slot(identity):
                 if session and session.get('password'):
                     try:
-                        session = await self.connect(address, session['forward'].remote_port, session['password'], origin, notify, session)
+                        session = await self.connect(address, session['forward'].remote_port, session['password'], origin, notify, session, target=data)
                     except (ActionError, httpx.HTTPError, OSError, asyncio.TimeoutError):
                         # Explicit reopen may restart a stopped remote editor. Automatic
                         # recover remains transport-only and preserves unsaved buffers.
@@ -516,10 +568,11 @@ class CCIEditor:
                         return self.opened(identity, session, data, origin, notify)
                 # New sessions can authenticate the jump host while the verified
                 # container checks its editor. Existing recovery stays unchanged.
-                warmed = self.make_forward(address, None) if session is None else None
+                warmed = self.make_forward(address, None, target=data) if session is None else None
+                if isinstance(warmed, CloudForward): warmed = None
                 warming = asyncio.create_task(warmed.warm()) if warmed else None
                 try:
-                    prepared = await run_python(self.bridge, data, bootstrap_script(data['instance'], address, install_optional=False), on_progress=notify,
+                    prepared = await run_python(self.bridge, data, bootstrap_script(data['instance'], address, install_optional=False, download_proxy=self.download_proxy()), on_progress=notify,
                                                 verified_targets=self.target_leases.get(data['task_id']), cleanup_jobs=self.cleanup_jobs)
                     if 'error' in prepared:
                         # Arbitrary remote output is never reflected to the browser.
@@ -529,6 +582,7 @@ class CCIEditor:
                     if warming:
                         try: await warming
                         except (ActionError, OSError, asyncio.TimeoutError):
+                            notify({'stage': 'ssh_retry'})
                             await warmed.close(); warmed = None
                         warming = None
                     if warmed:

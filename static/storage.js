@@ -5,6 +5,7 @@
   const $ = (id) => document.getElementById(id);
   let snapshot = null, active = false, controller = null, serial = 0, timer = null;
   let renderSignature = null, zoneSignature = null;
+  const expandedVolumes = new Set();
   const node = (tag, value, className) => {
     const el = document.createElement(tag);
     if (value !== undefined) el.textContent = value;
@@ -33,7 +34,7 @@
     const rows = snapshot.volumes.filter((v) => (!zone || v.zone === zone)
       && (!$("storage-related").checked || v.mounts.length)
       && (!query || [v.name, v.id, v.zone, ...v.mounts.flatMap((m) => [m.task_name, m.subdir, m.mount_path])].join(" ").toLowerCase().includes(query)));
-    const signature = JSON.stringify([rows, snapshot.volumes.length, snapshot.mount_refreshing, snapshot.mount_status, $("storage-related").checked]);
+    const signature = JSON.stringify([rows, query, snapshot.volumes.length, snapshot.mount_refreshing, snapshot.mount_status, $("storage-related").checked]);
     if (signature === renderSignature) return;
     renderSignature = null;
     $("storage-count").textContent = `${rows.length} / ${snapshot.volumes.length}`;
@@ -57,17 +58,35 @@
       } else capacity.append(node("small", "使用率未知"));
       state.append(node("strong", v.state === "ACTIVE" ? "可用 · ACTIVE" : v.state), node("small", `到期 ${date(v.expires_at)}`));
       if (!v.mounts.length) mounts.append(node("small", snapshot.mount_refreshing ? "挂载记录正在后台读取…" : Object.values(snapshot.mount_status).includes("error") ? "挂载记录未完整读取" : "暂无 charles 挂载记录"));
-      for (const m of v.mounts) {
+      const volumeKey = `${v.zone}:${v.id}`;
+      const more = node("details"), extra = v.mounts.length - 3;
+      if (extra > 0) {
+        more.append(node("summary", `其余 ${extra} 条挂载 · 共 ${v.mounts.length} 条`));
+        more.open = Boolean(query) || expandedVolumes.has(volumeKey);
+        more.addEventListener("toggle", () => { if (!query) { if (more.open) expandedVolumes.add(volumeKey); else expandedVolumes.delete(volumeKey); } });
+      }
+      const orderedMounts = v.mounts.slice().sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0));
+      for (const [index, m] of orderedMounts.entries()) {
         const reference = node("div", undefined, "storage-mount");
         reference.append(node("code", `${m.subdir ?? "（子目录未知）"} → ${m.mount_path ?? "—"}`), node("span", `${m.kind} · ${m.task_name}`), node("small", `${m.task_state || "状态未知"} · 创建 ${date(m.created_at)}`));
-        mounts.append(reference);
+        if (m.mount_path) {
+          const copy = node("button", "复制挂载路径", "text-link"); copy.type = "button";
+          copy.addEventListener("click", async () => {
+            try { await navigator.clipboard.writeText(m.mount_path); copy.textContent = "已复制"; }
+            catch { copy.textContent = "请手动复制上方路径"; }
+            setTimeout(() => { copy.textContent = "复制挂载路径"; }, 2000);
+          });
+          reference.append(copy);
+        }
+        (index < 3 ? mounts : more).append(reference);
       }
+      if (extra > 0) mounts.append(more);
       row.append(name, capacity, state, mounts); body.append(row);
     }
     renderSignature = signature;
   }
 
-  async function refresh() {
+  async function refresh(force = false) {
     if (!active || document.hidden || controller) return;
     clearTimeout(timer);
     let nextDelay = 60000;
@@ -78,7 +97,7 @@
     $("storage-refresh").disabled = true;
     $("storage-status").textContent = snapshot ? `正在刷新 · 上次成功 ${date(snapshot.updated_at)}` : "正在读取存储卷、容量与挂载信息…";
     try {
-      const response = await site.fetch("/api/storage", { signal: currentController.signal });
+      const response = await site.fetch(`/api/storage${force ? "?refresh=true" : ""}`, { signal: currentController.signal });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "读取存储失败");
       if (!Array.isArray(data.volumes) || data.site !== site.id) throw new Error("存储响应与当前站点不匹配");
@@ -111,8 +130,8 @@
     else { serial += 1; controller?.abort(); controller = null; $("storage-refresh").disabled = false; }
   }
   for (const id of ["storage-zone", "storage-search", "storage-related"]) $(id).addEventListener("input", render);
-  $("storage-refresh").addEventListener("click", refresh);
-  $("refresh-button").addEventListener("click", () => { if (active) refresh(); });
+  $("storage-refresh").addEventListener("click", () => refresh(true));
+  $("refresh-button").addEventListener("click", () => { if (active) refresh(true); });
   document.addEventListener("workspace-page", (event) => activate(event.detail));
   document.addEventListener("visibilitychange", () => activate(location.hash.slice(1)));
   activate(location.hash.slice(1));

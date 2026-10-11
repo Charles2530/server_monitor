@@ -11,7 +11,6 @@
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" sizes="any">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
     <meta name="application-name" content="iLab Server Monitor">
-    <link rel="stylesheet" href="/static/vendor/tabler.min.css">
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="/static/theme.css">
     <link rel="stylesheet" href="/static/sites.css">
@@ -84,10 +83,10 @@
       <div id="overview-view" class="workspace-view" data-page="overview">
       <div class="overview-heading"><div><h2>算力概况</h2></div><a class="button button-primary" href="#acp"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>创建 ACP 任务</a></div>
       <section class="summary-grid" aria-label="资源概览">
-        <article class="summary-card"><div class="summary-label">运行任务<span class="summary-icon blue" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span></div><div class="summary-number"><span id="summary-tasks">—</span><small>个</small></div><div class="summary-foot" id="summary-services">CCI — <span>·</span> ACP —</div></article>
-        <article class="summary-card"><div class="summary-label">任务配置 GPU<span class="summary-icon purple" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg></span></div><div class="summary-number"><span id="summary-gpus">—</span><small>张</small></div><div class="summary-foot">当前运行任务的配置总量</div></article>
-        <article class="summary-card"><div class="summary-label">集群可用 GPU<span class="summary-icon teal" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6.5h.01M7 17.5h.01M15 6.5h3M15 17.5h3"/></svg></span></div><div class="summary-number"><span id="summary-available">—</span><small>张</small></div><div class="summary-foot" id="summary-clusters">等待标准集群资源数据</div></article>
-        <article class="summary-card"><div class="summary-label">等待与启动<span class="summary-icon amber" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span></div><div class="summary-number"><span id="summary-waiting">—</span><small>个</small></div><div class="summary-foot" id="summary-queue-note">CCI / ACP · 工作空间全部用户</div></article>
+        <a class="summary-card" href="#tasks"><div class="summary-label">运行任务<span class="summary-icon blue" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span></div><div class="summary-number"><span id="summary-tasks">—</span><small>个</small></div><div class="summary-foot" id="summary-services">CCI — <span>·</span> ACP —</div></a>
+        <a class="summary-card" href="#tasks"><div class="summary-label">任务配置 GPU<span class="summary-icon purple" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg></span></div><div class="summary-number"><span id="summary-gpus">—</span><small>张</small></div><div class="summary-foot">当前运行任务的配置总量</div></a>
+        <a class="summary-card" href="#clusters-section"><div class="summary-label">集群可用 GPU<span class="summary-icon teal" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6.5h.01M7 17.5h.01M15 6.5h3M15 17.5h3"/></svg></span></div><div class="summary-number"><span id="summary-available">—</span><small>张</small></div><div class="summary-foot" id="summary-clusters">等待标准集群资源数据</div></a>
+        <a class="summary-card" href="#waiting"><div class="summary-label">等待与启动<span class="summary-icon amber" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span></div><div class="summary-number"><span id="summary-waiting">—</span><small>个</small></div><div class="summary-foot" id="summary-queue-note">CCI / ACP · 工作空间全部用户</div></a>
       </section>
 
       <section id="clusters-section" class="section-block cluster-panel">
@@ -161,7 +160,7 @@
       <section id="acp-section" class="section-block acp-panel workspace-view" data-page="acp" hidden>
         <div class="section-heading"><div><h2>创建 ACP 任务</h2><p>复制已确认的任务模板；提交前核对实际资源和最终命令</p></div><span class="subtle-badge">ACP</span></div>
         <p class="acp-helper" id="acp-options-status" role="status">正在读取模板与 GPU 规格…</p>
-        <button id="acp-options-retry" class="button button-secondary" type="button" hidden>重新读取配置</button>
+        <button id="acp-options-retry" class="button button-secondary" type="button">重新读取配置</button>
         <form id="acp-create-form" class="acp-form">
           <div class="acp-config-block">
             <div class="form-block-heading"><span class="form-step" aria-hidden="true">01</span><div><h3>任务与资源</h3><p>配置任务名称、分区与算力</p></div></div>
@@ -214,7 +213,7 @@
         <div id="detail-monitor" role="tabpanel" aria-labelledby="detail-tab-monitor"><div class="chart-wrap"><div id="history-chart" role="img" aria-label="所选任务的资源使用率历史曲线"></div><div class="chart-message" id="chart-message" role="status" hidden></div></div></div>
         <div id="detail-logs" role="tabpanel" aria-labelledby="detail-tab-logs" hidden>
           <div class="logs-toolbar"><label>Worker<select id="logs-worker" disabled></select></label><label>Container<select id="logs-container" disabled></select></label><button id="logs-refresh" class="button button-secondary" type="button">刷新日志</button></div>
-          <div class="logs-options"><label><input id="logs-auto" type="checkbox" checked> 每 10 秒刷新</label><label><input id="logs-follow" type="checkbox" checked> 跟随底部</label><button id="logs-copy" type="button">复制日志</button></div>
+          <div class="logs-options"><label class="logs-search-label">查找<input id="logs-search" type="search" placeholder="搜索当前日志" autocomplete="off"></label><button id="logs-search-next" type="button">下一处</button><span id="logs-search-status" role="status" aria-live="polite"></span><label><input id="logs-auto" type="checkbox" checked> 每 10 秒刷新</label><label><input id="logs-follow" type="checkbox" checked> 跟随底部</label><button id="logs-copy" type="button">复制日志</button></div>
           <p id="logs-message" class="logs-message" role="status" hidden></p>
           <pre id="logs-output" class="logs-output" tabindex="0" aria-label="任务日志纯文本"></pre>
           <p id="logs-status" class="logs-status" role="status">选择任务查看日志</p>
@@ -224,6 +223,7 @@
       </section>
       </div>
       <div id="queue-view" class="workspace-view" data-page="waiting" hidden>
+      <nav class="queue-jumps" aria-label="队列快速定位"><button class="button button-secondary" type="button" data-queue-target="waiting-section">等待任务</button><button class="button button-secondary" type="button" data-queue-target="utilization-section">运行中 ACP</button></nav>
       <section id="waiting-section" class="section-block cluster-panel waiting-panel">
         <div class="section-heading"><div><h2>等待队列<span class="count-badge" id="waiting-count">—</span></h2><p id="waiting-summary">CCI 未知 · ACP 未知</p></div></div>
         <div id="waiting-notice" class="inventory-notice" role="status" hidden></div>
@@ -272,12 +272,12 @@
               </div>
             </div>
             <div class="th-filters image-toolbar">
-              <label>命名空间<select id="image-catalog-namespace" class="th-select" disabled><option>读取中</option></select></label>
-              <label>来源 / 用途<select id="image-catalog-source" class="th-select"><option value="">全部来源</option><option value="local">本地上传</option><option value="snapshot">快照</option><option value="cci">云容器实例</option><option value="copy">拷贝</option><option value="unknown">未知来源</option></select></label>
               <label class="image-search">搜索镜像<span class="history-search-control"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="image-catalog-search" type="search" placeholder="名称、Tag、环境；空格组合关键词" autocomplete="off"></span></label>
               <details id="image-environment-details" class="image-environment-details" open>
-                <summary>环境筛选 <span id="image-environment-summary">全部环境</span></summary>
-                <div class="image-env-filters" role="group" aria-label="环境筛选">
+                <summary>筛选条件 <span id="image-environment-summary">全部环境</span></summary>
+                <div class="image-env-filters" role="group" aria-label="镜像筛选">
+              <label>命名空间<select id="image-catalog-namespace" class="th-select" disabled><option>读取中</option></select></label>
+              <label>来源 / 用途<select id="image-catalog-source" class="th-select"><option value="">全部来源</option><option value="local">本地上传</option><option value="snapshot">快照</option><option value="cci">云容器实例</option><option value="copy">拷贝</option><option value="unknown">未知来源</option></select></label>
                 <label>CUDA<select id="image-filter-cuda" class="th-select"><option value="">全部</option></select></label>
                 <label>PyTorch<select id="image-filter-pytorch" class="th-select"><option value="">全部</option></select></label>
                 <label>Python<select id="image-filter-python" class="th-select"><option value="">全部</option></select></label>

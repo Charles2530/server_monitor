@@ -14,7 +14,7 @@
   let commandTouched = false, commandRevision = 0, pastePending = false;
   const partitioned = window.MonitorSite?.id === "sensecore";
   const partitionDrafts = new Map();
-  let partitionSelect = null, optionsRequest = 0, optionsLoading = false;
+  let partitionSelect = null, optionsRequest = 0, optionsLoading = false, previewRequest = 0;
   const createDialog = byId("acp-create-dialog"), stopDialog = byId("acp-stop-dialog");
   const dateFormat = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 
@@ -159,17 +159,19 @@
     byId("acp-total").textContent = Number.isSafeInteger(replicas) && replicas > 0 && gpus > 0 && Number.isSafeInteger(replicas * gpus) ? `${replicas * gpus} 张 GPU` : "—";
   }
 
-  function gpuOptions() {
+  function gpuOptions(preserveUnavailable = false) {
     const choice = byId("acp-cluster").value, data = state.options;
     if (!data) return;
     const counts = choice ? (data.clusters || []).find(cluster => cluster.id === choice)?.gpu_options || [] : data.gpu_options;
     const select = byId("acp-gpus"), previous = select.value;
+    const unavailable = preserveUnavailable === true && previous && !counts.some(count => String(count) === previous);
     select.replaceChildren(...counts.map(count => { const option = element("option", "", `${count} 张`); option.value = String(count); return option; }));
+    if (unavailable) { const option = element("option", "", `${previous} 张（已不可用，请重新选择）`); option.value = previous; select.append(option); }
     select.value = previous || String(data.default_gpus_per_replica);
     if (!select.value && counts.length) select.value = String(counts[0]);
     if (!counts.length) { const option = element("option", "", "所选集群不可用，请重新选择"); option.value = ""; select.append(option); }
     select.disabled = !counts.length;
-    select.setCustomValidity(counts.length ? "" : "请选择可用集群。");
+    select.setCustomValidity(!counts.length ? "请选择可用集群。" : unavailable ? "原 GPU 规格已不可用，请重新选择。" : "");
     total();
   }
 
@@ -259,10 +261,12 @@
 
   async function options(requestedPartition = partitionSelect?.value || "", switching = false) {
     const revision = ++optionsRequest;
+    if (!switching) savePartitionDraft();
     const previousCluster = byId("acp-cluster").value;
     const previousGPU = byId("acp-gpus").value;
     optionsLoading = true;
-    byId("acp-options-retry").hidden = true;
+    byId("acp-options-retry").hidden = false;
+    byId("acp-options-retry").disabled = true;
     if (partitioned) {
       state.options = null;
       byId("acp-preview-button").disabled = true;
@@ -313,17 +317,17 @@
       // Seed the GPU value before rebuilding the selected cluster's supported sizes.
       const gpu = byId("acp-gpus"), desiredGPU = draft?.gpu ?? (switching ? String(data.default_gpus_per_replica) : previousGPU);
       if (desiredGPU) { const value = element("option", "", desiredGPU); value.value = desiredGPU; gpu.replaceChildren(value); }
-      gpuOptions();
+      gpuOptions(true);
       byId("acp-preview-button").disabled = state.createUnknown || state.storageError;
       byId("acp-options-status").textContent = `当前模板：${data.template.name} · ${data.template.id}`;
       total();
     } catch (error) {
       if (revision !== optionsRequest) return;
       byId("acp-options-status").textContent = partitioned ? `分区配置读取失败：${error.message} 请重试或切换分区。` : "创建配置暂不可用，请连接云会话后重新读取。监控仍会继续更新。";
-      byId("acp-options-retry").hidden = false;
     } finally {
       if (revision === optionsRequest) {
         optionsLoading = false;
+        byId("acp-options-retry").disabled = false;
         command.disabled = partitioned && !state.options;
         byId("acp-command-paste").disabled = pastePending || (partitioned && !state.options);
       }
@@ -471,13 +475,14 @@
   });
   renderCommand();
   byId("acp-cluster").addEventListener("change", gpuOptions);
+  byId("acp-gpus").addEventListener("change", gpuOptions);
   form.addEventListener("input", total);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!state.options || optionsLoading || state.creating || state.createUnknown || state.storageError) return;
-    if (!byId("acp-gpus").value) { message("acp-message", "请选择可用集群和 GPU 规格。"); return; }
+    if (!byId("acp-gpus").value || !byId("acp-gpus").validity.valid) { message("acp-message", "请选择可用集群和 GPU 规格。"); return; }
     if (imageMode === "private" && !imageSelect.value) { message("acp-message", "请选择完整的私有镜像版本，或切换为沿用模板。"); return; }
-    const button = byId("acp-preview-button");
+    const button = byId("acp-preview-button"), previewRevision = ++previewRequest;
     button.disabled = true; button.textContent = "正在生成预览…";
     message("acp-message", "");
     try {
@@ -486,11 +491,17 @@
       if (imageSelect.value) submission.image_path = imageSelect.value;
       if (partitioned) submission.partition_id = context.partition.id;
       const data = await request("/api/acp/preview", submission);
-      if (revision !== optionsRequest || context !== state.options) return;
+      if (previewRevision !== previewRequest || location.hash !== "#acp" || revision !== optionsRequest || context !== state.options) return;
       showCreatePreview(data, submission.display_name);
-    } catch (error) { message("acp-message", error.message); }
-    finally { button.disabled = optionsLoading || !state.options || state.createUnknown || state.storageError; button.textContent = "预览创建配置"; }
+    } catch (error) { if (previewRevision === previewRequest && location.hash === "#acp") message("acp-message", error.message); }
+    finally { if (previewRevision === previewRequest) resetPreviewButton(); }
   });
+
+  function resetPreviewButton() {
+    const button = byId("acp-preview-button");
+    button.disabled = optionsLoading || !state.options || state.createUnknown || state.storageError;
+    button.textContent = "预览创建配置";
+  }
 
   function showCreatePreview(data, displayName) {
       state.preview = data;
@@ -656,6 +667,7 @@
     document.dispatchEvent(new CustomEvent("acp-restart", { detail: { id: task.id, name: task.name, release: true } }));
   });
   byId("acp-options-retry").addEventListener("click", () => options());
+  byId("refresh-button").addEventListener("click", () => { if (location.hash === "#acp" && !optionsLoading) options(); });
   document.addEventListener("monitor-selection", (event) => { state.selected = event.detail; renderSelected(); });
   document.addEventListener("monitor-snapshot", (event) => { state.snapshot = event.detail.snapshot; state.unavailable = event.detail.unavailable; renderWaiting(); renderSelected(); });
   for (const event of ["workspace-page", "visibilitychange"]) document.addEventListener(event, () => { renderWaiting(); renderSelected(); });
@@ -688,7 +700,10 @@
   function ensureOptions() {
     if (location.hash === "#acp" && !document.hidden && !state.options && !optionsLoading) options();
   }
-  document.addEventListener("workspace-page", ensureOptions);
+  document.addEventListener("workspace-page", () => {
+    if (location.hash !== "#acp") { previewRequest += 1; resetPreviewButton(); }
+    ensureOptions();
+  });
   document.addEventListener("visibilitychange", ensureOptions);
   ensureOptions();
 })();

@@ -186,11 +186,11 @@ class StorageManager:
         for task in tasks:task.cancel()
         await asyncio.gather(*tasks,return_exceptions=True)
 
-    async def snapshot(self):
+    async def snapshot(self,force=False):
         refreshing=bool(self.refresh_task and not self.refresh_task.done())
         due=self.cached is None or time.monotonic()-self.cached_at>=30
         retry_ready=not self.refresh_error or time.monotonic()-self.refresh_checked_at>=30
-        if not refreshing and due and retry_ready:
+        if not refreshing and (force or (due and retry_ready)):
             self.refresh_task=asyncio.create_task(self.refresh_volumes())
             # A visitor can leave while the shared first read is still running.
             self.refresh_task.add_done_callback(lambda t: None if t.cancelled() else t.exception())
@@ -198,7 +198,7 @@ class StorageManager:
             await asyncio.shield(self.refresh_task)
         data=copy.deepcopy(self.cached)
         interval=300 if self.mount_cache and all(v=='ok' for v in self.mount_cache['status'].values()) else 30
-        if (self.mount_task is None or self.mount_task.done()) and (self.mount_cache is None or time.monotonic()-self.mount_checked_at>=interval):
+        if (self.mount_task is None or self.mount_task.done()) and (force or self.mount_cache is None or time.monotonic()-self.mount_checked_at>=interval):
             self.mount_task=asyncio.create_task(self.refresh_mounts(copy.deepcopy(data['volumes'])))
         data['mount_refreshing']=bool(self.mount_task and not self.mount_task.done())
         data['mount_updated_at']=self.mount_updated_at

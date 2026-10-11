@@ -36,21 +36,35 @@
     // Header-only updates must not rebuild unchanged task rows.
     const signature = JSON.stringify([data.status, tasks.length ? null : data.loading, mineOnly,
       tasks.map(task => [task.id, task.name, task.owner, task.cluster, task.gpu_count, task.replicas,
-        task.is_mine, task.gpu_utilization, task.metric_updated_at, task.metric_status,
+        task.is_mine, task.gpu_utilization, task.metric_status,
         task.created_at, task.started_at, task.url])]);
     if (signature === renderedSignature) {
       for (const task of tasks) {
         const row = renderedRows.get(task.id);
         const text = `${data.status === "error" ? "上次观测已运行" : "已运行"} ${duration(task.duration_seconds)}`;
         if (row?._durationNode && row._durationNode.textContent !== text) row._durationNode.textContent = text;
+        const title = `GPU 采样 ${date(task.metric_updated_at)}`;
+        if (row && row.children[3].title !== title) row.children[3].title = title;
       }
       return;
     }
     renderedSignature = signature;
+    const previousRows = renderedRows, focused = document.activeElement;
+    const focusedId = focused.closest("[data-task-id]")?.dataset.taskId;
     renderedRows = new Map();
     const fragment = document.createDocumentFragment();
     for (const [index, task] of tasks.entries()) {
+      const rowSignature = JSON.stringify([index, data.status, task.id, task.name, task.owner, task.cluster,
+        task.gpu_count, task.replicas, task.gpu_utilization, task.metric_status, task.created_at, task.started_at, task.url]);
+      const previous = previousRows.get(task.id);
+      if (previous?._signature === rowSignature) {
+        const text = `${data.status === "error" ? "上次观测已运行" : "已运行"} ${duration(task.duration_seconds)}`;
+        if (previous._durationNode.textContent !== text) previous._durationNode.textContent = text;
+        previous.children[3].title = `GPU 采样 ${date(task.metric_updated_at)}`;
+        renderedRows.set(task.id, previous); fragment.append(previous); continue;
+      }
       const row = node("tr"), identity = node("td", undefined, "waiting-identity");
+      row._signature = rowSignature;
       row.dataset.taskId = task.id;
       const title = node("strong");
       title.append(node("span", known(task.gpu_utilization) ? String(index + 1).padStart(2, "0") : "—", "utilization-rank"), document.createTextNode(task.name || task.id));
@@ -86,16 +100,17 @@
       renderedRows.clear();
     }
     $("utilization-body").replaceChildren(fragment);
+    if (focusedId && focused.tagName === "A") renderedRows.get(focusedId)?.querySelector("a")?.focus({ preventScroll: true });
   }
 
-  async function refresh() {
+  async function refresh(force = false) {
     if (!active || document.hidden || controller) return;
     clearTimeout(timer);
     const request = ++serial, current = new AbortController(); controller = current;
     const timeout = setTimeout(() => current.abort(), 15000);
     let delay = 60000;
     try {
-      const response = await site.fetch("/api/utilization-queue", { signal: current.signal, cache: "no-store" });
+      const response = await site.fetch(`/api/utilization-queue${force ? "?refresh=true" : ""}`, { signal: current.signal, cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "利用率读取失败");
       if (data.site !== site.id || !Array.isArray(data.tasks)) throw new Error("利用率数据与站点不一致");
@@ -127,7 +142,7 @@
   }
   document.addEventListener("workspace-page", event => activate(event.detail));
   document.addEventListener("visibilitychange", () => activate(location.hash.slice(1)));
-  $("refresh-button").addEventListener("click", refresh);
+  $("refresh-button").addEventListener("click", () => refresh(true));
   $("utilization-mine").addEventListener("change", render);
   window.addEventListener("pagehide", () => activate(""));
   activate(location.hash.slice(1));

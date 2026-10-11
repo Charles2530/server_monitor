@@ -144,9 +144,9 @@ class UtilizationQueue:
         finally:
             self.checked_at = time.monotonic()
 
-    async def snapshot(self):
+    async def snapshot(self, force=False):
         loading = bool(self.refresh_task and not self.refresh_task.done())
-        if not loading and (self.checked_at is None or time.monotonic() - self.checked_at >= 60):
+        if not loading and (force or self.checked_at is None or time.monotonic() - self.checked_at >= 60):
             self.refresh_task = asyncio.create_task(self.refresh())
             loading = True
         tasks = copy.deepcopy(self.records)

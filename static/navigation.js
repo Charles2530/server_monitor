@@ -12,6 +12,19 @@
     waiting: ["队列管理", "QUEUES", "查看所有用户的等待任务，以及运行中 ACP 任务的 GPU 利用率排名。"],
   };
   const aliases = { main: "overview", "tasks-section": "tasks", "acp-section": "acp", "waiting-section": "waiting", clusters: "overview", "clusters-section": "overview" };
+  const mobile = window.MonitorTaskContext.mobile, nav = document.querySelector(".sidebar nav");
+  const more = document.createElement("details"), summary = document.createElement("summary"), menu = document.createElement("div");
+  more.id = "mobile-nav-more"; summary.textContent = "••• 更多"; summary.setAttribute("aria-label", "更多页面");
+  const primary = ["overview", "tasks", "tokenhub", "waiting"];
+  for (const link of [...nav.querySelectorAll(".nav-item")]) if (!primary.includes(link.hash.slice(1))) menu.append(link);
+  for (const route of primary) nav.append(nav.querySelector(`[href="#${route}"]`));
+  more.append(summary, menu); nav.append(more);
+  const arrange = () => { more.open = !mobile.matches; };
+  mobile.addEventListener("change", arrange); arrange();
+  const closeMore = (focus = false) => { if (mobile.matches && more.open) { more.open = false; if (focus) summary.focus(); } };
+  document.addEventListener("pointerdown", event => { if (!more.contains(event.target)) closeMore(); });
+  document.addEventListener("keydown", event => { if (event.key === "Escape" && mobile.matches && more.open) { event.preventDefault(); closeMore(true); } });
+  menu.addEventListener("click", event => { if (event.target.closest("a")) closeMore(true); });
   function renderPage() {
     const fragment = location.hash.slice(1) || (window.MonitorTaskContext?.mobile.matches ? "tasks" : "overview");
     const route = Object.hasOwn(pages, fragment) ? fragment : Object.hasOwn(aliases, fragment) ? aliases[fragment] : "overview";
@@ -22,7 +35,12 @@
       link.classList.toggle("active", active);
       if (active) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
     }
+    summary.classList.toggle("active", !primary.includes(route));
+    closeMore(more.contains(document.activeElement));
     const [title, eyebrow, description] = pages[route];
+    const refreshLabel = route === "acp" ? "重新读取 ACP 创建配置" : route === "waiting" ? "刷新等待任务与运行利用率" : `刷新${title}`;
+    document.getElementById("refresh-button").title = refreshLabel;
+    document.getElementById("refresh-button").setAttribute("aria-label", refreshLabel);
     document.getElementById("page-title").textContent = title;
     document.getElementById("page-eyebrow").textContent = `WORKSPACE / ${eyebrow}`;
     document.getElementById("page-description").textContent = description;
@@ -35,6 +53,15 @@
   }
   document.querySelector(".skip-link").addEventListener("click", (event) => {
     event.preventDefault(); document.getElementById("main").focus();
+  });
+  document.querySelector('[href="#clusters-section"].summary-card')?.addEventListener("click", event => {
+    event.preventDefault(); document.getElementById("clusters-section").scrollIntoView({behavior: "instant", block: "start"});
+    document.querySelector("#clusters-section .table-scroll").focus({preventScroll: true});
+  });
+  for (const button of document.querySelectorAll("[data-queue-target]")) button.addEventListener("click", () => {
+    const section = document.getElementById(button.dataset.queueTarget);
+    section.scrollIntoView({behavior: "instant", block: "start"});
+    section.querySelector(".table-scroll").focus({preventScroll: true});
   });
   window.addEventListener("hashchange", renderPage);
   renderPage();

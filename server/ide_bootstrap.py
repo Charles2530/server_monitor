@@ -21,8 +21,8 @@ def _appearance_bundle():
     return ide_appearance.appearance_bundle()
 
 
-def bootstrap_script(instance, address, *, install_optional=True):
-    settings = json.dumps({'instance': instance, 'address': address, 'version': VERSION, 'sha256': SHA256, 'install_optional': install_optional})
+def bootstrap_script(instance, address, *, install_optional=True, download_proxy=None):
+    settings = json.dumps({'instance': instance, 'address': address, 'version': VERSION, 'sha256': SHA256, 'install_optional': install_optional, 'download_proxy': download_proxy})
     bundle = _appearance_bundle()
     if not install_optional:
         bundle = {key: value for key, value in bundle.items() if key != 'payload'}
@@ -35,6 +35,9 @@ def bootstrap_script(instance, address, *, install_optional=True):
 _SCRIPT = r'''
 import fcntl, hashlib, json, os, pathlib, platform, secrets, shutil, socket, subprocess, tarfile, tempfile, time, urllib.request
 s = json.loads(SETTINGS)
+if s.get('download_proxy'):
+    urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHandler(
+        {scheme: s['download_proxy'] for scheme in ('http', 'https')})))
 progress = globals().get('_ilab_report_progress', lambda *args: None)
 if socket.gethostname() != s['instance']:
     raise RuntimeError('容器身份已变化，请刷新任务后重试。')

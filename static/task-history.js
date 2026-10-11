@@ -3,6 +3,18 @@
   const $ = id => document.getElementById(id), site = window.MonitorSite;
   let snapshot = null, page = 1, active = false, controller = null, timer = null, serial = 0;
   let tableSignature = null, readError = "";
+  const filterIds = ["task-history-search", "task-history-kind", "task-history-state", "task-history-size"];
+  const filterKey = `ilab-history-filters:${site.id}`;
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(filterKey) || "{}");
+    for (const id of filterIds) if (typeof saved[id] === "string") {
+      const input = $(id);
+      if (input.tagName !== "SELECT" || [...input.options].some(option => option.value === saved[id])) input.value = saved[id].slice(0, 200);
+    }
+  } catch { /* Filters remain usable when session storage is unavailable. */ }
+  function rememberFilters() {
+    try { sessionStorage.setItem(filterKey, JSON.stringify(Object.fromEntries(filterIds.map(id => [id, $(id).value])))); } catch { /* Optional persistence. */ }
+  }
   const node = (tag, text, className) => {
     const el = document.createElement(tag); if (text !== undefined) el.textContent = text;
     if (className) el.className = className; return el;
@@ -80,13 +92,13 @@
     if (failedSources.length && !warnings.length) warnings.unshift(`${failedSources.join(" / ")} 历史读取失败，当前结果可能不完整。`);
     $("task-history-warning").hidden = !warnings.length; $("task-history-warning").textContent = warnings.join(" ");
   }
-  async function refresh() {
+  async function refresh(force = false) {
     if (!active || document.hidden || controller) return;
     clearTimeout(timer); const request = ++serial, current = new AbortController(); controller = current;
     const timeout = setTimeout(() => current.abort(), 15000); let delay = 60000;
     $("task-history-refresh").disabled = true;
     try {
-      const response = await site.fetch("/api/task-history", { signal: current.signal });
+      const response = await site.fetch(`/api/task-history${force ? "?refresh=true" : ""}`, { signal: current.signal });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "历史读取失败");
       if (!Array.isArray(data.tasks) || data.site !== site.id) throw new Error("历史数据与站点不一致");
@@ -109,15 +121,15 @@
     if (active && !document.hidden) refresh();
     else { serial += 1; controller?.abort(); controller = null; $("task-history-refresh").disabled = false; }
   }
-  for (const id of ["task-history-search", "task-history-kind", "task-history-state", "task-history-size"]) $(id).addEventListener("input", () => { page = 1; render(true); });
+  for (const id of filterIds) $(id).addEventListener("input", () => { page = 1; rememberFilters(); render(true); });
   $("task-history-reset").addEventListener("click", () => {
     for (const id of ["task-history-search", "task-history-kind", "task-history-state"]) $(id).value = "";
-    page = 1; render(true); $("task-history-search").focus();
+    page = 1; rememberFilters(); render(true); $("task-history-search").focus();
   });
   $("task-history-prev").addEventListener("click", () => { page -= 1; render(true); });
   $("task-history-next").addEventListener("click", () => { page += 1; render(true); });
-  $("task-history-refresh").addEventListener("click", refresh);
-  $("refresh-button").addEventListener("click", () => { if (active) refresh(); });
+  $("task-history-refresh").addEventListener("click", () => refresh(true));
+  $("refresh-button").addEventListener("click", () => { if (active) refresh(true); });
   document.addEventListener("workspace-page", event => activate(event.detail));
   document.addEventListener("visibilitychange", () => activate(location.hash.slice(1)));
   activate(location.hash.slice(1));

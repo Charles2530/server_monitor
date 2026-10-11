@@ -17,7 +17,9 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 from websockets.asyncio.client import connect
-from .ide_assets import EditorAssetCache
+from websockets.exceptions import InvalidMessage
+from .cloud_forward import forward_alive
+from .ide_assets import EditorAssetCache, WEBVIEW_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +34,29 @@ FONT_ASSETS = {'fonts.css': 'text/css', **{
 }}
 
 
-async def workbench_response(upstream, headers, parent_origin):
-    # Decorate only the workbench; webview templates keep their shared native cache.
+WEBVIEW_RESOURCE_HTTP = r'''
+// Packaged Codex modules must not queue behind editor RPC traffic (30s timeout).
+(() => {
+  const authority = self.location.host.replace(/[^a-z0-9]/gi,
+    char => '-' + char.charCodeAt(0).toString(16).padStart(4, '0'));
+  const host = 'vscode-remote+' + authority + '.vscode-resource.vscode-cdn.net';
+  self.addEventListener('fetch', event => {
+    const url = new URL(event.request.url);
+    if (event.request.method !== 'GET' || url.protocol !== 'https:' || url.hostname !== host || url.search ||
+        !/^\/(?:[\w.-]+\/)+\.local\/share\/ilab-cci-editor\/extensions\/openai\.chatgpt-[\w.-]+\/webview\/assets\/[\w.-]+\.(?:js|css)$/.test(url.pathname)) return;
+    const endpoint = new URL(self.location.pathname.split('/static/')[0] + '/vscode-remote-resource', self.location.origin);
+    endpoint.searchParams.set('path', url.pathname);
+    event.stopImmediatePropagation();
+    event.respondWith(fetch(endpoint, {credentials: 'same-origin'}).then(response =>
+      // Keep response.url empty so relative module imports retain their original base.
+      new Response(response.body, {status: response.status, headers: response.headers})));
+  });
+})();
+'''
+
+
+async def workbench_response(upstream, headers, parent_origin, *, webview_worker=False):
+    # Share bounded decoding for the workbench and the native webview worker.
     if upstream.headers.get('content-encoding', '').lower() not in ('', 'identity', 'gzip', 'deflate'):
         # Some installations do not have HTTPX's optional Brotli decoder. Preserve
         # unsupported encodings byte-for-byte instead of emitting compressed HTML as text.
@@ -51,7 +74,11 @@ async def workbench_response(upstream, headers, parent_origin):
             return StreamingResponse(remainder(), headers=headers, background=BackgroundTask(upstream.aclose))
     await upstream.aclose()
     content = b''.join(chunks)
-    if b'id="vscode-workbench-web-configuration"' in content and b'</head>' in content:
+    if webview_worker:
+        content = WEBVIEW_RESOURCE_HTTP.encode() + content
+        headers['cache-control'] = 'no-cache'
+        headers.pop('last-modified', None)
+    elif b'id="vscode-workbench-web-configuration"' in content and b'</head>' in content:
         extras = ('<link rel="stylesheet" href="/_ilab_appearance/fonts.css">'
                   '<script src="/_ilab_frame_status.js" data-parent-origin="' + escape(parent_origin, quote=True) + '"></script>')
         content = content.replace(b'</head>', extras.encode() + b'</head>', 1)
@@ -65,7 +92,7 @@ class LocalProxyServer(uvicorn.Server):
 
 
 class EditorProxy:
-    def __init__(self, upstream_port, cookie, parent_origin, *, transport=None, cache_dir=None, repair=None, origin_registry=None, origin_identity=None):
+    def __init__(self, upstream_port, cookie, parent_origin, *, transport=None, cache_dir=None, repair=None, origin_registry=None, origin_identity=None, websocket_forward=None):
         self.upstream = 'http://127.0.0.1:' + str(upstream_port)
         self.cookie = cookie
         self.parent_origin = parent_origin
@@ -81,6 +108,9 @@ class EditorProxy:
         self.active_sockets = 0
         self.assets = EditorAssetCache(cache_dir) if cache_dir is not None else None
         self.repair = repair
+        self.websocket_forward = websocket_forward
+        self.websocket_forward_instance = None
+        self.websocket_forward_lock = asyncio.Lock()
         self.repair_task = None
         self.repair_started = float('-inf')
         self.client = httpx.AsyncClient(timeout=httpx.Timeout(60, connect=10), follow_redirects=False, transport=transport, trust_env=False)
@@ -173,7 +203,8 @@ class EditorProxy:
             return FileResponse(APPEARANCE_ROOT / asset, media_type=FONT_ASSETS[asset], headers={'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff'})
         if path.rstrip('/') in ('/login', '/logout'): return PlainTextResponse('请返回监控网站重新连接编辑器。', 502)
         self.touched = time.monotonic()
-        cache_key = self.assets.key(request) if self.assets else None
+        webview_worker = bool(request.method == 'GET' and WEBVIEW_PATH.fullmatch(path) and path.endswith('/service-worker.js'))
+        cache_key = self.assets.key(request) if self.assets and not webview_worker else None
         cached = await self.assets.get(cache_key) if self.assets else None
         if cached is not None:
             body, headers = cached
@@ -198,6 +229,10 @@ class EditorProxy:
             content = None if bodyless else request.stream()
             outgoing_headers = self.headers(request)
             if path == '/' and request.method == 'GET': outgoing_headers['accept-encoding'] = 'gzip'
+            if webview_worker:
+                outgoing_headers['accept-encoding'] = 'gzip'
+                outgoing_headers.pop('if-none-match', None)
+                outgoing_headers.pop('if-modified-since', None)
             resource = (path.startswith('/_static/') or
                         re.match(r'^/stable-[a-f0-9]{40}/(?:static/|vscode-remote-resource$)', path))
             retryable = bodyless and (resource or path == '/')
@@ -241,6 +276,8 @@ class EditorProxy:
             headers['referrer-policy'] = 'no-referrer'
             if path == '/' and request.method == 'GET' and upstream.status_code == 200 and upstream.headers.get('content-type', '').split(';')[0] == 'text/html':
                 return await workbench_response(upstream, headers, self.parent_origin)
+            if webview_worker and upstream.status_code == 200:
+                return await workbench_response(upstream, headers, self.parent_origin, webview_worker=True)
             stream = self.assets.stream(cache_key, upstream) if self.assets and request.method == 'GET' else upstream.aiter_raw()
             return StreamingResponse(stream, status_code=upstream.status_code, headers=headers, background=BackgroundTask(upstream.aclose))
         except (httpx.HTTPError, OSError) as exc:
@@ -266,6 +303,26 @@ class EditorProxy:
     async def repair_connection(self, failed_upstream=None):
         job = self.start_repair(failed_upstream)
         return await asyncio.shield(job) if job is not None else False
+
+    async def dedicated_websocket_forward(self):
+        """Share one SSH TCP forward across concurrent editor WebSockets."""
+        async with self.websocket_forward_lock:
+            factory = self.websocket_forward
+            if factory is None:
+                return None
+            forward = self.websocket_forward_instance
+            if forward is not None and forward_alive(forward):
+                return forward
+            if forward is not None:
+                await forward.close()
+            forward = factory()
+            try:
+                await forward.start()
+            except BaseException:
+                await forward.close()
+                raise
+            self.websocket_forward_instance = forward
+            return forward
 
     def note_upstream_activity(self, upstream):
         if upstream == self.upstream:
@@ -320,12 +377,27 @@ class EditorProxy:
                 # stream starts, VS Code owns its reconnection/resume protocol.
                 for attempt in range(2):
                     failed_upstream = self.upstream
-                    url = failed_upstream.replace('http:', 'ws:') + ws.scope['raw_path'].decode('ascii')
-                    if ws.url.query: url += '?' + ws.url.query
+                    forward = None
                     try:
-                        remote = await stack.enter_async_context(connect(url, additional_headers={'Cookie': self.cookie}, origin=self.upstream, subprotocols=protocols or None, proxy=None, max_size=16 * 1024 * 1024, open_timeout=15, ping_interval=20, ping_timeout=120))
+                        upstream = failed_upstream
+                        if self.websocket_forward is not None:
+                            # Bulk editor RPC must not block another socket's SSH channel/handshake.
+                            forward = await self.dedicated_websocket_forward()
+                            upstream = 'http://127.0.0.1:' + str(forward.port)
+                        url = upstream.replace('http:', 'ws:') + ws.scope['raw_path'].decode('ascii')
+                        if ws.url.query: url += '?' + ws.url.query
+                        remote = await stack.enter_async_context(connect(url, additional_headers={'Cookie': self.cookie}, origin=upstream, subprotocols=protocols or None, proxy=None, max_size=16 * 1024 * 1024, open_timeout=15, ping_interval=20, ping_timeout=120))
                         break
-                    except Exception:
+                    except Exception as exc:
+                        transport_failed = (isinstance(exc, (OSError, EOFError, asyncio.TimeoutError)) or
+                                            isinstance(exc, InvalidMessage) and isinstance(exc.__cause__, EOFError))
+                        if forward is not None and transport_failed:
+                            # HTTP may still be healthy. Retire only this failed route;
+                            # another handshake may already have replaced it.
+                            async with self.websocket_forward_lock:
+                                if self.websocket_forward_instance is forward:
+                                    self.websocket_forward_instance = None
+                                    await forward.close()
                         if attempt or not await self.repair_connection(failed_upstream): raise
                 await ws.accept(subprotocol=remote.subprotocol)
                 phase = 'relay'
@@ -407,6 +479,9 @@ class EditorProxy:
                     self.server_task.cancel()
                 await asyncio.gather(self.server_task, return_exceptions=True)
         finally:
+            if self.websocket_forward_instance is not None:
+                await self.websocket_forward_instance.close()
+                self.websocket_forward_instance = None
             if self.listener is not None:
                 self.listener.close()
                 self.listener = None

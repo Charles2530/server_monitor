@@ -119,7 +119,10 @@
     byId("status-description").textContent = description;
     byId("last-updated").textContent = snapshot?.updated_at ? `最近采集 ${time(snapshot.updated_at)}` : "等待首次采集";
     if (snapshot?.updated_at) byId("last-updated").dateTime = snapshot.updated_at;
-    byId("connect-button").firstChild.textContent = snapshot?.connected ? "重新连接 " : "连接会话 ";
+    const connect = byId("connect-button");
+    connect.firstChild.textContent = snapshot?.connected ? "重新连接 " : "连接会话 ";
+    connect.classList.toggle("button-primary", style !== "ok");
+    connect.classList.toggle("button-secondary", style === "ok");
   }
 
   function renderSummary() {
@@ -142,8 +145,9 @@
   function renderOverview(listsKnown) {
     if (document.hidden || byId("overview-view").hidden) return;
     const list = tasks();
+    const expired = list.map(task => ["gpu", "gpu_memory"].map(key => Date.now() - Date.parse(task.metric_updated_at?.[key] || task.updated_at) > 300000));
     const signature = model.snapshot?.updated_at
-      ? JSON.stringify([model.snapshot.updated_at, listsKnown, model.unavailable, model.snapshot.connected, model.snapshot.source_status])
+      ? JSON.stringify([model.snapshot.updated_at, listsKnown, model.unavailable, model.snapshot.connected, model.snapshot.source_status, expired])
       : JSON.stringify([list, visibleClusters(), listsKnown, model.unavailable, model.snapshot?.connected, model.snapshot?.source_status]);
     if (signature === model.overviewSignature) return;
     model.overviewSignature = signature;
@@ -235,6 +239,7 @@
       return;
     }
     if (!list.some((task) => task.id === model.selected)) model.selected = list[0].id;
+    const focusedId = [...taskCards].find(([, entry]) => entry.card === document.activeElement)?.[0];
     const nextCards = new Map();
     for (const task of list) {
       const signature = JSON.stringify([task, model.snapshot?.source_status?.[task.kind]?.status]);
@@ -253,6 +258,7 @@
     for (const child of [...container.children]) if (!retained.has(child)) container.removeChild(child);
     cards.forEach((card, index) => { if (container.children[index] !== card) container.insertBefore(card, container.children[index] || null); });
     taskCards = nextCards; taskEmptySignature = null;
+    if (focusedId && taskCards.has(focusedId)) taskCards.get(focusedId).card.focus({ preventScroll: true });
   }
 
   function createTaskCard(task) {
@@ -606,7 +612,7 @@
   }));
   byId("task-search").addEventListener("input", (event) => { model.search = event.target.value.trim().toLocaleLowerCase(); renderTasks(); renderDetail(); loadHistory(); });
   byId("refresh-button").addEventListener("click", () => {
-    if (!["#tokenhub", "#images"].includes(location.hash)) action("refresh-button", "/api/refresh", "已请求刷新。采集完成后，页面会自动更新。");
+    if (["#overview", "#tasks", "#waiting"].includes(location.hash)) action("refresh-button", "/api/refresh", "已请求刷新。采集完成后，页面会自动更新。");
   });
   byId("connect-button").addEventListener("click", () => action("connect-button", "/api/connect", "自动登录已开始，连接状态将自动更新。"));
   document.addEventListener("monitor-task-renamed", event => {

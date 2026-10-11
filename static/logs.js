@@ -4,6 +4,26 @@
   const byId = (id) => document.getElementById(id);
   const state = { task: null, tab: "monitor", generation: 0, controller: null, timer: null, workers: [], updated: null, entries: 0, dataTarget: null };
   const output = byId("logs-output"), workerSelect = byId("logs-worker"), containerSelect = byId("logs-container");
+  let matchIndex = -1;
+  function findLog(next = false) {
+    const query = byId("logs-search").value, text = output.textContent;
+    if (!query) { matchIndex = -1; byId("logs-search-status").textContent = ""; return; }
+    const search = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    search.lastIndex = next ? matchIndex + 1 : 0;
+    let match = search.exec(text);
+    if (!match && next) match = search.exec(text);
+    const index = match?.index ?? -1;
+    matchIndex = index;
+    byId("logs-search-status").textContent = index < 0 ? "未找到" : "已定位 · 暂停跟随";
+    if (index < 0) return;
+    byId("logs-follow").checked = false;
+    const range = document.createRange(), selection = window.getSelection();
+    range.setStart(output.firstChild, index); range.setEnd(output.firstChild, index + query.length);
+    selection.removeAllRanges(); selection.addRange(range);
+    const rect = range.getBoundingClientRect(), bounds = output.getBoundingClientRect();
+    output.scrollTop += rect.top - bounds.top - output.clientHeight / 2;
+    output.scrollLeft += rect.left - bounds.left - output.clientWidth / 2;
+  }
   const errors = { not_connected: "请先连接云会话。", auth_required: "云会话已失效或没有日志权限，请重新连接后刷新。", target_mismatch: "任务或容器身份已变化，请重新选择任务。", logs_unavailable: "日志暂不可用，请稍后刷新。", invalid_request: "日志目标无效，请重新选择任务和容器。" };
   const active = () => state.tab === "logs" && Boolean(state.task) && !byId("tasks-view").hidden && !byId("detail-panel").hidden && !document.hidden;
   const dateFormat = new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric", hour12: false });
@@ -27,7 +47,7 @@
     select.replaceChildren(...values.map((value) => { const option = document.createElement("option"); option.value = value; option.textContent = value; return option; }));
     select.disabled = !values.length;
   }
-  function clearLog() { output.textContent = ""; state.updated = null; state.entries = 0; state.dataTarget = null; message(""); status("正在读取日志…"); }
+  function clearLog() { output.textContent = ""; matchIndex = -1; byId("logs-search-status").textContent = ""; state.updated = null; state.entries = 0; state.dataTarget = null; message(""); status("正在读取日志…"); }
   function containers() {
     const worker = state.workers.find((item) => item.name === workerSelect.value);
     options(containerSelect, worker?.containers || []);
@@ -71,7 +91,7 @@
       // A bounded snapshot only; never interpret remote log text as HTML.
       const bounded = data.text.length > 1024 * 1024;
       const text = data.text.slice(-1024 * 1024), changed = output.textContent !== text;
-      if (changed) output.textContent = text;
+      if (changed) { output.textContent = text; matchIndex = -1; byId("logs-search-status").textContent = byId("logs-search").value ? "日志已更新，按下一处查找" : ""; }
       state.updated = data.updated_at; state.entries = data.entries; state.dataTarget = target;
       if (changed && byId("logs-follow").checked) output.scrollTop = output.scrollHeight;
       message(typeof data.warning === "string" ? data.warning : "");
@@ -114,7 +134,13 @@
   containerSelect.addEventListener("change", () => { invalidate(); clearLog(); refresh(); });
   byId("logs-refresh").addEventListener("click", refresh);
   byId("logs-auto").addEventListener("change", () => { clearTimeout(state.timer); if (byId("logs-auto").checked) schedule(); });
-  byId("logs-follow").addEventListener("change", () => { if (byId("logs-follow").checked) output.scrollTop = output.scrollHeight; });
+  byId("logs-follow").addEventListener("change", () => {
+    byId("logs-search-status").textContent = byId("logs-follow").checked ? "正在跟随底部" : "已暂停跟随";
+    if (byId("logs-follow").checked) output.scrollTop = output.scrollHeight;
+  });
+  byId("logs-search").addEventListener("input", () => findLog());
+  byId("logs-search").addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); findLog(true); } });
+  byId("logs-search-next").addEventListener("click", () => findLog(true));
   byId("logs-copy").addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(output.textContent); message("当前显示的日志已复制。"); }
     catch {

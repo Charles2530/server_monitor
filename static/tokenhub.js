@@ -37,6 +37,8 @@
   let hourlyData = null, hourlySerial = 0, hourlyController = null, hourlyChart = null;
   const lists = { keys: { data: null, controller: null, serial: 0 }, usage: { data: null, controller: null, serial: 0 } };
   let keyCopy = null;
+  const keyRows = new Map();
+  let trendReadAt = 0, hourlyReadAt = 0, trendAccount = null, hourlyAccount = null;
   $("tokenhub-start").value = today(-6);
   $("tokenhub-end").value = today();
   const section = (name) => snapshot?.sections?.[name];
@@ -191,18 +193,21 @@
     $("tokenhub-hourly-chart").setAttribute("aria-label", `近 24 小时费用，${labels[0]} 至 ${labels[23]}，北京时间，已记录费用 ${recorded.length ? money(sum) : "未知"} USD，${recorded.length} 个小时有费用记录`);
   }
 
-  async function loadHourly() {
+  async function loadHourly(force = false) {
     if (!relevant() || route !== "tokenhub" || selectedTab !== "dashboard") return;
     if (!snapshot?.connected) { $("tokenhub-hourly-status").textContent = hourlyData ? "连接已失效，当前为旧数据。" : "请先连接 TokenHub。"; return; }
-    if (hourlyController) return;
+    const account = sectionData("account")?.id;
+    if (hourlyController && !force) return;
+    const cached = !force && hourlyData && hourlyAccount === account && Date.now() - hourlyReadAt < 60000;
+    hourlyController?.abort();
     const controller = new AbortController(), serial = ++hourlySerial; hourlyController = controller;
     const timeout = setTimeout(() => controller.abort(), 65000);
     $("tokenhub-hourly-status").textContent = "正在读取逐小时费用…";
     try {
-      const data = await request("/api/tokenhub/trend?granularity=hour", { signal: controller.signal });
+      const data = cached ? hourlyData : await request("/api/tokenhub/trend?granularity=hour", { signal: controller.signal });
       if (serial !== hourlySerial) return;
       if (!Array.isArray(data.trend) || data.hours !== 24 || !Number.isFinite(Date.parse(data.start_hour)) || Date.parse(data.end_hour) - Date.parse(data.start_hour) !== 23 * 3600000) throw new Error("小时费用格式无法识别。");
-      hourlyData = data;
+      if (!cached) { hourlyData = data; hourlyReadAt = Date.now(); hourlyAccount = account; }
       await window.MonitorCharts.load();
       if (serial !== hourlySerial || !relevant() || route !== "tokenhub" || selectedTab !== "dashboard") return;
       drawHourly();
@@ -213,20 +218,22 @@
     } finally { clearTimeout(timeout); if (serial === hourlySerial) hourlyController = null; }
   }
 
-  async function loadTrend() {
+  async function loadTrend(force = false) {
     if (!relevant() || route !== "tokenhub" || selectedTab !== "dashboard") return;
     if (!snapshot?.connected) { $("tokenhub-trend-status").textContent = trendData ? "连接已失效，当前为旧数据。" : "请先连接 TokenHub。"; return; }
-    if (trendController && trendPendingDays === trendDays) return;
+    const account = sectionData("account")?.id;
+    if (trendController && trendPendingDays === trendDays && !force) return;
+    const cached = !force && trendData?.days === trendDays && trendAccount === account && Date.now() - trendReadAt < 60000;
     trendController?.abort();
     const controller = new AbortController(), serial = ++trendSerial, days = trendDays; trendController = controller;
     trendPendingDays = days;
     const timeout = setTimeout(() => controller.abort(), 65000);
     $("tokenhub-trend-status").textContent = `正在读取近 ${days} 天趋势…`;
     try {
-      const data = await request(`/api/tokenhub/trend?days=${days}`, { signal: controller.signal });
+      const data = cached ? trendData : await request(`/api/tokenhub/trend?days=${days}`, { signal: controller.signal });
       if (serial !== trendSerial) return;
       if (!Array.isArray(data.trend) || data.days !== days) throw new Error("趋势数据格式无法识别。");
-      trendData = data;
+      if (!cached) { trendData = data; trendReadAt = Date.now(); trendAccount = account; }
       await window.MonitorCharts.load();
       if (serial !== trendSerial || !relevant() || route !== "tokenhub" || selectedTab !== "dashboard") return;
       drawTrend();
@@ -329,9 +336,8 @@
     try {
       await request("/api/tokenhub/key-group", { method: "POST", signal: controller.signal, headers: { "X-Monitor-Request": "1", "Content-Type": "application/json" }, body: JSON.stringify({ key_id: options.key.id, group_id: groupId, expected_group_id: options.key.group_id, account_id: options.account_id }) });
       if (serial !== groupSerial) return;
-      closeGroupDialog();
-      lists.keys.serial += 1; lists.keys.controller?.abort(); lists.keys.controller = null;
-      await loadList("keys");
+      resetLists();
+      await loadList("keys", undefined, true);
     } catch (error) {
       if (serial === groupSerial) {
         // A transport error can happen after the upstream write; re-read before retrying.
@@ -347,7 +353,9 @@
 
   function resetLists() {
     clearKeyCopy();
+    keyRows.clear();
     closeGroupDialog();
+    trendReadAt = hourlyReadAt = 0;
     trendSerial += 1; trendController?.abort(); trendController = null; trendData = null; chart?.clear();
     hourlySerial += 1; hourlyController?.abort(); hourlyController = null; hourlyData = null; hourlyChart?.clear();
     $("tokenhub-hourly-summary").textContent = "连接后查看逐小时费用";
@@ -355,7 +363,7 @@
     $("tokenhub-trend-summary").textContent = "连接后查看每日花费趋势";
     $("tokenhub-trend-status").textContent = "";
     for (const [kind, list] of Object.entries(lists)) {
-      cancelList(kind); list.data = null;
+      cancelList(kind); list.data = null; list.readAt = 0; list.cacheKey = null;
       emptyList(kind, "连接后查看详情");
       $(`tokenhub-${kind}-status`).textContent = "";
       $(`tokenhub-${kind}-page`).textContent = "—";
@@ -377,11 +385,15 @@
       const before = sectionData("account")?.id, after = data.sections.account?.data?.id;
       if (before !== after || data.status === "disconnected") resetLists();
       snapshot = data; stateError = null;
+      if (force) {
+        trendReadAt = hourlyReadAt = 0;
+        for (const list of Object.values(lists)) list.readAt = 0;
+      }
       if (!snapshot.connected) clearKeyCopy();
       render();
       if (route === "tokenhub") {
-        if (selectedTab === "dashboard") { void loadTrend(); void loadHourly(); if ($("tokenhub-usage-details").open) void loadList("usage"); }
-        if (selectedTab === "keys") void loadList("keys");
+        if (selectedTab === "dashboard") { void loadTrend(force); void loadHourly(force); if ($("tokenhub-usage-details").open) void loadList("usage", undefined, force); }
+        if (selectedTab === "keys") void loadList("keys", undefined, force);
       }
     } catch (error) {
       if (serial !== stateSerial) return;
@@ -480,78 +492,120 @@
     }
   }
 
+  function keyRow(item, id) {
+    let entry = keyRows.get(id);
+    if (!entry) {
+      const row = node("tr"), identity = cell(""); identity.className = "th-key-identity";
+      const meta = node("div", undefined, "th-key-meta"), group = node("span", "", "th-key-group");
+      const edit = node("button", "调整分组", "th-group-edit"), copy = node("button", "复制密钥", "th-key-copy");
+      edit.type = copy.type = "button";
+      meta.append(group, edit, copy); identity.append(meta);
+      const usage = node("td", undefined, "th-key-usage");
+      for (const label of ["今日", "近30天"]) {
+        const line = node("div", undefined, "th-key-usage-line");
+        line.append(node("span", label), node("strong", "")); usage.append(line);
+      }
+      row.append(identity, cell(""), cell(""), usage, cell(""), cell(""));
+      const labels = ["名称 / 分组", "状态", "当前并发", "用量 USD", "到期时间", "最近使用"];
+      Array.from(row.children).forEach((cell, index) => { cell.dataset.label = labels[index]; });
+      entry = { row, edit, copy, group, item: null };
+      edit.addEventListener("click", () => openGroupDialog(entry.item));
+      copy.addEventListener("click", () => copyKey(entry.item, copy));
+      keyRows.set(id, entry);
+    }
+    const signature = JSON.stringify(item);
+    if (entry.signature === signature) return entry.row;
+    const { row, edit, copy, group } = entry, old = entry.item;
+    entry.item = item; entry.signature = signature;
+    row.children[0].firstElementChild.textContent = item.name || "未命名";
+    group.textContent = item.group_name || "未分组";
+    edit.setAttribute("aria-label", `调整 ${item.name || "未命名"} 的分组`);
+    copy.setAttribute("aria-label", `复制 ${item.name || "未命名"} 的密钥`);
+    edit.disabled = !Number.isInteger(item.id) || item.id <= 0;
+    if (keyCopy?.button !== copy) copy.disabled = edit.disabled;
+    const badge = row.children[1].firstElementChild;
+    badge.textContent = statusName(item.status); badge.className = "th-key-status"; badge.dataset.status = item.status || "unknown";
+    const concurrency = row.children[2].firstElementChild;
+    concurrency.textContent = Number.isInteger(item.current_concurrency) && item.current_concurrency >= 0 ? count(item.current_concurrency) : "—";
+    concurrency.className = "th-concurrency"; concurrency.classList.toggle("is-busy", item.current_concurrency > 0);
+    [item.today_actual_cost, item.last_30_days_actual_cost].forEach((value, index) => {
+      row.children[3].children[index].children[1].textContent = known(value) ? `$${usageFormat.format(value)}` : "—";
+    });
+    for (const [index, key] of [[4, "expires_at"], [5, "last_used_at"]]) if (!old || old[key] !== item[key]) {
+      const cell = dateCell(item[key], key === "expires_at" && item[key] === null ? "未设到期时间" : "—");
+      cell.dataset.label = row.children[index].dataset.label; row.children[index].replaceWith(cell);
+    }
+    return row;
+  }
+
   function renderList(kind, data) {
-    if (kind === "keys") clearKeyCopy();
-    const body = $(`tokenhub-${kind}-body`); body.replaceChildren();
+    const body = $(`tokenhub-${kind}-body`), focused = document.activeElement;
+    const rowIds = data.items.map((item, index) => Number.isInteger(item.id) && item.id > 0 ? item.id : `unknown-${index}`);
+    if (kind === "keys") {
+      const ids = new Set(rowIds);
+      for (const [id, entry] of keyRows) if (!ids.has(id)) {
+        if (keyCopy?.button === entry.copy) clearKeyCopy();
+        entry.row.remove(); keyRows.delete(id);
+      }
+      if (!keyRows.size) body.replaceChildren();
+    } else body.replaceChildren();
     if (!data.items.length) emptyList(kind, kind === "keys" ? "暂无 API Key" : "该日期范围内暂无用量记录");
-    for (const item of data.items) {
-      const row = node("tr");
+    data.items.forEach((item, index) => {
       if (kind === "keys") {
-        const identity = cell(item.name || "未命名"); identity.className = "th-key-identity";
-        const meta = node("div", undefined, "th-key-meta");
-        meta.append(node("span", item.group_name || "未分组", "th-key-group"));
-        const edit = node("button", "调整分组", "th-group-edit"); edit.type = "button";
-        edit.setAttribute("aria-label", `调整 ${item.name || "未命名"} 的分组`);
-        edit.disabled = !Number.isInteger(item.id) || item.id <= 0;
-        edit.addEventListener("click", () => openGroupDialog(item)); meta.append(edit); identity.append(meta);
-        const copy = node("button", "复制密钥", "th-key-copy"); copy.type = "button";
-        copy.setAttribute("aria-label", `复制 ${item.name || "未命名"} 的密钥`);
-        copy.disabled = !Number.isInteger(item.id) || item.id <= 0;
-        copy.addEventListener("click", () => copyKey(item, copy)); meta.append(copy);
-        const usage = node("td", undefined, "th-key-usage");
-        for (const [label, value] of [["今日", item.today_actual_cost], ["近30天", item.last_30_days_actual_cost]]) {
-          const line = node("div", undefined, "th-key-usage-line");
-          line.append(node("span", label), node("strong", known(value) ? `$${usageFormat.format(value)}` : "—")); usage.append(line);
-        }
-        const concurrency = cell(Number.isInteger(item.current_concurrency) && item.current_concurrency >= 0 ? count(item.current_concurrency) : "—");
-        concurrency.firstElementChild.className = "th-concurrency";
-        concurrency.firstElementChild.classList.toggle("is-busy", item.current_concurrency > 0);
-        row.append(identity, cell(statusName(item.status)), concurrency, usage, dateCell(item.expires_at, item.expires_at === null ? "未设到期时间" : "—"), dateCell(item.last_used_at));
+        const row = keyRow(item, rowIds[index]);
+        if (body.children[index] !== row) body.insertBefore(row, body.children[index] || null);
+        return;
       }
-      else {
-        const tokens = node("td", undefined, "th-token-pair");
-        for (const [label, value] of [["输入", item.input_tokens], ["输出", item.output_tokens]]) {
-          const line = node("div"); line.append(node("span", label), node("strong", count(value))); tokens.append(line);
-        }
-        const amount = cell(money(item.actual_cost)); amount.className = "th-usage-cost";
-        row.append(cell(item.model || "未知模型", date(item.created_at)), cell(item.key_name || "—"), tokens, cell(known(item.cache_creation_tokens) && known(item.cache_read_tokens) ? count(item.cache_creation_tokens + item.cache_read_tokens) : "—"), amount);
+      const row = node("tr"), tokens = node("td", undefined, "th-token-pair");
+      for (const [label, value] of [["输入", item.input_tokens], ["输出", item.output_tokens]]) {
+        const line = node("div"); line.append(node("span", label), node("strong", count(value))); tokens.append(line);
       }
-      if (kind === "keys") {
-        const badge = row.children[1].firstElementChild;
-        badge.className = "th-key-status"; badge.dataset.status = item.status || "unknown";
-      }
-      const labels = kind === "keys" ? ["名称 / 分组", "状态", "当前并发", "用量 USD", "到期时间", "最近使用"] : ["时间 / 模型", "API 密钥名称", "输入 / 输出 Token", "缓存 Token", "实际扣费 USD"];
+      const amount = cell(money(item.actual_cost)); amount.className = "th-usage-cost";
+      row.append(cell(item.model || "未知模型", date(item.created_at)), cell(item.key_name || "—"), tokens, cell(known(item.cache_creation_tokens) && known(item.cache_read_tokens) ? count(item.cache_creation_tokens + item.cache_read_tokens) : "—"), amount);
+      const labels = ["时间 / 模型", "API 密钥名称", "输入 / 输出 Token", "缓存 Token", "实际扣费 USD"];
       Array.from(row.children).forEach((item, index) => { item.dataset.label = labels[index]; });
       body.append(row);
-    }
+    });
+    if (kind === "keys" && focused && body.contains(focused) && document.activeElement !== focused) focused.focus({ preventScroll: true });
     $(`tokenhub-${kind}-page`).textContent = `第 ${data.page} / ${data.pages} 页 · ${count(data.total)} 条`;
     $(`tokenhub-${kind}-prev`).disabled = data.page <= 1;
     $(`tokenhub-${kind}-next`).disabled = data.page >= data.pages;
   }
 
-  async function loadList(kind, page) {
+  function listStatus(data) {
+    const range = data.range;
+    return `已更新 ${date(data.updated_at)}${range ? ` · ${range.start_date} 至 ${range.end_date}` : ""}${data.usage_error ? ` · ${data.usage_error}` : ""}`;
+  }
+
+  async function loadList(kind, page, force = false) {
     if (!relevant() || route !== "tokenhub" || !lists[kind]) return;
     if (selectedTab !== (kind === "keys" ? "keys" : "dashboard") || (kind === "usage" && !$("tokenhub-usage-details").open)) return;
     const list = lists[kind];
     if (!snapshot?.connected) {
       $(`tokenhub-${kind}-status`).textContent = list.data ? "连接已失效，当前为旧数据。" : "请先连接 TokenHub。"; return;
     }
-    if (list.controller) return;
-    const serial = ++list.serial, controller = new AbortController(); list.controller = controller;
-    const timeout = setTimeout(() => controller.abort(), 65000);
     page = page ?? list.data?.page ?? 1;
     const params = new URLSearchParams({ page });
     const range = kind === "usage" ? { start_date: $("tokenhub-start").value, end_date: $("tokenhub-end").value } : null;
     if (range) Object.entries(range).forEach(([key, value]) => params.set(key, value));
+    const cacheKey = `${sectionData("account")?.id}:${params}`;
+    if (list.controller && list.pendingKey === cacheKey && !force) return;
+    cancelList(kind);
+    if (!force && list.cacheKey === cacheKey && list.data && Date.now() - list.readAt < 60000) {
+      $(`tokenhub-${kind}-status`).textContent = listStatus(list.data);
+      return;
+    }
+    const serial = ++list.serial, controller = new AbortController(); list.controller = controller; list.pendingKey = cacheKey;
+    const timeout = setTimeout(() => controller.abort(), 65000);
     $(`tokenhub-${kind}-status`).textContent = "正在读取…";
     try {
       const data = await request(`/api/tokenhub/${kind}?${params}`, { signal: controller.signal });
       if (serial !== list.serial) return;
       if (!Array.isArray(data.items) || !known(data.total) || !known(data.page) || !known(data.pages)) throw new Error("列表格式无法识别。");
       const resetScroll = list.data?.page !== data.page || list.data?.range?.start_date !== range?.start_date || list.data?.range?.end_date !== range?.end_date;
-      list.data = { ...data, range }; renderList(kind, data);
+      list.data = { ...data, range }; list.readAt = Date.now(); list.cacheKey = cacheKey; renderList(kind, data);
       if (resetScroll) $(`tokenhub-${kind}-body`).closest(".th-table-scroll").scrollTop = 0;
-      $(`tokenhub-${kind}-status`).textContent = `已更新 ${date(data.updated_at)}${range ? ` · ${range.start_date} 至 ${range.end_date}` : ""}${data.usage_error ? ` · ${data.usage_error}` : ""}`;
+      $(`tokenhub-${kind}-status`).textContent = listStatus(list.data);
     } catch (error) {
       if (serial !== list.serial) return;
       const oldRange = list.data?.range;
@@ -627,11 +681,18 @@
   });
   $("tokenhub-all-quotas").addEventListener("click", () => document.querySelector('[data-tokenhub-tab="quotas"]').click());
   $("tokenhub-usage-details").addEventListener("toggle", () => { if ($("tokenhub-usage-details").open) loadList("usage"); else cancelList("usage"); });
-  window.addEventListener("resize", () => { chart?.resize(); hourlyChart?.resize(); });
+  let resizeFrame = null;
+  function resizeCharts() {
+    if (resizeFrame !== null || !relevant() || route !== "tokenhub" || selectedTab !== "dashboard") return;
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = null;
+      if (!relevant() || route !== "tokenhub" || selectedTab !== "dashboard") return;
+      chart?.resize(); hourlyChart?.resize();
+    });
+  }
+  window.addEventListener("resize", resizeCharts);
   const chartObserver = new ResizeObserver((entries) => {
-    for (const entry of entries) if (entry.contentRect.width && entry.contentRect.height) {
-      (entry.target.id === "tokenhub-hourly-chart" ? hourlyChart : chart)?.resize();
-    }
+    if (entries.some((entry) => entry.contentRect.width && entry.contentRect.height)) resizeCharts();
   });
   for (const id of ["tokenhub-trend-chart", "tokenhub-hourly-chart"]) chartObserver.observe($(id));
   document.addEventListener("appearance-change", () => { if (chart) drawTrend(); if (hourlyChart) drawHourly(); });

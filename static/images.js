@@ -18,27 +18,38 @@
       source: input.mode === "push" ? from : resolve(input.source, from), target: resolve(input.target, to)};
   }
   const environmentFields = {cuda: "CUDA", pytorch: "PyTorch", python: "Python", architecture: "架构"};
-  function imageEnvironmentValue(row, field) {
-    const value = String(row[field] || "").trim();
-    return value ? (field === "architecture" ? value : value.match(/^v?(\d+\.\d+)(?:\D|$)/i)?.[1] || value) : "__unknown__";
-  }
-  function filterImages(rows, source, query, environment = {}) {
-    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    return rows.filter(row => {
-      const text = [row.path, row.name, row.tag, ...Object.keys(environmentFields).map(field => row[field])].join(" ").toLowerCase();
-      return (!source || row.source === source || row.products.includes(source)) && terms.every(term => text.includes(term))
-        && Object.keys(environmentFields).every(field => !environment[field] || imageEnvironmentValue(row, field) === environment[field]);
+  const imageMetadataCache = new WeakMap();
+  function imageMetadata(row) {
+    if (!imageMetadataCache.has(row)) imageMetadataCache.set(row, {
+      text: [row.path, row.name, row.tag, ...Object.keys(environmentFields).map(field => row[field])].join(" ").toLowerCase(),
+      environment: Object.fromEntries(Object.keys(environmentFields).map(field => {
+        const value = String(row[field] || "").trim();
+        return [field, value ? (field === "architecture" ? value : value.match(/^v?(\d+\.\d+)(?:\D|$)/i)?.[1] || value) : "__unknown__"];
+      })),
     });
+    return imageMetadataCache.get(row);
   }
-  function imageFacetOptions(rows, field, source, query, environment) {
-    const counts = new Map(rows.map(row => [imageEnvironmentValue(row, field), 0]));
-    if (environment[field]) counts.set(environment[field], 0);
-    for (const row of filterImages(rows, source, query, {...environment, [field]: ""})) {
-      const value = imageEnvironmentValue(row, field); counts.set(value, counts.get(value) + 1);
+  function imageEnvironmentValue(row, field) {
+    return imageMetadata(row).environment[field];
+  }
+  function imageSelection(rows, source, query, environment = {}) {
+    const fields = Object.keys(environmentFields), terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const counts = Object.fromEntries(fields.map(field => [field, new Map(environment[field] ? [[environment[field], 0]] : [])]));
+    const selected = [];
+    for (const row of rows) {
+      const metadata = imageMetadata(row);
+      for (const field of fields) if (!counts[field].has(metadata.environment[field])) counts[field].set(metadata.environment[field], 0);
+      if ((source && row.source !== source && !row.products.includes(source)) || !terms.every(term => metadata.text.includes(term))) continue;
+      const mismatches = fields.filter(field => environment[field] && metadata.environment[field] !== environment[field]);
+      if (!mismatches.length) selected.push(row);
+      for (const field of fields) if (!mismatches.length || (mismatches.length === 1 && mismatches[0] === field)) {
+        const value = metadata.environment[field]; counts[field].set(value, counts[field].get(value) + 1);
+      }
     }
-    return [...counts].sort(([a], [b]) => a === b ? 0 : a === "__unknown__" ? 1 : b === "__unknown__" ? -1
+    const facets = Object.fromEntries(fields.map(field => [field, [...counts[field]].sort(([a], [b]) => a === b ? 0 : a === "__unknown__" ? 1 : b === "__unknown__" ? -1
       : field === "architecture" ? a.localeCompare(b) : b.localeCompare(a, undefined, {numeric: true}))
-      .map(([value, count]) => ({value, count}));
+      .map(([value, count]) => ({value, count}))]));
+    return {rows: selected, facets};
   }
   const byId = id => document.getElementById(id);
   if (!byId("images-section")) return;
@@ -139,10 +150,11 @@
     const environment = Object.fromEntries(Object.entries(environmentSelects).map(([field, select]) => [field, select.value]));
     const key = JSON.stringify([sourceFilter, query, environment]);
     if (filteredImages !== data.images || filterKey !== key) {
-      filteredRows = filterImages(data.images, sourceFilter, query, environment);
+      const selection = imageSelection(data.images, sourceFilter, query, environment);
+      filteredRows = selection.rows;
       for (const [field, select] of Object.entries(environmentSelects)) {
         const all = element("option", "全部"); all.value = "";
-        select.replaceChildren(all, ...imageFacetOptions(data.images, field, sourceFilter, query, environment).map(({value, count}) => {
+        select.replaceChildren(all, ...selection.facets[field].map(({value, count}) => {
           const label = value === "__unknown__" ? "未知" : field !== "architecture" && /^\d+\.\d+$/.test(value) ? `${value} 系列` : value;
           const option = element("option", `${label} · ${count}`); option.value = value;
           option.disabled = count === 0 && value !== environment[field]; return option;
@@ -151,8 +163,8 @@
       }
       filteredImages = data.images; filterKey = key;
       const selected = Object.entries(environment).filter(([, value]) => value);
-      byId("image-environment-summary").textContent = selected.length ? `已选 ${selected.length} 项 · ${selected
-        .map(([field, value]) => `${environmentFields[field]} ${value === "__unknown__" ? "未知" : value}`).join(" · ")}` : "全部环境";
+      byId("image-environment-summary").textContent = [data.namespace, sourceFilter && (labels[sourceFilter] || sourceFilter), ...selected
+        .map(([field, value]) => `${environmentFields[field]} ${value === "__unknown__" ? "未知" : value}`)].filter(Boolean).join(" · ") || "全部环境";
     }
     const rows = filteredRows;
     byId("image-filter-reset").hidden = !(sourceFilter || query || Object.values(environment).some(Boolean));
