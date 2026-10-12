@@ -26,6 +26,81 @@
   document.addEventListener("pointerdown", event => { if (!more.contains(event.target)) closeMore(); });
   document.addEventListener("keydown", event => { if (event.key === "Escape" && mobile.matches && more.open) { event.preventDefault(); closeMore(true); } });
   menu.addEventListener("click", event => { if (event.target.closest("a")) closeMore(true); });
+  const disclosures = [...document.querySelectorAll("[data-mobile-collapse]")];
+  function arrangeDisclosures() {
+    for (const details of disclosures) {
+      if (mobile.matches && details.contains(document.activeElement)) details.querySelector("summary").focus();
+      details.open = !mobile.matches;
+    }
+  }
+  arrangeDisclosures(); mobile.addEventListener("change", arrangeDisclosures);
+  function filterCounts() {
+    for (const details of disclosures) {
+      const count = details.querySelector("[data-filter-count]");
+      if (!count) continue;
+      const active = [...details.querySelectorAll("input,select")].filter(input => input.type === "checkbox" ? input.checked : Boolean(input.value)).length;
+      count.textContent = active ? `· ${active} 项` : "";
+    }
+  }
+  for (const details of disclosures) details.addEventListener("input", filterCounts);
+  document.getElementById("task-history-reset").addEventListener("click", () => queueMicrotask(filterCounts));
+  // Saved history filters are restored by the following deferred script.
+  document.addEventListener("DOMContentLoaded", filterCounts);
+
+  const accountTools = document.getElementById("tokenhub-account-tools");
+  const closeAccountTools = (focus = false) => {
+    if (!accountTools.open) return;
+    accountTools.open = false;
+    if (focus) accountTools.querySelector("summary").focus();
+  };
+  document.addEventListener("pointerdown", event => { if (!accountTools.contains(event.target)) closeAccountTools(); });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && accountTools.open) { event.preventDefault(); closeAccountTools(true); }
+  });
+  accountTools.addEventListener("click", event => { if (event.target.closest("a,button")) closeAccountTools(true); });
+
+  const refreshButton = document.getElementById("refresh-button");
+  const pageRefresh = {storage: "storage-refresh", history: "task-history-refresh", images: "image-catalog-refresh", acp: "acp-options-retry", tokenhub: "tokenhub-refresh", ssh: "ssh-refresh"};
+  function refreshFeedback() {
+    const local = document.getElementById(pageRefresh[location.hash.slice(1)]);
+    const busy = refreshButton.dataset.requestBusy === "true" || Boolean(local?.disabled);
+    if (refreshButton.disabled !== busy) refreshButton.disabled = busy;
+    refreshButton.setAttribute("aria-busy", String(busy));
+    refreshButton.lastChild.textContent = busy ? "刷新中…" : "立即刷新";
+  }
+  const refreshObserver = new MutationObserver(() => { refreshFeedback(); filterCounts(); });
+  for (const id of Object.values(pageRefresh)) refreshObserver.observe(document.getElementById(id), {attributes:true, attributeFilter:["disabled"]});
+  refreshObserver.observe(refreshButton, {attributes:true, attributeFilter:["disabled", "data-request-busy"]});
+
+  const queueButtons = [...document.querySelectorAll("[data-queue-target]")];
+  function queueCounts() {
+    for (const count of document.querySelectorAll("[data-queue-count]")) {
+      const text = document.getElementById(count.dataset.queueCount).textContent;
+      if (count.textContent !== text) count.textContent = text;
+    }
+  }
+  const queueObserver = new MutationObserver(queueCounts);
+  for (const count of document.querySelectorAll("[data-queue-count]")) queueObserver.observe(document.getElementById(count.dataset.queueCount), {childList:true, characterData:true, subtree:true});
+  function queuePosition() {
+    if (location.hash !== "#waiting" || !mobile.matches) return;
+    const section = document.getElementById("utilization-section");
+    const boundary = section.getBoundingClientRect().top;
+    const padding = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+    const margin = parseFloat(getComputedStyle(section).scrollMarginTop) || 0;
+    const anchor = Math.max(document.querySelector(".sidebar").getBoundingClientRect().bottom, padding) + margin;
+    // The final section may be too short to reach the top anchor before scrolling ends.
+    const atBottom = scrollY > 0 && scrollY + innerHeight >= document.documentElement.scrollHeight - 2;
+    const current = boundary <= anchor + 2 || atBottom ? "utilization-section" : "waiting-section";
+    for (const button of queueButtons) {
+      if (button.dataset.queueTarget === current) button.setAttribute("aria-current", "location");
+      else button.removeAttribute("aria-current");
+    }
+  }
+  let queueFrame = null;
+  window.addEventListener("scroll", () => {
+    if (location.hash !== "#waiting" || queueFrame !== null) return;
+    queueFrame = requestAnimationFrame(() => { queueFrame = null; queuePosition(); });
+  }, {passive:true});
   function renderPage() {
     const fragment = location.hash.slice(1) || (window.MonitorTaskContext?.mobile.matches ? "tasks" : "overview");
     const route = Object.hasOwn(pages, fragment) ? fragment : Object.hasOwn(aliases, fragment) ? aliases[fragment] : "overview";
@@ -38,6 +113,8 @@
     }
     summary.classList.toggle("active", !primary.includes(route));
     closeMore(more.contains(document.activeElement));
+    document.getElementById("main").dataset.page = route;
+    closeAccountTools(accountTools.contains(document.activeElement));
     const [title, eyebrow, description] = pages[route];
     const refreshLabel = route === "acp" ? "重新读取 ACP 创建配置" : route === "waiting" ? "刷新等待任务与运行利用率" : `刷新${title}`;
     document.getElementById("refresh-button").title = refreshLabel;
@@ -51,6 +128,7 @@
     document.title = "iLab Server Monitor";
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     document.dispatchEvent(new CustomEvent("workspace-page", { detail: route }));
+    refreshFeedback(); filterCounts(); queueCounts(); queuePosition();
   }
   document.querySelector(".skip-link").addEventListener("click", (event) => {
     event.preventDefault(); document.getElementById("main").focus();
@@ -63,6 +141,7 @@
     const section = document.getElementById(button.dataset.queueTarget);
     section.scrollIntoView({behavior: "instant", block: "start"});
     section.querySelector(".table-scroll").focus({preventScroll: true});
+    for (const item of queueButtons) { if (item === button) item.setAttribute("aria-current", "location"); else item.removeAttribute("aria-current"); }
   });
   window.addEventListener("hashchange", renderPage);
   renderPage();

@@ -61,12 +61,12 @@ async def stop_process(process):
         await process.wait()
 
 
-async def command(*args, timeout=12):
+async def command(*args, timeout=12, capture_stderr=False):
     process = await asyncio.create_subprocess_exec(*args, stdin=asyncio.subprocess.DEVNULL,
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL, start_new_session=True)
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE if capture_stderr else asyncio.subprocess.DEVNULL, start_new_session=True)
     try:
-        output, _ = await asyncio.wait_for(process.communicate(), timeout)
-        return process.returncode, output
+        output, error = await asyncio.wait_for(process.communicate(), timeout)
+        return (process.returncode, output, error) if capture_stderr else (process.returncode, output)
     finally:
         await stop_process(process)
 
@@ -75,7 +75,9 @@ class SSHCatalog:
     def __init__(self, path=None):
         self.path = Path(path) if path else Path.home() / '.ssh/config'
         self.task = None
-        self.state = {'available': [], 'total': 0, 'checked': 0, 'checked_at': None, 'error': None}
+        self.state = {'available': [], 'unavailable': [], 'verified': [], 'stale': False,
+                      'total': 0, 'checked': 0, 'checked_at': None, 'error': None}
+        self.probe_reasons = {}
         self.host_lock = asyncio.Lock()
         self.host_cache = None
         self.host_read_at = 0
@@ -114,14 +116,34 @@ class SSHCatalog:
         return host
 
     async def probe(self, host):
+        reason = 'connection'
         try:
-            code, output = await command('/usr/bin/ssh', '-T', *self.options(), host['alias'], 'printf ILAB_SSH_OK', timeout=10)
-            return code == 0 and output.endswith(b'ILAB_SSH_OK')
-        except (OSError, asyncio.TimeoutError): return False
+            code, output, error = await command('/usr/bin/ssh', '-T', *self.options(), host['alias'],
+                                                'printf ILAB_SSH_OK', timeout=10, capture_stderr=True)
+            if code == 0 and output.endswith(b'ILAB_SSH_OK'): return True
+            # Only these categories leave the process boundary, never raw SSH diagnostics.
+            message = error.decode(errors='replace').lower()
+            for category, phrases in (
+                ('host_key', ('host key verification failed', 'remote host identification has changed')),
+                ('authentication', ('permission denied', 'no supported authentication')),
+                ('dns', ('could not resolve hostname', 'name or service not known')),
+                ('timeout', ('timed out', 'timeout')),
+                ('network', ('no route to host', 'network is unreachable')),
+            ):
+                if any(phrase in message for phrase in phrases):
+                    reason = category
+                    break
+        except asyncio.TimeoutError: reason = 'timeout'
+        except OSError: reason = 'connection'
+        self.probe_reasons[host['alias']] = reason
+        return False
 
     def refresh(self):
         if self.task and not self.task.done(): return self.snapshot()
-        self.state = {'available': [], 'total': 0, 'checked': 0, 'checked_at': None, 'error': None}
+        previous = self.state
+        self.state = {**previous, 'available': list(previous['available']), 'unavailable': [],
+                      'verified': [], 'stale': bool(previous['available']), 'checked': 0, 'error': None}
+        self.probe_reasons = {}
         async def scan():
             try:
                 hosts = await self.hosts(fresh=True)
@@ -129,18 +151,27 @@ class SSHCatalog:
                 limit = asyncio.Semaphore(6)
                 async def check(host):
                     async with limit:
-                        if await self.probe(host): self.state['available'].append(host)
+                        if await self.probe(host):
+                            self.state['available'] = [old for old in self.state['available'] if old['alias'] != host['alias']] + [host]
+                            self.state['verified'].append(host['alias'])
+                        else:
+                            self.state['unavailable'].append({**host, 'reason': self.probe_reasons.get(host['alias'], 'connection')})
                         self.state['checked'] += 1
                 await asyncio.gather(*(check(host) for host in hosts))
+                self.state['available'] = [host for host in self.state['available'] if host['alias'] in self.state['verified']]
                 self.state['available'].sort(key=lambda host: host['alias'].lower())
+                self.state['unavailable'].sort(key=lambda host: host['alias'].lower())
+                self.state['stale'] = False
                 self.state['checked_at'] = time.time()
             except (OSError, ValueError, ActionError, asyncio.TimeoutError):
+                self.state = {**previous, 'verified': [], 'stale': True}
                 self.state['error'] = '无法读取 SSH 配置，请检查 ~/.ssh/config 后重试。'
         self.task = asyncio.create_task(scan())
         return self.snapshot()
 
     def snapshot(self):
-        return {**self.state, 'available': list(self.state['available']), 'checking': bool(self.task and not self.task.done())}
+        return {**self.state, **{key: list(self.state[key]) for key in ('available', 'unavailable', 'verified')},
+                'checking': bool(self.task and not self.task.done())}
 
     async def close(self):
         if self.task:

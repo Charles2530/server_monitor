@@ -33,6 +33,7 @@
   const byId = (id) => document.getElementById(id);
   const restored = window.MonitorTaskContext?.read() || {};
   const model = { snapshot: null, kind: restored.kind || "all", search: restored.search || "", selected: restored.taskId || restored.selected || null, hours: restored.hours || 1, unavailable: false, fetching: false, historyRequest: 0, chart: null };
+  let overviewRows = new Map();
   let taskCards = new Map(), taskEmptySignature = null, pollTimer = null;
   const verifiedNames = new Map();
   const numberFormat = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 });
@@ -175,9 +176,15 @@
     bar.setAttribute("aria-label", total === null ? "配置 GPU 总量未知" : `配置 GPU 共 ${count(total)} 张，CCI ${count(totals[0])} 张，ACP ${count(totals[1])} 张`);
     byId("allocation-note").textContent = total === null ? "部分任务来源或配置未知，暂不计算分布。" : "配置数量不代表实时 GPU 利用率。";
 
-    const recent = document.createDocumentFragment();
+    const container = byId("overview-task-list"), focused = document.activeElement;
+    const nextRows = new Map();
     for (const task of list.slice().sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0)).slice(0, 6)) {
-      const row = element("button", "overview-task");
+      const rowSignature = JSON.stringify([task, model.unavailable, model.snapshot?.connected, model.snapshot?.source_status?.[task.kind]?.status,
+        ["gpu", "gpu_memory"].map(key => Date.now() - Date.parse(task.metric_updated_at?.[key] || task.updated_at) > 300000)]);
+      const cached = overviewRows.get(task.id);
+      if (cached?.signature === rowSignature) { nextRows.set(task.id, cached); continue; }
+      const row = cached?.row || element("button", "overview-task");
+      row.replaceChildren();
       row.type = "button";
       row.setAttribute("aria-label", `查看 ${task.name || task.id} 的监控`);
       const info = element("span", "overview-task-info");
@@ -201,7 +208,7 @@
         gpuMetrics.append(metric);
       }
       row.append(element("span", `service-icon ${task.kind === "CCI" ? "blue" : "teal"}`, task.kind), info, gpuMetrics, element("span", "row-arrow", "›"));
-      row.addEventListener("click", () => {
+      if (!cached) row.addEventListener("click", () => {
         model.selected = task.id; model.search = ""; model.kind = "all";
         byId("task-search").value = "";
         document.querySelectorAll(".filter-button").forEach((button) => {
@@ -210,10 +217,14 @@
         });
         renderTasks(); renderDetail(); location.hash = "tasks";
       });
-      recent.append(row);
+      nextRows.set(task.id, { row, signature: rowSignature });
     }
-    if (!list.length) recent.append(element("p", "overview-empty", !model.snapshot?.connected ? "连接云会话后查看运行任务" : listsKnown ? "暂无运行任务，创建任务后将在此展示。" : "任务列表暂时未知，等待下一次采集。"));
-    byId("overview-task-list").replaceChildren(recent);
+    const rows = [...nextRows.values()].map(entry => entry.row), retained = new Set(rows);
+    for (const child of [...container.children]) if (!retained.has(child)) child.remove();
+    rows.forEach((row, index) => { if (container.children[index] !== row) container.insertBefore(row, container.children[index] || null); });
+    if (!list.length) container.append(element("p", "overview-empty", !model.snapshot?.connected ? "连接云会话后查看运行任务" : listsKnown ? "暂无运行任务，创建任务后将在此展示。" : "任务列表暂时未知，等待下一次采集。"));
+    overviewRows = nextRows;
+    if (retained.has(focused) && document.activeElement !== focused) focused.focus({ preventScroll: true });
   }
 
   function emptyState(title, description, icon = "▤") {
@@ -247,7 +258,8 @@
       return;
     }
     if (!list.some((task) => task.id === model.selected)) model.selected = list[0].id;
-    const focusedId = [...taskCards].find(([, entry]) => entry.card === document.activeElement)?.[0];
+    const focused = [...taskCards].find(([, entry]) => entry.card === document.activeElement || entry.terminal === document.activeElement);
+    const focusedAction = focused?.[1].terminal === document.activeElement ? "terminal" : "card";
     const nextCards = new Map();
     for (const task of list) {
       const signature = JSON.stringify([task, model.snapshot?.source_status?.[task.kind]?.status]);
@@ -266,7 +278,7 @@
     for (const child of [...container.children]) if (!retained.has(child)) container.removeChild(child);
     cards.forEach((card, index) => { if (container.children[index] !== card) container.insertBefore(card, container.children[index] || null); });
     taskCards = nextCards; taskEmptySignature = null;
-    if (focusedId && taskCards.has(focusedId)) taskCards.get(focusedId).card.focus({ preventScroll: true });
+    if (focused) taskCards.get(focused[0])?.[focusedAction]?.focus({ preventScroll: true });
   }
 
   function createTaskCard(task) {
@@ -300,16 +312,16 @@
     card.append(top, meta, metrics, bottom);
     const id = task.id;
     card.addEventListener("click", () => { model.selected = id; renderTasks(); renderDetail(); loadHistory(); });
-    let root;
+    let root, terminal;
     if (window.MonitorTaskContext && task.kind === "CCI" && task.state === "running" && task.name?.toLowerCase().includes("charles")) {
       root = element("div", "task-card-item");
-      const open = element("a", "mobile-cci-terminal", "打开终端 →");
+      const open = terminal = element("a", "mobile-cci-terminal", "打开终端 →");
       open.href = `/terminal?${new URLSearchParams({site:window.MonitorSite?.id || "maoshanwang",task_id:id,task_view:"monitor"})}`;
       open.setAttribute("aria-label", `打开 ${task.name || id} 的 CCI 终端`);
       open.addEventListener("click", () => window.MonitorTaskContext.remember({selected:id,search:model.search,kind:model.kind,hours:model.hours,scroll:window.scrollY}));
       root.append(card, open);
     }
-    return { card, hint, root };
+    return { card, hint, root, terminal };
   }
 
   function renderClusters() {
@@ -382,7 +394,7 @@
     } catch { /* A task without a trusted console URL simply has no link. */ }
     if (historyVisible()) {
       model.chart?.resize();
-      if (model.chartNeedsRender && model.chartSeries && model.chartTaskId === model.selected) renderChart(model.chartSeries);
+      if (model.chartNeedsRender && model.chartSeries && model.chartTaskId === model.selected && model.chartHours === model.hours) renderChart(model.chartSeries);
     }
   }
 
@@ -390,6 +402,15 @@
     const message = byId("chart-message");
     message.textContent = text || "";
     message.hidden = !text;
+    message.classList.toggle("is-stale", Boolean(model.historyStale && model.chartSeries));
+  }
+
+  function clearHistoryChart() {
+    model.chart?.clear(); model.chartSeries = null; model.historyKey = null;
+    model.chartTaskId = null; model.chartHours = null; model.historyStale = false;
+    model.historyMessage = ""; model.chartEmptyMessage = "";
+    const note = byId("history-sampling-note");
+    if (note) note.textContent = "";
   }
 
   function renderChart(series) {
@@ -399,8 +420,6 @@
     const chartLine = theme.getPropertyValue("--line").trim(), chartSurface = theme.getPropertyValue("--surface").trim();
     const selectedSeries = Array.isArray(series) ? series.filter((item) => METRICS.some((metric) => metric.key === item.metric)) : [];
     const hasValues = selectedSeries.some((item) => Array.isArray(item.points) && item.points.some((point) => Array.isArray(point) && percent(point[1]) !== null));
-    model.chartSeries = series;
-    model.chartTaskId = model.selected;
     // All metrics use the same observed time window, including gaps in a worker's samples.
     let firstSample = Infinity, lastSample = -Infinity;
     for (const item of selectedSeries) {
@@ -419,6 +438,9 @@
     const legendNames = new Map(names.map((name, index) => [name, shortNameCounts.get(shortNames[index]) === 1 ? shortNames[index] : name]));
     const workerCounts = new Map();
     const columns = model.chart.getWidth() < 420 || window.matchMedia("(max-width: 620px)").matches ? 1 : 2;
+    const plotWidth = Math.max(1, model.chart.getWidth() * (columns === 1 ? 1 : 0.46) - (columns === 1 ? 54 : 40));
+    const fullResolution = Boolean(byId("history-full-resolution")?.checked);
+    let rawPointCount = 0, renderedPointCount = 0;
     const rows = 4 / columns;
     const rowGap = model.hours > 1 ? 64 : 54;
     const plotHeight = Math.max(32, (model.chart.getHeight() - 32 - 52 - (rows - 1) * rowGap) / rows);
@@ -457,6 +479,9 @@
         const metricIndex = METRICS.findIndex((metric) => metric.key === item.metric);
         const workerIndex = workerCounts.get(item.metric) || 0;
         workerCounts.set(item.metric, workerIndex + 1);
+        const points = (Array.isArray(item.points) ? item.points : []).filter((point) => Array.isArray(point) && Number.isFinite(point[0])).map((point) => [point[0] * 1000, percent(point[1])]);
+        const plotted = fullResolution ? points : window.MonitorChartSampling.sample(points, plotWidth);
+        rawPointCount += points.length; renderedPointCount += plotted.length;
         return {
           id: `${item.metric}-${index}`,
           name: names[index],
@@ -464,12 +489,15 @@
           showSymbol: false, connectNulls: false, smooth: false,
           lineStyle: { width: 2, type: ["solid", "dashed", "dotted"][workerIndex % 3], opacity: 1 - (workerIndex % 3) * 0.15 },
           emphasis: { focus: "series" },
-          data: (Array.isArray(item.points) ? item.points : []).filter((point) => Array.isArray(point) && Number.isFinite(point[0])).map((point) => [point[0] * 1000, percent(point[1])]),
+          data: plotted,
         };
       }),
     }, true);
     model.chartNeedsRender = false;
-    chartMessage(hasValues ? "" : "所选时间范围还没有有效采样。采集完成后，历史曲线将在这里出现。");
+    model.chartEmptyMessage = hasValues ? "" : "所选时间范围还没有有效采样。采集完成后，历史曲线将在这里出现。";
+    const samplingNote = byId("history-sampling-note");
+    if (samplingNote) samplingNote.textContent = renderedPointCount < rawPointCount ? `按显示宽度展示 ${count(renderedPointCount)} / ${count(rawPointCount)} 个采样点，保留极值与缺口` : "";
+    chartMessage(model.historyMessage || model.chartEmptyMessage);
     return true;
   }
 
@@ -493,8 +521,8 @@
     cancelHistory();
     const requestId = model.historyRequest, controller = new AbortController();
     model.historyController = controller; model.historyPendingKey = key;
-    if (model.chartTaskId !== taskId) { model.chart?.clear(); model.chartSeries = null; model.historyKey = null; }
-    chartMessage("正在读取历史采样…");
+    if (model.chartTaskId !== taskId || model.chartHours !== hours) clearHistoryChart();
+    chartMessage(model.historyStale ? `${model.historyMessage} 正在重试…` : "正在读取历史采样…");
     model.historyPromise = (async () => {
       try {
         const history = await request(`/api/history?task_id=${encodeURIComponent(taskId)}&hours=${hours}`, "GET", controller.signal);
@@ -510,14 +538,26 @@
           if (requestId !== model.historyRequest || !historyVisible() || taskId !== model.selected || hours !== model.hours) return;
           model.chart = library.getInstanceByDom(byId("history-chart")) || library.init(byId("history-chart"), null, { renderer: "canvas" });
         }
-        if (!renderChart(history.series)) return;
+        model.chartSeries = Array.isArray(history.series) ? history.series : [];
+        model.chartTaskId = taskId; model.chartHours = hours;
+        model.historyReadAt = Date.now(); model.historyLastSample = null;
+        for (const item of model.chartSeries) {
+          for (const point of Array.isArray(item.points) ? item.points : []) {
+            if (Array.isArray(point) && Number.isFinite(point[0]) && percent(point[1]) !== null) model.historyLastSample = Math.max(model.historyLastSample || 0, point[0] * 1000);
+          }
+        }
+        model.historyStale = false; model.historyMessage = "";
+        if (!renderChart(model.chartSeries)) return;
         model.historyKey = key;
-        model.historyMessage = byId("chart-message").textContent;
+        model.historyMessage = model.chartEmptyMessage;
       } catch {
         if (requestId !== model.historyRequest) return;
-        model.historyKey = null; model.chartSeries = null;
-        model.chart?.clear();
-        chartMessage("历史采样暂时无法读取，请稍后重试。任务卡片保留最近快照。");
+        model.historyKey = null;
+        model.historyStale = Boolean(model.chartSeries && model.chartTaskId === taskId && model.chartHours === hours);
+        model.historyMessage = model.historyStale
+          ? `历史采样暂时无法读取，保留旧采样。最新采样 ${time(model.historyLastSample)} · 读取于 ${time(model.historyReadAt)}。可重新选择当前时间范围重试。`
+          : "历史采样暂时无法读取，请稍后重试。任务卡片保留最近快照。";
+        chartMessage(model.historyMessage);
       } finally {
         if (requestId === model.historyRequest) {
           model.historyController = null; model.historyPendingKey = null; model.historyPromise = null;
@@ -595,7 +635,7 @@
 
   async function action(buttonId, endpoint, message) {
     const button = byId(buttonId), notice = byId("action-message");
-    button.disabled = true;
+    button.disabled = true; button.dataset.requestBusy = "true";
     notice.hidden = false;
     notice.textContent = endpoint === "/api/connect" ? "正在使用本地 IAM 配置自动连接，请稍候…" : "正在请求新的采集…";
     try {
@@ -604,7 +644,7 @@
       await poll();
     } catch (error) {
       notice.textContent = error.name === "AbortError" ? "请求暂未得到响应，请稍后重试。" : error.message;
-    } finally { button.disabled = false; }
+    } finally { button.disabled = false; button.dataset.requestBusy = "false"; }
   }
 
   document.querySelectorAll(".filter-button").forEach((button) => button.addEventListener("click", () => {
@@ -618,6 +658,9 @@
     document.querySelectorAll(".range-button").forEach((item) => { const selected = item === button; item.classList.toggle("selected", selected); item.setAttribute("aria-pressed", String(selected)); });
     loadHistory();
   }));
+  byId("history-full-resolution")?.addEventListener("change", () => {
+    if (model.chartSeries && model.chartTaskId === model.selected && model.chartHours === model.hours) renderChart(model.chartSeries);
+  });
   byId("task-search").addEventListener("input", (event) => { model.search = event.target.value.trim().toLocaleLowerCase(); renderTasks(); renderDetail(); loadHistory(); });
   byId("refresh-button").addEventListener("click", () => {
     if (["#overview", "#tasks", "#waiting"].includes(location.hash)) action("refresh-button", "/api/refresh", "已请求刷新。采集完成后，页面会自动更新。");
@@ -642,7 +685,7 @@
   document.addEventListener("monitor-refresh", () => poll());
   document.addEventListener("appearance-change", () => {
     model.chartNeedsRender = true;
-    if (historyVisible() && model.chartSeries && model.chartTaskId === model.selected) renderChart(model.chartSeries);
+    if (historyVisible() && model.chartSeries && model.chartTaskId === model.selected && model.chartHours === model.hours) renderChart(model.chartSeries);
   });
   document.addEventListener("workspace-page", (event) => {
     if (event.detail === "overview") { renderSummary(); renderClusters(); }
@@ -666,7 +709,7 @@
       resizePending = false;
       if (!historyVisible()) return;
       model.chart?.resize();
-      if (model.chartSeries && model.chartTaskId === model.selected) renderChart(model.chartSeries);
+      if (model.chartSeries && model.chartTaskId === model.selected && model.chartHours === model.hours) renderChart(model.chartSeries);
     });
   });
   document.addEventListener("visibilitychange", () => {

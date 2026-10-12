@@ -63,7 +63,9 @@ select.terminal-select { min-height: 36px; font-size: 12px; width: 100%; }
 #terminal-ide:active { background: #172d3e; box-shadow: inset 0 1px 3px #0003; }
 #terminal-screen { flex: 1; min-height: 0; min-width: 0; padding: 12px; overflow: hidden; }
 #terminal-mount { width: 100%; height: 100%; }
-#terminal-screen .xterm { height: 100%; }
+/* Keep repeated CJK punctuation at full width in both xterm's measurement
+   spans and rendered rows, so tmux borders stay in their terminal columns. */
+#terminal-screen .xterm { height: 100%; text-spacing-trim: space-all; }
 .terminal-keyboard { padding: 7px 12px 0; border-top: 1px solid #2a3c37; flex-shrink: 0; }
 .terminal-workspace:fullscreen { width: 100vw; height: 100dvh; border-radius: 0; border: 0; }
 /* Setup is spacious before connecting; the live shell keeps the compact toolbar. */

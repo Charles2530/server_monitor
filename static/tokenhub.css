@@ -392,3 +392,20 @@ body:has(#tokenhub-view:not([hidden])) .page-description { display: none; }
   #tokenhub-view .th-hourly-summary > div + div strong { font-size: 22px; }
   #tokenhub-view :is(.th-trend-panel, .th-hourly-panel) .th-section-status { padding-inline: 16px; }
 }
+
+.account-tools { position: relative; }
+.account-tools > summary { display: flex; align-items: center; justify-content: center; min-height: 38px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); color: var(--muted); cursor: pointer; font-size: 12px; }
+.account-tools > summary::after { content: "⌄"; margin-left: 8px; }
+.account-tools > div { position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; display: grid; gap: 6px; min-width: 172px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: var(--dialog-shadow); }
+.account-tools > div .button { justify-content: flex-start; width: 100%; }
+@media (max-width: 760px), (pointer: coarse) and (max-width: 1100px) {
+  #tokenhub-view .th-toolbar { padding: 12px; gap: 8px; }
+  #tokenhub-view .th-toolbar .th-actions { margin-top: 0; padding-top: 8px; }
+  #tokenhub-view .th-account h2 { font-size: 18px; }
+  #tokenhub-view .th-account p { font-size: 11px; }
+  #tokenhub-metrics .th-metric:nth-child(n+3) { padding: 10px 12px; }
+  #tokenhub-metrics .th-metric:nth-child(n+3) strong { margin: 7px 0 4px; font-size: clamp(18px, 5vw, 23px); }
+  #tokenhub-metrics .th-metric:nth-child(n+3) .th-metric-heading svg { display: none; }
+  #tokenhub-metrics .th-metric:nth-child(n+3) small { font-size: 10px; line-height: 1.4; }
+  #tokenhub-account-tools { margin-left: auto; }
+}

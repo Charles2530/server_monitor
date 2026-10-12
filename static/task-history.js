@@ -3,6 +3,14 @@
   const $ = id => document.getElementById(id), site = window.MonitorSite;
   let snapshot = null, page = 1, active = false, controller = null, timer = null, serial = 0;
   let tableSignature = null, readError = "";
+  const taskRows = new Map();
+  const refreshLabel = $("task-history-refresh").textContent;
+  function setBusy(busy) {
+    $("task-history-refresh").disabled = busy;
+    $("task-history-refresh").textContent = busy ? "刷新中…" : refreshLabel;
+    $("task-history-refresh").setAttribute("aria-busy", String(busy));
+    $("task-history-section").setAttribute("aria-busy", String(busy));
+  }
   const filterIds = ["task-history-search", "task-history-kind", "task-history-state", "task-history-size"];
   const filterKey = `ilab-history-filters:${site.id}`;
   try {
@@ -46,13 +54,22 @@
     const failed = Object.values(snapshot.source_status || {}).some(s => s.status === "error");
     const emptyText = rows.length ? null : snapshot.loading ? "正在读取云端历史任务…" : failed ? "历史数据未完整获取，可刷新重试" : snapshot.tasks.length ? "没有匹配的历史任务" : "暂无符合条件的历史任务";
     const signature = JSON.stringify([pageRows, emptyText]), changed = signature !== tableSignature;
-    const body = $("task-history-body"); if (changed) { tableSignature = null; body.replaceChildren(); }
+    const body = $("task-history-body"), nextRows = [];
+    const scroll = $("task-history-section").querySelector(".table-scroll"), scrollTop = scroll.scrollTop, scrollLeft = scroll.scrollLeft;
+    const focused = document.activeElement;
+    const liveKeys = new Set(snapshot.tasks.map(task => `${task.kind}:${task.id}`));
+    for (const key of taskRows.keys()) if (!liveKeys.has(key)) taskRows.delete(key);
     if (changed && !rows.length) {
       const cell = node("td", emptyText, "table-empty");
-      cell.colSpan = 6; const row = node("tr"); row.append(cell); body.append(row);
+      cell.colSpan = 6; const row = node("tr"); row.append(cell); nextRows.push(row);
     }
     for (const task of changed ? pageRows : []) {
-      const row = node("tr"), identity = node("td"), state = node("td"), resources = node("td"), created = node("td"), ended = node("td"), action = node("td");
+      const key = `${task.kind}:${task.id}`, rowSignature = JSON.stringify(task);
+      let record = taskRows.get(key);
+      if (record?.signature === rowSignature) { nextRows.push(record.row); continue; }
+      if (!record) { record = { row: node("tr"), action: node("td") }; taskRows.set(key, record); }
+      record.task = task;
+      const row = record.row, identity = node("td"), state = node("td"), resources = node("td"), created = node("td"), ended = node("td"), action = record.action;
       const identityText = node("div", undefined, "history-identity-text"), identityGroup = node("div", undefined, "history-identity");
       identityText.append(node("strong", task.name || task.id), node("small", task.id, "history-task-id"));
       identityGroup.append(node("span", task.kind || "—", `history-service ${task.kind === "ACP" ? "acp" : "cci"}`), identityText);
@@ -63,24 +80,42 @@
       if (!task.started_at && task.run_evidence === "observed") created.append(node("small", "本机曾观测到运行"));
       ended.append(node("span", date(task.ended_at)), node("small", `运行 ${duration(task.duration_seconds)}`, "history-duration"));
       if (!task.ended_at) ended.append(node("small", `最近更新 ${date(task.updated_at)}`));
+      let validUrl = null;
       try {
         const url = new URL(task.url), origin = site.id === "sensecore" ? "https://console.sensecore.cn" : "https://console.ms-sc-01.maoshanwangtech.com";
         if (url.origin === origin && !url.username && !url.password) {
-          const link = node("a", "跳转任务 ↗", "text-link"); link.href = url.href; link.target = "_blank"; link.rel = "noopener noreferrer"; action.append(link);
+          validUrl = url.href;
         }
       } catch { /* Unknown destinations remain plain text. */ }
-      if (task.kind === "ACP") {
+      if (validUrl) {
+        if (!record.link) {
+          record.link = node("a", "跳转任务 ↗", "text-link"); record.link.target = "_blank"; record.link.rel = "noopener noreferrer";
+          action.insertBefore(record.link, action.firstChild);
+        }
+        record.link.href = validUrl;
+      } else if (record.link) { record.link.remove(); record.link = null; }
+      if (task.kind === "ACP" && !record.restart) {
         const restart = node("button", "重新启动", "button button-secondary"); restart.type = "button";
-        restart.addEventListener("click", () => document.dispatchEvent(new CustomEvent("acp-restart", { detail: { id: task.id, name: task.name } })));
-        action.append(restart);
+        restart.addEventListener("click", () => document.dispatchEvent(new CustomEvent("acp-restart", { detail: { id: record.task.id, name: record.task.name } })));
+        record.restart = restart; action.append(restart);
       }
       const cells = [identity, state, resources, created, ended, action];
       const labels = ["任务", "状态", "集群 / 资源", "创建 / 开始时间", "结束时间 / 运行时长", "操作"];
       cells.forEach((cell, i) => { cell.dataset.label = labels[i]; });
-      row.append(...cells); body.append(row);
+      cells.forEach((cell, index) => {
+        if (!row.children[index]) row.append(cell);
+        else if (row.children[index] !== cell) row.replaceChild(cell, row.children[index]);
+      });
+      record.signature = rowSignature; nextRows.push(row);
+    }
+    if (changed) {
+      const wanted = new Set(nextRows);
+      for (const row of [...body.children]) if (!wanted.has(row)) row.remove();
+      nextRows.forEach((row, index) => { if (body.children[index] !== row) body.insertBefore(row, body.children[index] || null); });
+      if (focused !== document.activeElement && focused?.isConnected && body.contains(focused)) focused.focus({ preventScroll: true });
     }
     tableSignature = signature;
-    if (resetScroll) $("task-history-section").querySelector(".table-scroll").scrollTop = 0;
+    scroll.scrollTop = resetScroll ? 0 : scrollTop; scroll.scrollLeft = scrollLeft;
     const sources = Object.entries(snapshot.source_status || {}).map(([kind, s]) => `${kind} ${s.status === "error" ? "读取失败 · " : ""}${date(s.updated_at)}`).join("；");
     $("task-history-status").textContent = `${readError ? "读取失败 · 当前为旧结果" : snapshot.loading ? "正在更新，已取得的结果先显示" : "历史读取完成"} · ${sources}`;
     const excluded = snapshot.filtered_stopped || {};
@@ -96,7 +131,7 @@
     if (!active || document.hidden || controller) return;
     clearTimeout(timer); const request = ++serial, current = new AbortController(); controller = current;
     const timeout = setTimeout(() => current.abort(), 15000); let delay = 60000;
-    $("task-history-refresh").disabled = true;
+    setBusy(true);
     try {
       const response = await site.fetch(`/api/task-history${force ? "?refresh=true" : ""}`, { signal: current.signal });
       const data = await response.json();
@@ -113,13 +148,13 @@
       if (!snapshot) { const cell = node("td", "历史数据未获取", "table-empty"), row = node("tr"); cell.colSpan = 6; row.append(cell); $("task-history-body").replaceChildren(row); }
     } finally {
       clearTimeout(timeout);
-      if (request === serial) { controller = null; $("task-history-refresh").disabled = false; if (active && !document.hidden) timer = setTimeout(refresh, delay); }
+      if (request === serial) { controller = null; setBusy(false); if (active && !document.hidden) timer = setTimeout(refresh, delay); }
     }
   }
   function activate(route) {
     active = route === "history"; clearTimeout(timer);
     if (active && !document.hidden) refresh();
-    else { serial += 1; controller?.abort(); controller = null; $("task-history-refresh").disabled = false; }
+    else { serial += 1; controller?.abort(); controller = null; setBusy(false); }
   }
   for (const id of filterIds) $(id).addEventListener("input", () => { page = 1; rememberFilters(); render(true); });
   $("task-history-reset").addEventListener("click", () => {

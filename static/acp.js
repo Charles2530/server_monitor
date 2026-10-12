@@ -157,6 +157,7 @@
   function total() {
     const replicas = Number(byId("acp-replicas").value), gpus = Number(byId("acp-gpus").value);
     byId("acp-total").textContent = Number.isSafeInteger(replicas) && replicas > 0 && gpus > 0 && Number.isSafeInteger(replicas * gpus) ? `${replicas * gpus} 张 GPU` : "—";
+    byId("acp-resource-total").textContent = byId("acp-total").textContent;
   }
 
   function gpuOptions(preserveUnavailable = false) {
@@ -696,7 +697,7 @@
     });
   }
   const config = element("dl", "acp-preview-details"); config.id = "acp-template-config";
-  controls.append(config);
+  byId("acp-template-details").append(config);
   function ensureOptions() {
     if (location.hash === "#acp" && !document.hidden && !state.options && !optionsLoading) options();
   }

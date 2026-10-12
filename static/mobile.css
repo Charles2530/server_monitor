@@ -47,6 +47,28 @@
   .status-banner div > span { font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
   .status-banner time { display: block; grid-column: 2; font-size: 11px; color: inherit; opacity: .75; }
   .status-ok div > span { display: none; }
+  :root[data-theme] .status-banner.status-ok { grid-template-columns: 18px auto minmax(0, 1fr); align-items: center; padding: 7px 10px; margin-bottom: 12px; gap: 6px; }
+  .status-banner.status-ok time { grid-column: auto; text-align: right; font-size: 10px; }
+  .status-banner.status-ok .status-symbol { width: 18px; height: 18px; }
+  .main-content:has(.status-ok) #connect-button { display: none; }
+  .main-content :is(#storage-refresh, #task-history-refresh, #tokenhub-refresh, #image-catalog-refresh, #ssh-refresh) { display: none; }
+  .responsive-details { display: block; min-width: 0; }
+  .responsive-details > summary { display: flex; align-items: center; gap: 5px; min-height: 40px; border-radius: 8px; }
+  .responsive-details > summary::before { content: "▸"; color: var(--muted); }
+  .responsive-details[open] > summary::before { content: "▾"; }
+  .filter-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding-top: 4px; }
+  .filter-options label { font-size: 11px; }
+  .filter-options select { width: 100%; min-width: 0; }
+  #storage-filter-details { width: 100%; }
+  #storage-filter-details .storage-related { align-self: end; padding-top: 0; min-height: 44px; font-size: 11px; }
+  #history-filter-details { flex: 1 1 100%; }
+  #history-filter-details .filter-options { padding-bottom: 4px; }
+  #acp-template-details { border-top: 1px solid var(--line); margin-top: 10px; }
+  #acp-template-details #acp-template-config { margin-top: 0; }
+  .queue-jumps button[aria-current="location"] { color: var(--accent-strong); background: var(--accent-soft); border-color: var(--accent-line); }
+  .queue-jumps [data-queue-count] { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .tasks-view .chart-wrap:has(#chart-message.is-stale:not([hidden])) { height: auto; }
+
   .overview-heading { gap: 8px; margin-bottom: 12px; }
   .overview-heading h2 { font-size: 16px; }
   .overview-heading p { display: none; }
@@ -167,6 +189,9 @@
   .acp-form input, .acp-form select, .storage-filters input[type="search"], .storage-filters select { min-height: 44px; font-size: 14px; }
   .acp-resource-fields { gap: 14px 10px; }
   .acp-helper { font-size: 11px; }
+  #acp-section > .acp-helper { margin-bottom: 10px; padding: 8px 10px; }
+  #acp-options-retry { min-height: 34px; padding-block: 5px; margin-bottom: 10px; }
+  #acp-section .form-block-heading { margin-bottom: 12px; }
   .acp-form label { font-size: 12px; }
   #acp-template-config { padding: 12px; }
   .acp-preview-details { grid-template-columns: minmax(0, 1fr); gap: 4px; }
@@ -184,21 +209,24 @@
   .dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; position: sticky; bottom: -18px; margin-top: 16px; padding: 12px 0; background: #fff; }
   .dialog-actions .button { flex: 1 1 110px; min-height: 44px; }
   .restart-command { max-height: 45dvh; min-height: 180px; font-size: 13px; }
-  #storage-section .storage-filters { margin: 0 12px 12px; padding: 12px; }
+  #storage-section .storage-filters { margin: 0 12px 10px; padding: 10px 12px; gap: 2px; }
   .storage-filters > label { width: 100%; min-width: 0; }
-  #storage-section .storage-summary { grid-template-columns: minmax(0, 1fr); margin: 12px; gap: 8px; }
-  .storage-summary > div { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 5px; padding: 12px; }
-  .storage-summary strong { font-size: 20px; }
-  .storage-summary small { grid-column: 1 / -1; font-size: 11px; }
-  .storage-actions { display: flex; gap: 8px; width: 100%; }
+  #storage-section .storage-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 10px 12px; gap: 6px; }
+  #storage-section .storage-summary > div { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 4px; padding: 10px 8px; border-radius: 9px; }
+  #storage-section .storage-summary strong { font-size: clamp(16px, 4.6vw, 20px); white-space: normal; overflow-wrap: anywhere; }
+  #storage-section .storage-summary small { grid-column: 1; font-size: 10px; line-height: 1.4; }
+  #storage-section .storage-summary > div > span { font-size: 10px; }
+  .storage-actions { display: flex; gap: 8px; width: auto; }
   .storage-actions .button { flex: 1; }
   #storage-status, #task-history-status { margin-inline: 14px; overflow-wrap: anywhere; }
   .storage-mount { overflow-wrap: anywhere; }
-  .history-summary { margin: 0 12px 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .history-stat { padding: 12px; }
+  #task-history-section .history-summary { margin: 0 12px 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  #task-history-section .history-stat { padding: 9px 6px; grid-template-columns: minmax(0, 1fr); gap: 6px; border: 1px solid var(--line); }
+  #task-history-section .history-stat strong { font-size: 21px; }
+  #task-history-section .history-stat > span { font-size: 10px; gap: 4px; }
   .history-stat:nth-child(3) { border-left: 0; }
   .history-stat:nth-child(n+3) { border-top: 1px solid #e0eae4; }
-  .task-history-filters { margin: 0 12px 12px; padding: 12px; }
+  #task-history-section .task-history-filters { margin: 0 12px 10px; padding: 10px 12px; gap: 2px 8px; }
   .task-history-filters > label { flex: 1 1 90px; }
   .task-history-filters input, .task-history-filters select, .history-search-control { min-height: 42px; font-size: 13px; }
   .task-history-table td:last-child .button { min-height: 40px; margin: 0; font-size: 12px; }
