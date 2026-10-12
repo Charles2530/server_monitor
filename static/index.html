@@ -134,10 +134,14 @@
       </div>
       </div>
       <section id="ssh-view" class="workspace-view" data-page="ssh" hidden>
-        <div class="ssh-toolbar"><div><h2>可用服务器 <span id="ssh-count" class="subtle-badge">0</span></h2><p id="ssh-status" role="status" aria-live="polite">进入页面后自动检测 SSH 连接</p></div><button id="ssh-refresh" class="button button-secondary" type="button">重新检测</button></div>
+        <div class="ssh-toolbar">
+          <div class="ssh-summary"><span class="ssh-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6.5h.01M7 17.5h.01M11 6.5h6M11 17.5h6"/></svg></span><div><h2>可用服务器 <span id="ssh-count">0</span></h2><p id="ssh-status" role="status" aria-live="polite">进入页面后自动检测 SSH 连接</p></div></div>
+          <button id="ssh-refresh" class="button button-secondary" type="button"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17"/></svg><span id="ssh-refresh-label">重新检测</span></button>
+          <progress id="ssh-progress" max="1" value="0" aria-label="SSH 连通性检测进度" hidden></progress>
+        </div>
         <div id="ssh-servers" class="ssh-grid" aria-label="可用 SSH 服务器"></div>
         <p id="ssh-empty" class="ssh-empty">正在准备检测…</p>
-        <p class="ssh-note">读取本机 ~/.ssh/config · 仅展示本次 SSH 登录成功的服务器</p>
+        <p class="ssh-note"><span>本机 SSH 配置 <code>~/.ssh/config</code></span><span>仅展示本次 SSH 登录成功的服务器</span></p>
       </section>
       <section id="tokenhub-view" class="workspace-view th-page" data-page="tokenhub" hidden>
         <div class="th-toolbar"><div class="th-account"><span class="th-account-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v5l5 11a1.5 1.5 0 0 1-1.4 2H5.4A1.5 1.5 0 0 1 4 19L9 8V3M8 3h8M7 15h10"/></svg></span><div><h2 id="tokenhub-account">我的 API 资源</h2><p id="tokenhub-status" role="status" aria-live="polite">正在读取账户状态…</p></div></div><div class="th-actions"><button type="button" class="button button-primary" data-tokenhub-connect>连接 TokenHub</button><button id="tokenhub-refresh" type="button" class="button button-secondary">刷新数据</button><a class="button button-secondary" href="https://tokenhub.ilab.beer/dashboard" target="_blank" rel="noopener noreferrer">打开原站 ↗</a><button id="tokenhub-disconnect" type="button" class="button button-secondary" hidden>断开本机连接</button></div></div>
