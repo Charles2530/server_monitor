@@ -45,6 +45,7 @@
   <link rel="stylesheet" href="/static/visual-tokens.css">
   <link rel="stylesheet" href="/static/visual-refresh.css">
     <link rel="stylesheet" href="/static/mobile-task-workspace.css">
+    <link rel="stylesheet" href="/static/overview.css">
   </head>
   <body>
     <a class="skip-link" href="#main">跳到主要内容</a>
@@ -81,13 +82,15 @@
       <div id="acp-message" class="acp-notice" role="status" aria-live="polite" hidden></div>
       <div class="acp-resume-actions"><button id="acp-create-resume" class="button button-secondary" type="button" hidden>核对此次创建结果</button><button id="acp-stop-resume" class="button button-secondary" type="button" hidden>核对此次停止结果</button></div>
       <div id="overview-view" class="workspace-view" data-page="overview">
-      <div class="overview-heading"><div><h2>算力概况</h2></div><a class="button button-primary" href="#acp"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>创建 ACP 任务</a></div>
+      <div class="overview-heading"><div><h2>算力概况</h2><p>任务、资源与用量，一览掌握</p></div><a class="button button-primary" href="#acp"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>创建 ACP 任务</a></div>
       <section class="summary-grid" aria-label="资源概览">
         <a class="summary-card" href="#tasks"><div class="summary-label">运行任务<span class="summary-icon blue" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span></div><div class="summary-number"><span id="summary-tasks">—</span><small>个</small></div><div class="summary-foot" id="summary-services">CCI — <span>·</span> ACP —</div></a>
         <a class="summary-card" href="#tasks"><div class="summary-label">任务配置 GPU<span class="summary-icon purple" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg></span></div><div class="summary-number"><span id="summary-gpus">—</span><small>张</small></div><div class="summary-foot">当前运行任务的配置总量</div></a>
         <a class="summary-card" href="#clusters-section"><div class="summary-label">集群可用 GPU<span class="summary-icon teal" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6.5h.01M7 17.5h.01M15 6.5h3M15 17.5h3"/></svg></span></div><div class="summary-number"><span id="summary-available">—</span><small>张</small></div><div class="summary-foot" id="summary-clusters">等待标准集群资源数据</div></a>
         <a class="summary-card" href="#waiting"><div class="summary-label">等待与启动<span class="summary-icon amber" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span></div><div class="summary-number"><span id="summary-waiting">—</span><small>个</small></div><div class="summary-foot" id="summary-queue-note">CCI / ACP · 工作空间全部用户</div></a>
       </section>
+
+
 
       <section id="clusters-section" class="section-block cluster-panel">
         <div class="section-heading"><div><h2>标准集群资源</h2></div><span class="subtle-badge">STANDARD CLUSTER</span></div>
@@ -103,24 +106,39 @@
         <div id="tokenhub-summary-quotas" class="th-summary-quotas"></div>
         <div class="th-summary-footer"><span id="tokenhub-summary-status">正在读取 TokenHub…</span><button type="button" class="button button-secondary" data-tokenhub-connect>连接 TokenHub</button></div>
       </section>
-
       <div class="overview-panels">
-<section class="dashboard-panel recent-panel" aria-labelledby="recent-title"><div class="panel-heading"><div><h2 id="recent-title">运行任务速览</h2></div><a class="panel-link" href="#tasks">全部任务 <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a></div><div id="overview-task-list" class="overview-task-list"><p class="overview-empty">正在读取任务快照</p></div></section>
-<div class="overview-aside"><section class="dashboard-panel allocation-panel" aria-labelledby="allocation-title">
-          <div class="panel-heading"><div><h2 id="allocation-title">任务 GPU 分布</h2></div><span class="panel-label">ALLOCATION</span></div>
-          <div class="allocation-content"><div class="allocation-ring" id="allocation-ring" role="img" aria-label="等待 GPU 配置数据"><div><strong id="allocation-total">—</strong><span>配置 GPU / 张</span></div></div><div class="allocation-legend"><div><span class="legend-dot cci"></span><span>CCI 应用<small id="allocation-cci-tasks">— 个运行任务</small></span><strong id="allocation-cci">—<small>张</small></strong></div><div><span class="legend-dot acp"></span><span>ACP 任务<small id="allocation-acp-tasks">— 个运行任务</small></span><strong id="allocation-acp">—<small>张</small></strong></div><p id="allocation-note">配置数量不代表实时 GPU 利用率。</p></div></div>
+        <section class="dashboard-panel recent-panel" aria-labelledby="recent-title"><div class="panel-heading"><div class="overview-panel-title"><span class="overview-panel-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></span><div><h2 id="recent-title">运行任务速览 <span id="overview-task-count" class="overview-task-count">—</span></h2><p>查看最近任务与资源使用情况</p></div></div><a class="panel-link" href="#tasks">全部任务 <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a></div><div id="overview-task-list" class="overview-task-list"><p class="overview-empty">正在读取任务快照</p></div></section>
+        <section class="dashboard-panel allocation-panel" aria-labelledby="allocation-title">
+          <div class="panel-heading"><div class="overview-panel-title"><span class="overview-panel-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6" height="16" rx="2"/><rect x="14" y="4" width="6" height="10" rx="2"/><path d="M14 18h6"/></svg></span><div><h2 id="allocation-title">任务 GPU 分布</h2><p>运行任务的配置构成</p></div></div><span class="allocation-caption">CCI / ACP</span></div>
+          <div class="allocation-cards">
+            <div class="allocation-summary">
+              <span class="allocation-summary-label">配置 GPU 总量</span>
+              <div class="allocation-total-value"><strong id="allocation-total">—</strong><small>张</small></div>
+              <dl class="allocation-summary-stats"><div><dt>运行任务</dt><dd><strong id="allocation-task-total">—</strong><span>个</span></dd></div><div><dt>运行副本</dt><dd><strong id="allocation-replicas">—</strong><span>个</span></dd></div></dl>
+            </div>
+            <div class="allocation-source allocation-source-cci">
+              <div class="allocation-source-heading"><span class="allocation-source-name"><span class="legend-dot cci" aria-hidden="true"></span>CCI 应用</span><span class="allocation-share" id="allocation-cci-share">—</span></div>
+              <div class="allocation-source-value"><strong id="allocation-cci">—<small>张</small></strong><span id="allocation-cci-tasks">— 个运行任务</span></div>
+              <div class="allocation-source-footer"><span>平均每任务配置</span><span><strong id="allocation-cci-average">—</strong> 张</span></div>
+            </div>
+            <div class="allocation-source allocation-source-acp">
+              <div class="allocation-source-heading"><span class="allocation-source-name"><span class="legend-dot acp" aria-hidden="true"></span>ACP 任务</span><span class="allocation-share" id="allocation-acp-share">—</span></div>
+              <div class="allocation-source-value"><strong id="allocation-acp">—<small>张</small></strong><span id="allocation-acp-tasks">— 个运行任务</span></div>
+              <div class="allocation-source-footer"><span>平均每任务配置</span><span><strong id="allocation-acp-average">—</strong> 张</span></div>
+            </div>
+          </div>
+          <div class="allocation-distribution"><div class="allocation-bar-label"><span>GPU 配置占比</span><span class="allocation-bar-legend"><span><i class="legend-dot cci" aria-hidden="true"></i>CCI</span><span><i class="legend-dot acp" aria-hidden="true"></i>ACP</span></span></div><div class="allocation-bar" id="allocation-bar" role="img" aria-label="等待 GPU 配置数据" aria-describedby="allocation-note"></div><p class="allocation-note" id="allocation-note">配置数量不代表实时 GPU 利用率。</p></div>
         </section>
-<section class="dashboard-panel quick-panel" aria-labelledby="quick-title"><div class="panel-heading"><div><h2 id="quick-title">快捷操作</h2></div></div><div class="quick-links">
-          <a href="#acp"><span class="quick-icon teal"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><span><strong>创建 ACP 任务</strong><small>配置资源，预览后提交</small></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a>
-          <a href="#tasks"><span class="quick-icon blue"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span><span><strong>查看资源监控</strong><small>使用率曲线与任务日志</small></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a>
-          <a href="#waiting"><span class="quick-icon amber"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span><strong>查看等待队列</strong><small>关注任务排队与启动状态</small></span><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a>
-        </div><div class="collection-note"><span class="local-indicator"></span>本地保留历史，最长可查看 7 天</div></section></div>
-</div>
-</div>
+      </div>
+      </div>
       <section id="tokenhub-view" class="workspace-view th-page" data-page="tokenhub" hidden>
         <div class="th-toolbar"><div class="th-account"><span class="th-account-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v5l5 11a1.5 1.5 0 0 1-1.4 2H5.4A1.5 1.5 0 0 1 4 19L9 8V3M8 3h8M7 15h10"/></svg></span><div><h2 id="tokenhub-account">我的 API 资源</h2><p id="tokenhub-status" role="status" aria-live="polite">正在读取账户状态…</p></div></div><div class="th-actions"><button type="button" class="button button-primary" data-tokenhub-connect>连接 TokenHub</button><button id="tokenhub-refresh" type="button" class="button button-secondary">刷新数据</button><a class="button button-secondary" href="https://tokenhub.ilab.beer/dashboard" target="_blank" rel="noopener noreferrer">打开原站 ↗</a><button id="tokenhub-disconnect" type="button" class="button button-secondary" hidden>断开本机连接</button></div></div>
         <p id="tokenhub-notice" class="th-notice" role="status" hidden></p>
-        <div class="th-tabs" role="group" aria-label="TokenHub 详情分类"><button type="button" class="active" data-tokenhub-tab="dashboard" aria-pressed="true">仪表板</button><button type="button" data-tokenhub-tab="keys" aria-pressed="false">API 密钥</button><button type="button" data-tokenhub-tab="quotas" aria-pressed="false">账号额度</button></div>
+        <div class="th-tabs" role="group" aria-label="TokenHub 详情分类">
+          <button type="button" class="active" data-tokenhub-tab="dashboard" aria-pressed="true"><svg class="th-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>仪表板</button>
+          <button type="button" data-tokenhub-tab="keys" aria-pressed="false"><svg class="th-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="15.5" r="3.5"/><path d="m11 13 8-8m-3 3 2 2m-5 1 2 2"/></svg>API 密钥</button>
+          <button type="button" data-tokenhub-tab="quotas" aria-pressed="false"><svg class="th-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19a8 8 0 1 1 16 0"/><path d="m12 13 3-3M6.5 17h.01M17.5 17h.01M8.7 11.2h.01M15.3 11.2h.01"/></svg>账号额度</button>
+        </div>
         <div data-tokenhub-panel="dashboard">
           <div id="tokenhub-metrics" class="th-metrics th-detail-metrics"></div>
           <div class="th-dashboard-grid">

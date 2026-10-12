@@ -4,7 +4,7 @@ import base64
 import zlib
 from functools import lru_cache
 from pathlib import Path
-from . import ide_codex, ide_appearance
+from . import ide_codex, ide_appearance, ide_extensions
 
 VERSION = '4.139.1'
 SHA256 = '53029be6c5781b7bca49b815fcc9a2a3fc111813ad8c9965b2c0f0d2985a0674'
@@ -12,7 +12,9 @@ SHA256 = '53029be6c5781b7bca49b815fcc9a2a3fc111813ad8c9965b2c0f0d2985a0674'
 
 @lru_cache(maxsize=1)
 def _packed_modules():
-    source = Path(ide_codex.__file__).read_bytes() + b'\n' + Path(ide_appearance.__file__).read_bytes()
+    source = (Path(ide_codex.__file__).read_bytes() + b'\n'
+              + Path(ide_appearance.__file__).read_bytes() + b'\n'
+              + Path(ide_extensions.__file__).read_bytes())
     return repr(base64.b64encode(zlib.compress(source, 9)).decode())
 
 
@@ -65,8 +67,10 @@ def optional_setup():
     codex = prepare_codex(base, env, binary, progress=progress, install=s['install_optional'])
     appearance = (prepare_appearance(base, env, binary, APPEARANCE_BUNDLE, progress=progress)
                   if s['install_optional'] else {'version': APPEARANCE_BUNDLE['version'], 'installed': appearance_installed(base, APPEARANCE_BUNDLE)})
-    return codex, appearance
-codex, appearance = optional_setup() if binary.is_file() else (None, None)
+    # Install required extensions once; check them on later launches.
+    extensions = prepare_extensions(base, env, binary, progress=progress, install=True) if binary.is_file() else None
+    return codex, appearance, extensions
+codex, appearance, extensions = optional_setup() if binary.is_file() else (None, None, None)
 
 def owned_process(state):
     try:
@@ -132,7 +136,7 @@ else:
             (temporary / folder.name).rename(folder)
         finally:
             shutil.rmtree(str(temporary), ignore_errors=True)
-    if codex is None: codex, appearance = optional_setup()
+    if codex is None: codex, appearance, extensions = optional_setup()
     progress('start_editor')
     with socket.socket() as probe:
         probe.bind((s['address'], 0))
@@ -146,7 +150,15 @@ else:
     (user / 'User').mkdir(parents=True, exist_ok=True)
     settings = user / 'User/settings.json'
     if not settings.exists():
-        settings.write_text(json.dumps({'workbench.colorTheme': 'Default Dark Modern', 'workbench.startupEditor': 'none', 'telemetry.telemetryLevel': 'off', 'update.mode': 'none'}))
+        settings.write_text(json.dumps({
+            'workbench.colorTheme': 'Default Dark Modern',
+            'workbench.startupEditor': 'none',
+            'telemetry.telemetryLevel': 'off',
+            'update.mode': 'none',
+            'extensions.autoUpdate': False,
+            'extensions.autoCheckUpdates': False,
+        }))
+    ensure_update_defaults(settings)
     with (base / 'editor.log').open('ab') as log:
         proc = subprocess.Popen([str(binary), '--config', str(config), '--user-data-dir', str(user), '--extensions-dir', str(base / 'extensions'), '--disable-telemetry', '--disable-update-check', '--disable-workspace-trust', workspace], stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env, start_new_session=True)
     state = {'pid': proc.pid, 'address': s['address'], 'port': port, 'password': password, 'workspace': workspace}
@@ -162,6 +174,7 @@ else:
     RESULT = {k: state[k] for k in ('port', 'password', 'workspace')}
 RESULT['codex'] = codex
 RESULT['appearance'] = appearance
+RESULT['extensions'] = extensions
 RESULT['asset_roots'] = [str(folder / 'lib/vscode/extensions')]
 if appearance and appearance.get('installed'):
     RESULT['asset_roots'].append(str(base / 'extensions' / ('ilab.workspace-appearance-' + APPEARANCE_BUNDLE['version'])))

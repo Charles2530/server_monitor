@@ -13,7 +13,8 @@
 .th-page .button-secondary:hover { background: #edf5ef; border-color: #b9d0c1; }
 #tokenhub-disconnect { background: transparent; border-color: transparent; color: #7c8a82; font-size: 11px; }
 .th-page .th-tabs { display: flex; width: fit-content; gap: 5px; margin: 0 0 16px; padding: 4px; border: 1px solid #dfe8e2; border-radius: 10px; background: #eaf0ec; }
-.th-tabs button { background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 7px 24px; color: #657b70; font: inherit; font-size: 13px; cursor: pointer; transition: color .15s, background .15s; }
+.th-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 7px 24px; color: #657b70; font: inherit; font-size: 13px; cursor: pointer; transition: color .15s, background .15s; }
+.th-tab-icon { width: 18px; height: 18px; flex: 0 0 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; opacity: .88; }
 .th-tabs button:hover { color: #176847; }
 .th-tabs button.active { color: #126d4d; border-color: #dce7df; background: #fff; box-shadow: 0 2px 5px #133c2310; font-weight: 600; }
 .th-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; padding: 18px 22px; }

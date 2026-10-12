@@ -9,3 +9,38 @@
 .monaco-workbench:not(.hc-black):not(.hc-light) .part.sidebar .monaco-list-row.selected { box-shadow: inset 2px 0 var(--vscode-focusBorder); }
 .monaco-workbench:not(.hc-black):not(.hc-light) .quick-input-widget { border-radius: 12px; box-shadow: 0 16px 48px #0005; }
 .monaco-workbench .part.sidebar .title-label h2 { font-weight: 600; letter-spacing: .02em; }
+
+/* Keep the extension Features table of contents readable when the workbench
+   is narrow or the browser is zoomed. Resize the split-view panes together;
+   widening only the inner list makes it paint over the feature content. */
+.extension-editor .subcontent.feature-contributions {
+  --ilab-features-list-width: clamp(170px, 22vw, 220px);
+}
+.extension-editor .subcontent.feature-contributions .monaco-split-view2.horizontal > .monaco-scrollable-element > .split-view-container > .split-view-view:first-child {
+  width: var(--ilab-features-list-width) !important;
+}
+.extension-editor .subcontent.feature-contributions .monaco-split-view2.horizontal > .monaco-scrollable-element > .split-view-container > .split-view-view:nth-child(2) {
+  left: var(--ilab-features-list-width) !important;
+  width: calc(100% - var(--ilab-features-list-width)) !important;
+}
+.extension-editor .subcontent.feature-contributions .monaco-split-view2.horizontal > .sash-container > .monaco-sash {
+  left: var(--ilab-features-list-width) !important;
+}
+.extension-editor .subcontent.feature-contributions .features-list-container {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+.extension-editor .subcontent.feature-contributions .feature-view-container {
+  width: 100% !important;
+}
+.extension-editor .subcontent.feature-contributions .features-list-container > .features-list-wrapper {
+  padding-left: 12px;
+}
+.extension-editor .subcontent.feature-contributions .features-list-container > .features-list-wrapper .monaco-list-row.extension-feature-list-item {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+.extension-editor .subcontent.feature-contributions .features-list-container > .features-list-wrapper .monaco-list-row.extension-feature-list-item .extension-feature-label {
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}

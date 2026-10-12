@@ -158,13 +158,21 @@
       const label = byId(`allocation-${kind.toLowerCase()}`);
       label.replaceChildren(document.createTextNode(count(total)), element("small", "", "张"));
       byId(`allocation-${kind.toLowerCase()}-tasks`).textContent = `${sourceKnown ? count(group.length) : "—"} 个运行任务`;
+      byId(`allocation-${kind.toLowerCase()}-average`).textContent = count(known(total) && group.length ? total / group.length : null);
       return total;
     });
     const total = listsKnown && totals.every(known) ? totals[0] + totals[1] : null;
     byId("allocation-total").textContent = count(total);
-    const ring = byId("allocation-ring");
-    ring.style.background = total > 0 ? `conic-gradient(#3b82f6 0 ${totals[0] / total * 100}%, #14b8a6 ${totals[0] / total * 100}% 100%)` : "var(--line)";
-    ring.setAttribute("aria-label", total === null ? "配置 GPU 总量未知" : `配置 GPU 共 ${count(total)} 张，CCI ${count(totals[0])} 张，ACP ${count(totals[1])} 张`);
+    byId("allocation-task-total").textContent = listsKnown ? count(list.length) : "—";
+    byId("allocation-replicas").textContent = count(listsKnown ? (list.length ? sumAvailable(list, "replicas") : 0) : null);
+    const cciShare = total > 0 ? Math.round(totals[0] / total * 100) : 0;
+    ["cci", "acp"].forEach((kind, index) => {
+      byId(`allocation-${kind}-share`).textContent = total === null ? "—" : `${total > 0 ? (index === 0 ? cciShare : 100 - cciShare) : 0}%`;
+    });
+    byId("overview-task-count").textContent = listsKnown ? `${count(list.length)} 个` : "待更新";
+    const bar = byId("allocation-bar");
+    bar.style.background = total > 0 ? `linear-gradient(to right, #3b82f6 0 ${totals[0] / total * 100}%, #14b8a6 ${totals[0] / total * 100}% 100%)` : "var(--line)";
+    bar.setAttribute("aria-label", total === null ? "配置 GPU 总量未知" : `配置 GPU 共 ${count(total)} 张，CCI ${count(totals[0])} 张，ACP ${count(totals[1])} 张`);
     byId("allocation-note").textContent = total === null ? "部分任务来源或配置未知，暂不计算分布。" : "配置数量不代表实时 GPU 利用率。";
 
     const recent = document.createDocumentFragment();

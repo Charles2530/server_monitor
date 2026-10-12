@@ -1,0 +1,180 @@
+/* Reversible visual polish for the live terminal surface. Communication and layout stay unchanged. */
+:root {
+  --terminal-bg: #0d141d;
+  --terminal-panel: #131d28;
+  --terminal-line: #2b3b4b;
+  --terminal-text: #dce7ef;
+  --terminal-muted: #9aacbf;
+  --terminal-accent: #91e0c1;
+}
+
+.terminal-workspace {
+  border-color: #26384a;
+  background: var(--terminal-bg);
+  box-shadow: 0 14px 36px #07111d66, inset 0 1px 0 #ffffff08;
+}
+
+.terminal-toolbar {
+  min-height: 48px;
+  padding: 8px 14px;
+  border-bottom-color: #2a3a4a;
+  background: linear-gradient(180deg, #182431 0%, #141e29 100%);
+  box-shadow: inset 0 -1px 0 #ffffff05;
+}
+
+.terminal-session {
+  gap: 9px;
+  color: #e5edf3;
+}
+
+#terminal-target-name {
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+#terminal-transport {
+  color: #aec0cf;
+  background: #1a2937;
+  border-color: #34495b;
+}
+
+.terminal-led.connected {
+  background: #86e4bd;
+  box-shadow: 0 0 0 3px #86e4bd18, 0 0 12px #86e4bd55;
+}
+
+#terminal-focus {
+  color: var(--terminal-accent);
+  background: #8ddfc116;
+  border-color: #8ddfc136;
+  box-shadow: inset 0 1px 0 #ffffff08;
+}
+
+#terminal-focus:hover {
+  background: #8ddfc124;
+  border-color: #8ddfc15c;
+}
+
+.terminal-tools :is(button, a), .terminal-keyboard button {
+  border-color: #304456;
+  border-radius: 8px;
+  background: #1a2937;
+  color: #d6e3ec;
+  box-shadow: inset 0 1px 0 #ffffff07, 0 1px 1px #0003;
+}
+
+.terminal-tools :is(button, a):hover, .terminal-keyboard button:hover {
+  background: #24394a;
+  border-color: #416078;
+}
+
+.terminal-tools :is(button, a):active, .terminal-keyboard button:active {
+  background: #152431;
+  box-shadow: inset 0 1px 3px #0005;
+}
+
+#terminal-disconnect {
+  color: #efb8b0;
+  border-color: #684948;
+  background: #35282a;
+}
+
+#terminal-disconnect:hover {
+  color: #ffd7d0;
+  border-color: #95635d;
+  background: #493132;
+}
+
+#terminal-screen {
+  padding: 10px 12px 12px;
+  background: #0d141d;
+}
+
+#terminal-screen .xterm-viewport {
+  scrollbar-color: #33495c transparent;
+  scrollbar-width: thin;
+}
+
+#terminal-screen .xterm-viewport::-webkit-scrollbar { width: 10px; }
+#terminal-screen .xterm-viewport::-webkit-scrollbar-thumb { background: #33495c; border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; }
+#terminal-screen .xterm-viewport::-webkit-scrollbar-track { background: transparent; }
+
+.terminal-keyboard {
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px 9px;
+  border-top-color: #2a3a4a;
+  background: linear-gradient(180deg, #151f2b 0%, #121b25 100%);
+  box-shadow: inset 0 1px 0 #ffffff05;
+}
+
+.terminal-keyboard button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding-inline: 10px;
+}
+
+.terminal-keyboard button::before, #terminal-tmux-refresh::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  background: currentColor;
+  opacity: .82;
+  mask: var(--terminal-key-icon) center / contain no-repeat;
+}
+
+.terminal-keyboard [data-terminal-key="interrupt"] { --terminal-key-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 4v16M18 4v16'/%3E%3C/svg%3E"); }
+.terminal-keyboard [data-terminal-key="copy"] { --terminal-key-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='8' y='8' width='12' height='12' rx='2'/%3E%3Cpath d='M16 8V4a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h4'/%3E%3C/svg%3E"); }
+.terminal-keyboard [data-terminal-key="paste"] { --terminal-key-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='8' y='3' width='8' height='4' rx='1'/%3E%3Cpath d='M8 5H5v16h14V5h-3M8 12h8M8 16h5'/%3E%3C/svg%3E"); }
+
+#terminal-tmux {
+  min-height: 32px;
+  padding: 5px 30px 5px 11px;
+  border-color: #304456;
+  border-radius: 8px;
+  background-color: #1a2937;
+  color: #c7d6e1;
+  box-shadow: inset 0 1px 0 #ffffff06;
+}
+
+#terminal-tmux-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-height: 32px;
+  padding: 0;
+}
+
+#terminal-tmux-refresh::before { display: none; }
+#terminal-tmux-refresh .terminal-ui-icon { width: 16px; height: 16px; }
+
+#terminal-input-notice {
+  right: 16px;
+  bottom: 68px;
+  max-width: min(520px, calc(100% - 32px));
+  padding: 10px 11px 10px 13px;
+  border-color: #8ddfc13a;
+  border-radius: 10px;
+  background: #182b2dcc;
+  box-shadow: 0 10px 28px #0005, inset 0 1px 0 #ffffff08;
+  backdrop-filter: blur(10px);
+}
+
+#terminal-input-notice[data-type="error"] {
+  border-color: #efb88a45;
+  background: #382c2bcc;
+}
+
+@media (max-width: 760px) {
+  .terminal-toolbar { padding-inline: 10px; }
+  #terminal-screen { padding: 7px 9px 9px; }
+  .terminal-keyboard { gap: 6px; padding-inline: 10px; }
+  .terminal-keyboard button { min-height: 36px; }
+  #terminal-tmux { min-height: 36px; }
+  #terminal-tmux-refresh { min-height: 36px; }
+  #terminal-input-notice { right: 10px; bottom: 56px; max-width: calc(100% - 20px); }
+}

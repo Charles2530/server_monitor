@@ -17,6 +17,7 @@ from .acp_actions import ActionError
 from .auth import AuthRequired
 from .ide_bootstrap import bootstrap_script
 from .ide_appearance import APPEARANCE_VERSION
+from .ide_extensions import EXTENSIONS_VERSION
 from .ide_proxy import EditorProxy
 from .ide_origins import EditorOriginRegistry
 from .ide_history import MAX_HISTORY_RESPONSE_BYTES, _normal_path, history_script, sanitize_history_result
@@ -44,6 +45,18 @@ PROGRESS_MESSAGES = {
     'verify_codex': '正在校验 Codex 插件…',
     'install_codex': '正在安装 Codex 插件…',
     'install_appearance': '正在准备代码字体与文件图标…',
+    'download_python': '正在下载 Python 插件…',
+    'verify_python': '正在校验 Python 插件…',
+    'install_python': '正在安装 Python 插件…',
+    'download_basedpyright': '正在下载 basedpyright 插件…',
+    'verify_basedpyright': '正在校验 basedpyright 插件…',
+    'install_basedpyright': '正在安装 basedpyright 插件…',
+    'download_ruff': '正在下载 Ruff 插件…',
+    'verify_ruff': '正在校验 Ruff 插件…',
+    'install_ruff': '正在安装 Ruff 插件…',
+    'download_vscode-language-pack-zh-hans': '正在下载简体中文插件…',
+    'verify_vscode-language-pack-zh-hans': '正在校验简体中文插件…',
+    'install_vscode-language-pack-zh-hans': '正在安装简体中文插件…',
     'start_editor': '正在启动容器内编辑器…',
     'connect': '正在建立编辑器连接…',
     'authenticate': '正在完成编辑器认证…',
@@ -463,10 +476,12 @@ class CCIEditor:
             raise ActionError('编辑器会话已过期，请保留当前内容后重新打开。', 'ide_expired', 404)
         job = self.optional_jobs.get(identity)
         codex, appearance = session.get('codex', {}), session.get('appearance', {})
+        extensions = session.get('extensions', {})
         return {'site': self.site.id, **data, 'port': session['proxy'].port,
                 'workspace': session.get('workspace'),
                 'codex': {key: codex[key] for key in ('configured', 'installed') if key in codex},
                 'appearance': {key: appearance[key] for key in ('installed', 'version') if key in appearance},
+                'extensions': extensions,
                 'optional_pending': bool(job and not job.done())}
 
     async def history(self, data, origin):
@@ -505,9 +520,12 @@ class CCIEditor:
 
     def prepare_optional(self, identity, session, data):
         codex, appearance = session.get('codex', {}), session.get('appearance', {})
+        extensions = session.get('extensions', {})
         needed = ((codex.get('configured') and codex.get('installed') is False)
                   or (appearance and (appearance.get('version') != APPEARANCE_VERSION
-                                      or appearance.get('installed') is False)))
+                                      or appearance.get('installed') is False))
+                  or (extensions and (extensions.get('version') != EXTENSIONS_VERSION
+                                      or extensions.get('installed') is False)))
         job = self.optional_jobs.get(identity)
         if (not needed or (job and not job.done())
                 or time.monotonic() - session.get('optional_attempted', float('-inf')) < 300): return
@@ -517,6 +535,7 @@ class CCIEditor:
                 prepared = await run_python(self.bridge, data, bootstrap_script(data['instance'], session['address'], download_proxy=self.download_proxy()), cleanup_jobs=self.cleanup_jobs)
                 if 'error' not in prepared and self.sessions.get(identity) is session:
                     session.update(codex=prepared.get('codex', {}), appearance=prepared.get('appearance', {}),
+                                  extensions=prepared.get('extensions', {}),
                                   workspace=prepared.get('workspace') or session.get('workspace'))
                     if session['proxy'].assets is not None:
                         roots = prepared.get('asset_roots', [])
@@ -540,6 +559,7 @@ class CCIEditor:
         return {'site': self.site.id, **data, 'name': session.get('name', data['task_id']),
                 'port': proxy.port, 'ticket': proxy.ticket(), 'workspace': session.get('workspace'),
                 'codex': session.get('codex', {}), 'appearance': session.get('appearance', {}),
+                'extensions': session.get('extensions', {}),
                 'optional_pending': bool(job and not job.done())}
 
     async def open(self, data, origin, progress=None):
@@ -596,6 +616,7 @@ class CCIEditor:
                         await asyncio.gather(warming, return_exceptions=True)
                     if warmed: await warmed.close()
                 session.update(codex=prepared.get('codex', {}), appearance=prepared.get('appearance', {}),
+                               extensions=prepared.get('extensions', {}),
                                workspace=prepared.get('workspace'), name=result['name'])
                 if session['proxy'].assets is not None:
                     roots = prepared.get('asset_roots', [])

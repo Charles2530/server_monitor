@@ -23,6 +23,7 @@
     <link rel="stylesheet" href="/static/session-appearance.css">
     <link rel="stylesheet" href="/static/terminal-mobile.css">
     <link rel="stylesheet" href="/static/connection-log.css">
+    <link rel="stylesheet" href="/static/terminal-polish.css">
   </head>
   <body>
     <header class="terminal-header">
@@ -74,7 +75,7 @@
         <button type="button" data-terminal-key="copy" title="复制选中内容到剪贴板">复制</button>
         <button type="button" data-terminal-key="paste" title="粘贴剪贴板内容（Ctrl+V / ⌘V）">粘贴</button>
         <select id="terminal-tmux" aria-label="选择 tmux 会话" title="请在 Shell 提示符下选择会话；选择后立即进入" disabled><option value="">连接后读取 tmux 会话</option></select>
-        <button id="terminal-tmux-refresh" type="button" aria-label="刷新 tmux 会话" title="刷新 tmux 会话" disabled>↻</button>
+        <button id="terminal-tmux-refresh" type="button" aria-label="刷新 tmux 会话" title="刷新 tmux 会话" disabled><svg class="terminal-ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.8-4L4 9m0 0V5m0 4h4M4 13a8 8 0 0 0 14.8 4L20 15m0 0v4m0-4h-4"/></svg></button>
       </div>
       <div id="terminal-input-notice" hidden><span id="terminal-hint" role="status" aria-live="polite"></span><button id="terminal-notice-close" type="button" aria-label="关闭提示" title="关闭提示"><svg class="terminal-ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div>
     </section>

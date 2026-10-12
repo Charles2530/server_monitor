@@ -53,6 +53,7 @@
     else if (setup.codex?.configured === false) parts.push('此容器尚未配置 Codex');
     else if (setup.codex?.installed === false && !setup.optional_pending) parts.push('Codex 安装未完成，下次打开时重试');
     if (setup.appearance?.installed === false && !setup.optional_pending) parts.push('外观配置未完成，下次打开时重试');
+    if (setup.extensions?.installed === false && !setup.optional_pending) parts.push('Python、basedpyright、Ruff 或简体中文插件安装未完成，下次打开时重试');
     if (connection.historyState === 'ready') parts.push('当前项目聊天已过滤 · ' + (connection.historyCount || 0) + ' 条');
     else if (connection.historyState === 'empty') parts.push('当前项目暂无历史聊天');
     else if (connection.historyState === 'unavailable') parts.push('项目聊天过滤暂不可用，已保留 Codex 原列表');
@@ -60,7 +61,7 @@
     if (setupFailures) parts.push('配置状态暂不可用，稍后重试');
     $("ide-setup-status").textContent = parts.join(' · ');
     $("ide-setup-status").hidden = !parts.length;
-    $("ide-setup-status").dataset.attention = String(!!setupFailures || (!setup.optional_pending && (setup.appearance?.installed === false || (setup.codex?.configured && setup.codex.installed === false))));
+    $("ide-setup-status").dataset.attention = String(!!setupFailures || (!setup.optional_pending && (setup.appearance?.installed === false || setup.extensions?.installed === false || (setup.codex?.configured && setup.codex.installed === false))));
   }
   async function refreshSetup() {
     const current = connection;
@@ -105,7 +106,7 @@
 
   function status(message, state = "loading") { $("ide-status").textContent = message; $("ide-status").dataset.state = state; window.MonitorConnectionLog?.update(navigator.onLine === false ? "offline" : state, message); }
   function progress(value) {
-    const labels = {download_editor: "下载 VS Code 编辑器", verify_editor: "校验编辑器安装包", extract_editor: "解压编辑器", download_codex: "下载 Codex 插件", verify_codex: "校验 Codex 插件", install_codex: "安装 Codex 插件", start_editor: "启动编辑器"};
+    const labels = {download_editor: "下载 VS Code 编辑器", verify_editor: "校验编辑器安装包", extract_editor: "解压编辑器", download_codex: "下载 Codex 插件", verify_codex: "校验 Codex 插件", install_codex: "安装 Codex 插件", download_python: "下载 Python 插件", verify_python: "校验 Python 插件", install_python: "安装 Python 插件", "download_basedpyright": "下载 basedpyright 插件", "verify_basedpyright": "校验 basedpyright 插件", "install_basedpyright": "安装 basedpyright 插件", "download_ruff": "下载 Ruff 插件", "verify_ruff": "校验 Ruff 插件", "install_ruff": "安装 Ruff 插件", "download_vscode-language-pack-zh-hans": "下载简体中文插件", "verify_vscode-language-pack-zh-hans": "校验简体中文插件", "install_vscode-language-pack-zh-hans": "安装简体中文插件", start_editor: "启动编辑器"};
     const label = value && labels[value.stage];
     $("ide-progress").hidden = !label;
     $("ide-progress-bar").removeAttribute("value");

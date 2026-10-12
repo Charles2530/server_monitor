@@ -2,7 +2,7 @@
 (() => {
   // Refresh the bundled workbench styles independently of the font cache.
   const appearanceStyle = document.querySelector('link[href="/_ilab_appearance/fonts.css"]');
-  if (appearanceStyle) appearanceStyle.href += '?v=20261010';
+  if (appearanceStyle) appearanceStyle.href += '?v=20261012-2';
   const parentOrigin = document.currentScript?.dataset.parentOrigin;
   const embedded = parentOrigin && window.parent !== window;
   function openedWorkspace() {
@@ -63,12 +63,12 @@
     return panels;
   }
   function historyRows(panel) {
+    const isArchive = element => /^(archive chat|归档聊天)$/i.test(
+      normalizeText(element.getAttribute('aria-label') || element.textContent));
     const legacy = [...panel.querySelectorAll('button')].filter(row =>
-      [...row.querySelectorAll('button')].some(child => /archive chat/i.test(normalizeText(child.textContent)))
-      && !/^archive chat$/i.test(normalizeText(row.textContent)));
+      [...row.querySelectorAll('button')].some(isArchive) && !isArchive(row));
     const current = [...panel.querySelectorAll('[role="button"][aria-label]')].filter(row =>
-      [...row.querySelectorAll('button,[role="button"]')].some(child => /archive chat/i.test(child.getAttribute('aria-label') || child.textContent || ''))
-      && !/^(new chat|view all|recent chats)/i.test(row.getAttribute('aria-label') || ''));
+      [...row.querySelectorAll('button,[role="button"]')].some(isArchive));
     return [...new Set([...legacy, ...current])];
   }
   function rowThreadId(row) {
@@ -159,15 +159,17 @@
           && ids.every((id, index) => id === previous.ids[index])) { reported = true; continue; }
       historySignatures.set(panel, {revision: historyRevision, all: showUnclassified, rows, ids});
       const allowedIds = new Set((historyPayload.records || []).map(row => row.thread_id).filter(Boolean));
-      let visibleCount = 0, unknownCount = 0;
+      const matchedIds = new Set();
+      let unknownCount = 0;
       for (const [index, row] of rows.entries()) {
         const id = ids[index];
         const keep = !!historyPayload.error || showUnclassified || !id || allowedIds.has(id);
         // Keep native hidden/style state intact; only our scoped marker hides rows.
         row.dataset.ilabHistoryMatch = keep ? '1' : '0';
         if (!id) unknownCount += 1;
-        else if (allowedIds.has(id) && !historyPayload.error) visibleCount += 1;
+        else if (allowedIds.has(id) && !historyPayload.error) matchedIds.add(id);
       }
+      const visibleCount = matchedIds.size;
       historyBanner(panel, visibleCount, rows.length, unknownCount);
       const state = historyPayload.error || (rows.length && unknownCount === rows.length) ? 'unavailable'
         : !rows.length && allowedIds.size ? 'loading' : visibleCount ? 'ready' : 'empty';
