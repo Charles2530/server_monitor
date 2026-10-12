@@ -11,7 +11,7 @@
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     for (const [key, value] of Object.entries({viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.7", "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true"})) svg.setAttribute(key, value);
     const path = document.createElementNS(svg.namespaceURI, "path");
-    path.setAttribute("d", {server: "M5 3h14v7H5zM5 14h14v7H5zM8 6.5h.01M8 17.5h.01M12 6.5h4M12 17.5h4", terminal: "m5 6 6 6-6 6m9 0h5", ide: "m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18"}[name]);
+    path.setAttribute("d", {server: "M5 3h14v7H5zM5 14h14v7H5zM8 6.5h.01M8 17.5h.01M12 6.5h4M12 17.5h4", terminal: "m5 6 6 6-6 6m9 0h5", ide: "m8 6-6 6 6 6m8-12 6 6-6 6m-3-15-2 18", copy: "M9 9h11v11H9zM15 5V3H3v12h2", check: "m5 12 4 4L19 6"}[name]);
     svg.append(path); return svg;
   }
   function render(state) {
@@ -33,6 +33,25 @@
       const card = element("article", "ssh-card"), top = element("div", "ssh-card-heading"), identity = element("div", "ssh-identity"), mark = element("span", "ssh-server-icon"), name = element("h3", "", host.alias), badge = element("span", "ssh-online", "可连接"), endpoint = element("p", "ssh-endpoint", host.hostname), metadata = element("dl", "ssh-meta"), actions = element("div", "ssh-actions");
       mark.append(icon("server")); identity.append(name, endpoint);
       endpoint.title = host.hostname;
+      const target = `${host.user}@${host.hostname}`;
+      const escaped = /^[A-Za-z0-9_][A-Za-z0-9_.@:\/-]*$/.test(target) ? target : "'" + target.replaceAll("'", "'\"'\"'") + "'";
+      const tools = element("div", "ssh-card-tools"), control = element("div", "ssh-copy-control"), copy = element("button", "ssh-copy"), feedback = element("span", "ssh-copy-feedback"), command = `ssh -p ${host.port} ${target.startsWith("-") ? "-- " : ""}${escaped}`;
+      copy.type = "button"; copy.title = `复制登录指令：${command}`; copy.setAttribute("aria-label", copy.title); copy.append(icon("copy"));
+      feedback.setAttribute("role", "status");
+      let reset;
+      copy.addEventListener("click", async () => {
+        clearTimeout(reset); copy.disabled = true;
+        try {
+          await navigator.clipboard.writeText(command);
+          copy.replaceChildren(icon("check")); copy.dataset.state = "success"; feedback.textContent = "已复制";
+        } catch (_) {
+          copy.replaceChildren(icon("copy")); copy.dataset.state = "error"; feedback.textContent = "复制失败，请重试";
+        } finally {
+          copy.disabled = false;
+          reset = setTimeout(() => { copy.replaceChildren(icon("copy")); delete copy.dataset.state; feedback.textContent = ""; }, 2500);
+        }
+      });
+      control.append(copy, feedback); tools.append(badge, control);
       for (const [label, value] of [["用户", host.user], ["端口", host.port]]) {
         const item = element("div", ""), detail = element("dd", "", value);
         detail.title = String(value); item.append(element("dt", "", label), detail); metadata.append(item);
@@ -47,7 +66,7 @@
         if (page === "ide") link.title = "首次使用会在服务器用户目录准备 VS Code（Linux x86_64 / ARM64）";
         actions.append(link);
       }
-      top.append(mark, identity, badge); card.append(top, metadata, actions); return card;
+      top.append(mark, identity, tools); card.append(top, metadata, actions); return card;
     }));
   }
   async function update(refresh = false) {

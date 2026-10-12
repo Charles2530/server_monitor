@@ -251,6 +251,15 @@
 .ssh-card .ssh-endpoint { margin: 4px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .ssh-online { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; margin-top: 3px; color: var(--accent); font-size: 10px; line-height: 1.6; white-space: nowrap; }
 .ssh-online::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.ssh-card-tools { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.ssh-copy-control { position: relative; }
+.ssh-copy { display: grid; place-items: center; width: 26px; height: 26px; padding: 4px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+.ssh-copy svg { width: 15px; height: 15px; }
+.ssh-copy:hover, .ssh-copy:focus-visible { background: var(--surface-raised); border-color: var(--line); color: var(--accent); }
+.ssh-copy[data-state="success"] { color: var(--accent); }
+.ssh-copy[data-state="error"] { color: var(--warning-ink); }
+.ssh-copy-feedback { position: absolute; right: 32px; top: 2px; z-index: 1; padding: 3px 7px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); color: var(--ink); box-shadow: var(--panel-shadow); font-size: 10px; line-height: 1.5; white-space: nowrap; }
+.ssh-copy-feedback:empty { display: none; }
 .ssh-meta { display: flex; align-items: center; gap: 14px; margin: 12px 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 11px; }
 .ssh-meta > div { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
 .ssh-meta > div:first-child { flex: 1; }
