@@ -248,7 +248,6 @@ class CCIEditor:
         self.cleanup_jobs = set()
         self.target_leases = {}
         self.locks = {}
-        self.preparing = set()
         self.reaper = None
 
     @asynccontextmanager
@@ -264,18 +263,6 @@ class CCIEditor:
             entry['users'] -= 1
             if not entry['users']: self.locks.pop(identity, None)
 
-    @asynccontextmanager
-    async def preparation_slot(self, identity):
-        reserved = identity not in self.sessions
-        if reserved:
-            if len(self.sessions) + len(self.preparing) >= 4:
-                raise ActionError('最多同时打开 4 个编辑器，请关闭闲置页面并稍后重试。', 'ide_limit', 429)
-            self.preparing.add(identity)
-        try:
-            yield
-        finally:
-            if reserved: self.preparing.discard(identity)
-
     async def begin(self, action, data, origin):
         if action not in ('targets', 'open', 'recover'): raise ActionError('编辑器请求无效。')
         if not isinstance(data.get('task_id'), str) or not re.fullmatch(self.task_pattern, data['task_id']):
@@ -288,7 +275,6 @@ class CCIEditor:
         # Retrying a pending preparation reuses work, including installation.
         for key, item in self.requests.items():
             if item['action'] == action and item['data'] == data and item['origin'] == origin and not item['task'].done(): return {'request_id': key}
-        if sum(not item['task'].done() for item in self.requests.values()) >= 4: raise ActionError('编辑器准备请求过多，请稍后重试。', 'ide_limit', 429)
         while len(self.requests) >= 64:
             key = next((k for k, v in self.requests.items() if v['task'].done()), None)
             if key is None: break
@@ -587,56 +573,55 @@ class CCIEditor:
             result, address = await self.resolve(data)
             if session and session['address'] != address:
                 await self.dispose(identity); session = None
-            async with self.preparation_slot(identity):
-                if session and session.get('password'):
-                    try:
-                        session = await self.connect(address, session['forward'].remote_port, session['password'], origin, notify, session, target=data)
-                    except (ActionError, httpx.HTTPError, OSError, asyncio.TimeoutError):
-                        # Explicit reopen may restart a stopped remote editor. Automatic
-                        # recover remains transport-only and preserves unsaved buffers.
-                        pass
-                    else:
-                        session['name'] = result['name']
-                        return self.opened(identity, session, data, origin, notify)
-                # New sessions can authenticate the jump host while the verified
-                # container checks its editor. Existing recovery stays unchanged.
-                warmed = self.make_forward(address, None, target=data) if session is None else None
-                if isinstance(warmed, CloudForward): warmed = None
-                warming = asyncio.create_task(warmed.warm()) if warmed else None
+            if session and session.get('password'):
                 try:
-                    prepared = await run_python(self.bridge, data, self.bootstrap(data, address, install_optional=False), on_progress=notify,
-                                                verified_targets=self.target_leases.get(data['task_id']), cleanup_jobs=self.cleanup_jobs)
-                    if prepared.get('error') == '当前编辑器仅支持 Linux x86_64 或 ARM64。':
-                        raise ActionError('此服务器暂不支持内置 VS Code（需要 Linux x86_64 或 ARM64），可使用 Terminal。')
-                    if 'error' in prepared:
-                        # Arbitrary remote output is never reflected to the browser.
-                        raise ActionError('容器内编辑器准备失败，请检查 Python 3、GitHub 下载和专用 editor.log。')
-                    port = prepared.get('port'); password = prepared.get('password')
-                    if type(port) is not int or not 1024 <= port <= 65535 or not isinstance(password, str) or not re.fullmatch(r'[A-Za-z0-9_-]{40,100}', password): raise ActionError('容器编辑器返回无效配置。')
-                    if warming:
-                        try: await warming
-                        except (ActionError, OSError, asyncio.TimeoutError):
-                            notify({'stage': 'ssh_retry'})
-                            await warmed.close(); warmed = None
-                        warming = None
-                    if warmed:
-                        session = await self.connect(address, port, password, origin, notify, session, prepared_forward=warmed, target=data)
-                        warmed = None  # The returned session owns its master.
-                    else:
-                        session = await self.connect(address, port, password, origin, notify, session, target=data)
-                finally:
-                    if warming:
-                        warming.cancel()
-                        await asyncio.gather(warming, return_exceptions=True)
-                    if warmed: await warmed.close()
-                session.update(codex=prepared.get('codex', {}), appearance=prepared.get('appearance', {}),
-                               extensions=prepared.get('extensions', {}),
-                               workspace=prepared.get('workspace'), name=result['name'])
-                if session['proxy'].assets is not None:
-                    roots = prepared.get('asset_roots', [])
-                    session['proxy'].assets.resource_roots = roots if isinstance(roots, list) else []
-                self.sessions[identity] = session
-                return self.opened(identity, session, data, origin, notify)
+                    session = await self.connect(address, session['forward'].remote_port, session['password'], origin, notify, session, target=data)
+                except (ActionError, httpx.HTTPError, OSError, asyncio.TimeoutError):
+                    # Explicit reopen may restart a stopped remote editor. Automatic
+                    # recover remains transport-only and preserves unsaved buffers.
+                    pass
+                else:
+                    session['name'] = result['name']
+                    return self.opened(identity, session, data, origin, notify)
+            # New sessions can authenticate the jump host while the verified
+            # container checks its editor. Existing recovery stays unchanged.
+            warmed = self.make_forward(address, None, target=data) if session is None else None
+            if isinstance(warmed, CloudForward): warmed = None
+            warming = asyncio.create_task(warmed.warm()) if warmed else None
+            try:
+                prepared = await run_python(self.bridge, data, self.bootstrap(data, address, install_optional=False), on_progress=notify,
+                                            verified_targets=self.target_leases.get(data['task_id']), cleanup_jobs=self.cleanup_jobs)
+                if prepared.get('error') == '当前编辑器仅支持 Linux x86_64 或 ARM64。':
+                    raise ActionError('此服务器暂不支持内置 VS Code（需要 Linux x86_64 或 ARM64），可使用 Terminal。')
+                if 'error' in prepared:
+                    # Arbitrary remote output is never reflected to the browser.
+                    raise ActionError('容器内编辑器准备失败，请检查 Python 3、GitHub 下载和专用 editor.log。')
+                port = prepared.get('port'); password = prepared.get('password')
+                if type(port) is not int or not 1024 <= port <= 65535 or not isinstance(password, str) or not re.fullmatch(r'[A-Za-z0-9_-]{40,100}', password): raise ActionError('容器编辑器返回无效配置。')
+                if warming:
+                    try: await warming
+                    except (ActionError, OSError, asyncio.TimeoutError):
+                        notify({'stage': 'ssh_retry'})
+                        await warmed.close(); warmed = None
+                    warming = None
+                if warmed:
+                    session = await self.connect(address, port, password, origin, notify, session, prepared_forward=warmed, target=data)
+                    warmed = None  # The returned session owns its master.
+                else:
+                    session = await self.connect(address, port, password, origin, notify, session, target=data)
+            finally:
+                if warming:
+                    warming.cancel()
+                    await asyncio.gather(warming, return_exceptions=True)
+                if warmed: await warmed.close()
+            session.update(codex=prepared.get('codex', {}), appearance=prepared.get('appearance', {}),
+                           extensions=prepared.get('extensions', {}),
+                           workspace=prepared.get('workspace'), name=result['name'])
+            if session['proxy'].assets is not None:
+                roots = prepared.get('asset_roots', [])
+                session['proxy'].assets.resource_roots = roots if isinstance(roots, list) else []
+            self.sessions[identity] = session
+            return self.opened(identity, session, data, origin, notify)
 
     async def dispose(self, key):
         optional = self.optional_jobs.pop(key, None)
