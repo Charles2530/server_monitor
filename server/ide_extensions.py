@@ -53,8 +53,27 @@ EXTENSION_SPECS = (
         'required_paths': ('dist/extension.js', 'bundled/libs/bin/ruff'),
         'required_x86_64_elf_paths': ('bundled/libs/bin/ruff',),
     },
+    {
+        'id': 'ms-python.debugpy',
+        'publisher': 'ms-python',
+        'name': 'debugpy',
+        'version': '2026.6.0',
+        'url': 'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/ms-python/vsextensions/debugpy/2026.6.0/vspackage?targetPlatform=linux-x64',
+        'sha256': '3ae417f78bce17992b9e0efba160a43a85a8b695bd387e150d4df24e366c7b01',
+        'required_paths': ('dist/extension.js', 'bundled/libs/debugpy/adapter/__main__.py'),
+    },
+    {
+        'id': 'ms-python.vscode-python-envs',
+        'publisher': 'ms-python',
+        'name': 'vscode-python-envs',
+        'version': '1.38.0',
+        'url': 'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/ms-python/vsextensions/vscode-python-envs/1.38.0/vspackage?targetPlatform=linux-x64',
+        'sha256': '54aa8aed887b2c2b5b4bb511d0fe44beb83e2cc047c3c2c196521083dd95a9d2',
+        'required_paths': ('dist/extension.js', 'python-env-tools/bin/pet'),
+        'required_x86_64_elf_paths': ('python-env-tools/bin/pet',),
+    },
 )
-EXTENSIONS_VERSION = '7|' + '|'.join(spec['id'] + '@' + spec['version'] for spec in EXTENSION_SPECS)
+EXTENSIONS_VERSION = '8|' + '|'.join(spec['id'] + '@' + spec['version'] for spec in EXTENSION_SPECS)
 UPDATE_DEFAULTS = {'extensions.autoUpdate': False, 'extensions.autoCheckUpdates': False}
 ATTEMPT_COOLDOWN = 300
 DOWNLOAD_ATTEMPTS = 2
@@ -205,6 +224,7 @@ def configure_python_service(base, env, binary):
     updated = {**current, 'python.languageServer': 'None',
                'editor.semanticHighlighting.enabled': True}
     for key, value in {
+        'python.useEnvironmentsExtension': True,
         'basedpyright.analysis.typeCheckingMode': 'off',
         'basedpyright.analysis.diagnosticMode': 'openFilesOnly',
         'basedpyright.analysis.inlayHints.variableTypes': False,

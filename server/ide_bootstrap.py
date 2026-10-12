@@ -1,6 +1,8 @@
 """Pinned, user-local editor installation executed only in a verified CCI shell."""
 import json
 import base64
+import io
+import tokenize
 import zlib
 from functools import lru_cache
 from pathlib import Path
@@ -15,6 +17,9 @@ def _packed_modules():
     source = (Path(ide_codex.__file__).read_bytes() + b'\n'
               + Path(ide_appearance.__file__).read_bytes() + b'\n'
               + Path(ide_extensions.__file__).read_bytes())
+    # Keep source comments locally without sending them over the control shell.
+    source = tokenize.untokenize(token for token in tokenize.tokenize(io.BytesIO(source).readline)
+                                if token.type != tokenize.COMMENT)
     return repr(base64.b64encode(zlib.compress(source, 9)).decode())
 
 

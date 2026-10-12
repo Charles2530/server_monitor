@@ -53,7 +53,7 @@
     else if (setup.codex?.configured === false) parts.push('此容器尚未配置 Codex');
     else if (setup.codex?.installed === false && !setup.optional_pending) parts.push('Codex 安装未完成，下次打开时重试');
     if (setup.appearance?.installed === false && !setup.optional_pending) parts.push('外观配置未完成，下次打开时重试');
-    if (setup.extensions?.installed === false && !setup.optional_pending) parts.push('Python、basedpyright、Ruff 或简体中文插件安装未完成，下次打开时重试');
+    if (setup.extensions?.installed === false && !setup.optional_pending) parts.push('Python 工具（含调试、环境管理）、basedpyright、Ruff 或简体中文插件安装未完成，下次打开时重试');
     if (connection.historyState === 'ready') parts.push('当前项目聊天已过滤 · ' + (connection.historyCount || 0) + ' 条');
     else if (connection.historyState === 'empty') parts.push('当前项目暂无历史聊天');
     else if (connection.historyState === 'unavailable') parts.push('项目聊天过滤暂不可用，已保留 Codex 原列表');
