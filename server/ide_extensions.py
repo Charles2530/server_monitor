@@ -2,6 +2,7 @@
 import gzip
 import hashlib
 import json
+import platform
 from pathlib import Path
 import shutil
 import subprocess
@@ -17,12 +18,12 @@ EXTENSION_SPECS = (
         'name': 'python',
         'version': '2026.4.0',
         # The Open VSX build can omit the bundled environment discovery
-        # executable. Ask the Marketplace for the Linux x64 variant so the
-        # bundled python-env-tools binary matches the CCI container.
+        # executable. Use native Marketplace builds with environment discovery.
+        # ARM64 variants are selected by extension_specs below.
         'url': 'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/ms-python/vsextensions/python/2026.4.0/vspackage?targetPlatform=linux-x64',
         'sha256': '1d07e60d5eab257ea5d691b26def3fff642b4d2c04fab94424e8b8fe25baf656',
         'required_paths': ('python-env-tools/bin/pet',),
-        'required_x86_64_elf_paths': ('python-env-tools/bin/pet',),
+        'required_elf_paths': ('python-env-tools/bin/pet',),
     },
     {
         'id': 'detachhead.basedpyright',
@@ -51,7 +52,7 @@ EXTENSION_SPECS = (
         'url': 'https://open-vsx.org/api/charliermarsh/ruff/linux-x64/2026.86.0/file/charliermarsh.ruff-2026.86.0@linux-x64.vsix',
         'sha256': 'e732e2185521fb525adabcbc748d76687c2c80dcc8a74cdcdaaa896fbab42c77',
         'required_paths': ('dist/extension.js', 'bundled/libs/bin/ruff'),
-        'required_x86_64_elf_paths': ('bundled/libs/bin/ruff',),
+        'required_elf_paths': ('bundled/libs/bin/ruff',),
     },
     {
         'id': 'ms-python.debugpy',
@@ -70,9 +71,26 @@ EXTENSION_SPECS = (
         'url': 'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/ms-python/vsextensions/vscode-python-envs/1.38.0/vspackage?targetPlatform=linux-x64',
         'sha256': '54aa8aed887b2c2b5b4bb511d0fe44beb83e2cc047c3c2c196521083dd95a9d2',
         'required_paths': ('dist/extension.js', 'python-env-tools/bin/pet'),
-        'required_x86_64_elf_paths': ('python-env-tools/bin/pet',),
+        'required_elf_paths': ('python-env-tools/bin/pet',),
     },
 )
+# Verified ARM64 variants of the same pinned extension releases.
+ARM64_EXTENSION_SHA256 = {
+    'python': 'bfb7dab56fcb309f0279246b13fe5bedd2ea3ab84d870cd4c92531b4032e0541',
+    'ruff': '01f23b5766c58b9cd3ca3f161c65cfc28a561df78347faf8b7144bd84574bc68',
+    'debugpy': '2942ae1b4c84366995d2620642b703c5b3af5212da4a9733a98269e35d752300',
+    'vscode-python-envs': '3300cb73044f6fb3b5fc98ebf518e862e4be3ffc6ed73a4614b54be7861056b4',
+}
+
+
+def extension_specs():
+    if platform.machine().lower() not in ('aarch64', 'arm64'):
+        return EXTENSION_SPECS
+    return tuple({**spec, 'url': spec['url'].replace('linux-x64', 'linux-arm64'),
+                  'sha256': ARM64_EXTENSION_SHA256.get(spec['name'], spec['sha256']),
+                  'elf_machine': 183} for spec in EXTENSION_SPECS)
+
+
 EXTENSIONS_VERSION = '8|' + '|'.join(spec['id'] + '@' + spec['version'] for spec in EXTENSION_SPECS)
 UPDATE_DEFAULTS = {'extensions.autoUpdate': False, 'extensions.autoCheckUpdates': False}
 ATTEMPT_COOLDOWN = 300
@@ -87,14 +105,14 @@ def _obsolete(extensions):
         return {}
 
 
-def _is_linux_x86_64_elf(path):
+def _is_linux_elf(path, machine):
     try:
         with path.open('rb') as stream:
             header = stream.read(20)
     except OSError:
         return False
     return (len(header) >= 20 and header[:4] == b'\x7fELF'
-            and header[4:6] == b'\x02\x01' and header[18:20] == b'\x3e\x00')
+            and header[4:6] == b'\x02\x01' and int.from_bytes(header[18:20], 'little') == machine)
 
 
 def extension_installed(extensions, spec):
@@ -119,8 +137,8 @@ def extension_installed(extensions, spec):
                     for relative in spec.get('required_paths', ())
                 )
                 and all(
-                    _is_linux_x86_64_elf(manifest.parent / relative)
-                    for relative in spec.get('required_x86_64_elf_paths', ())
+                    _is_linux_elf(manifest.parent / relative, spec.get('elf_machine', 62))
+                    for relative in spec.get('required_elf_paths', ())
                 )):
             return True
     return False
@@ -447,7 +465,7 @@ def prepare_extensions(base, env, binary, progress=None, *, install=True):
     result = {'version': EXTENSIONS_VERSION, 'installed': True, 'locale': 'zh-cn', 'extensions': {}}
     throttled = _attempt_recent(base) if install else False
     attempted = False
-    for spec in EXTENSION_SPECS:
+    for spec in extension_specs():
         installed = extension_installed(extensions, spec)
         if not installed and install and not throttled:
             attempted = True

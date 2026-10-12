@@ -10,6 +10,7 @@ from . import ide_codex, ide_appearance, ide_extensions
 
 VERSION = '4.139.1'
 SHA256 = '53029be6c5781b7bca49b815fcc9a2a3fc111813ad8c9965b2c0f0d2985a0674'
+ARM64_SHA256 = '0edb4b60d9c4744b2dd14b0911e3c2e6dd8c6f3c13bd58bda23ae744e59e7df1'
 
 
 @lru_cache(maxsize=1)
@@ -28,8 +29,11 @@ def _appearance_bundle():
     return ide_appearance.appearance_bundle()
 
 
-def bootstrap_script(instance, address, *, install_optional=True, download_proxy=None):
-    settings = json.dumps({'instance': instance, 'address': address, 'version': VERSION, 'sha256': SHA256, 'install_optional': install_optional, 'download_proxy': download_proxy})
+def bootstrap_script(instance, address, *, install_optional=True, download_proxy=None, activate_proxy=False):
+    settings = json.dumps({'instance': instance, 'address': address, 'version': VERSION,
+                          'sha256': {'amd64': SHA256, 'arm64': ARM64_SHA256},
+                          'install_optional': install_optional, 'download_proxy': download_proxy,
+                          'activate_proxy': activate_proxy})
     bundle = _appearance_bundle()
     if not install_optional:
         bundle = {key: value for key, value in bundle.items() if key != 'payload'}
@@ -42,14 +46,30 @@ def bootstrap_script(instance, address, *, install_optional=True, download_proxy
 _SCRIPT = r'''
 import fcntl, hashlib, json, os, pathlib, platform, secrets, shutil, socket, subprocess, tarfile, tempfile, time, urllib.request
 s = json.loads(SETTINGS)
+if (s.get('activate_proxy') and not s.get('download_proxy')
+        and not any(os.environ.get(key) for key in ('http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'all_proxy', 'ALL_PROXY'))):
+    # Only import download settings from the user's helper, without its mirror/SSH edits.
+    try:
+        proxy = subprocess.run(['/bin/bash', '-ic',
+            'if command -v proxy_on >/dev/null 2>&1; then proxy_on >/dev/null 2>&1 && env -0; fi'],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=15,
+            env={**os.environ, 'CHARLES_AUTO_MIRRORS': '0', 'CHARLES_SSH_PROXY': '0'})
+        if proxy.returncode == 0:
+            for entry in proxy.stdout.decode(errors='replace').split('\0'):
+                key, separator, value = entry.partition('=')
+                if separator and key in ('http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'all_proxy', 'ALL_PROXY', 'no_proxy', 'NO_PROXY'):
+                    if not os.environ.get(key): os.environ[key] = value
+    except (OSError, subprocess.TimeoutExpired):
+        pass  # Hosts with no helper can still download directly.
 if s.get('download_proxy'):
     urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHandler(
         {scheme: s['download_proxy'] for scheme in ('http', 'https')})))
 progress = globals().get('_ilab_report_progress', lambda *args: None)
-if socket.gethostname() != s['instance']:
+if s['instance'] is not None and socket.gethostname() != s['instance']:
     raise RuntimeError('容器身份已变化，请刷新任务后重试。')
-if platform.system() != 'Linux' or platform.machine() not in ('x86_64', 'amd64'):
-    raise RuntimeError('当前编辑器仅支持 Linux x86_64 容器。')
+arch = {'x86_64': 'amd64', 'amd64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}.get(platform.machine().lower())
+if platform.system() != 'Linux' or arch is None:
+    raise RuntimeError('当前编辑器仅支持 Linux x86_64 或 ARM64。')
 os.umask(0o077)
 base = pathlib.Path.home() / '.local/share/ilab-cci-editor'
 base.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -61,7 +81,7 @@ progress('waiting_lock')
 fcntl.flock(lock, fcntl.LOCK_EX)
 progress('checking')
 version = s['version']
-folder = base / ('code-server-' + version + '-linux-amd64')
+folder = base / ('code-server-' + version + '-linux-' + arch)
 binary = folder / 'bin/code-server'
 state_file = base / 'state.json'
 env = dict(os.environ)
@@ -69,7 +89,7 @@ for key in ('PASSWORD', 'HASHED_PASSWORD', 'CODE_SERVER_CONFIG', 'NODE_OPTIONS')
     env.pop(key, None)
 env['SHELL'] = '/bin/bash'
 def optional_setup():
-    codex = prepare_codex(base, env, binary, progress=progress, install=s['install_optional'])
+    codex = prepare_codex(base, env, binary, progress=progress, install=s['install_optional'], configure_permissions=s['instance'] is not None)
     appearance = (prepare_appearance(base, env, binary, APPEARANCE_BUNDLE, progress=progress)
                   if s['install_optional'] else {'version': APPEARANCE_BUNDLE['version'], 'installed': appearance_installed(base, APPEARANCE_BUNDLE)})
     # Install required extensions once; check them on later launches.
@@ -109,7 +129,7 @@ else:
         temporary = pathlib.Path(tempfile.mkdtemp(prefix='install-', dir=str(base)))
         try:
             archive = temporary / 'release.tar.gz'
-            url = 'https://github.com/coder/code-server/releases/download/v' + version + '/code-server-' + version + '-linux-amd64.tar.gz'
+            url = 'https://github.com/coder/code-server/releases/download/v' + version + '/' + folder.name + '.tar.gz'
             digest = hashlib.sha256()
             total = 0
             progress('download_editor', 0)
@@ -125,7 +145,7 @@ else:
                     output.write(chunk)
                     progress('download_editor', total, expected)
             progress('verify_editor')
-            if digest.hexdigest() != s['sha256']:
+            if digest.hexdigest() != s['sha256'][arch]:
                 raise RuntimeError('编辑器下载校验失败，请重试。')
             progress('extract_editor')
             with tarfile.open(str(archive)) as bundle:

@@ -1,6 +1,7 @@
 """Container-local Codex setup; never read or copy credentials into the monitor."""
 import hashlib
 import json
+import platform
 from pathlib import Path
 import shutil
 import subprocess
@@ -149,7 +150,10 @@ def install_codex(base, binary, env, progress=None):
         archive = temporary / ('openai.chatgpt-' + CODEX_VERSION + '.vsix')
         digest = hashlib.sha256(); total = 0; started = time.monotonic()
         progress('download_codex', 0)
-        with urllib.request.urlopen(CODEX_URL, timeout=45) as response, archive.open('wb') as output:
+        arm64 = platform.machine().lower() in ('aarch64', 'arm64')
+        url = CODEX_URL.replace('linux-x64', 'linux-arm64') if arm64 else CODEX_URL
+        checksum = 'ef38b36a93f7f3d9b8559d7add5c895cb38854f07b55806630ae150c85d7f198' if arm64 else CODEX_SHA256
+        with urllib.request.urlopen(url, timeout=45) as response, archive.open('wb') as output:
             expected = download_size(response)
             progress('download_codex', 0, expected)
             while True:
@@ -161,7 +165,7 @@ def install_codex(base, binary, env, progress=None):
                 digest.update(chunk); output.write(chunk)
                 progress('download_codex', total, expected)
         progress('verify_codex')
-        if digest.hexdigest() != CODEX_SHA256:
+        if digest.hexdigest() != checksum:
             raise RuntimeError('Codex 插件下载校验失败。')
         progress('install_codex')
         install_config = temporary / 'config.json'
@@ -178,7 +182,7 @@ def install_codex(base, binary, env, progress=None):
         shutil.rmtree(str(temporary), ignore_errors=True)
 
 
-def prepare_codex(base, env, binary, progress=None, *, install=True):
+def prepare_codex(base, env, binary, progress=None, *, install=True, configure_permissions=True):
     home = Path(env.get('HOME') or str(Path.home()))
     configured = env.get('CODEX_HOME')
     codex_home = Path(configured).expanduser() if configured else home / '.codex'
@@ -189,7 +193,7 @@ def prepare_codex(base, env, binary, progress=None, *, install=True):
     # Reuse the container home; only the explicitly requested permission defaults
     # are updated. Never copy or return authentication/configuration contents.
     env['CODEX_HOME'] = str(codex_home)
-    full_access = ensure_full_access_defaults(codex_home)
+    full_access = ensure_full_access_defaults(codex_home) if configure_permissions else False
     if not codex_installed(base / 'extensions'):
         if not install: return {'configured': True, 'installed': False, 'full_access': full_access}
         try:

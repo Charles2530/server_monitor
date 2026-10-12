@@ -225,3 +225,22 @@
   #storage-section .section-heading { gap: 13px; }
   .storage-actions .button { font-size: 11px; }
 }
+
+/* SSH inventory: compact connection cards, sharing the workspace palette. */
+.ssh-toolbar, .ssh-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.ssh-toolbar { margin-bottom: 20px; }
+.ssh-toolbar h2 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 19px; }
+.ssh-toolbar p, .ssh-note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+.ssh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 14px; }
+.ssh-card { min-width: 0; border: 1px solid var(--line); border-radius: 14px; padding: 19px; background: var(--surface); box-shadow: var(--panel-shadow); }
+.ssh-card h3 { min-width: 0; overflow-wrap: anywhere; margin: 0; font-size: 17px; }
+.ssh-card p { margin: 10px 0 18px; color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ssh-online { flex-shrink: 0; font-size: 12px; color: var(--accent); display: inline-flex; align-items: center; gap: 5px; }
+.ssh-online::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.ssh-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ssh-actions .button { flex: 1; padding: 9px 10px; min-height: 36px; font-size: 13px; justify-content: center; }
+.ssh-empty { padding: 46px 20px; border: 1px dashed var(--line); border-radius: 14px; color: var(--muted); text-align: center; }
+.ssh-note { margin-top: 18px; }
+
+:root[data-theme] #ssh-view .button-secondary { background: var(--surface-raised); color: var(--ink); border-color: var(--line); }
+body:has(#ssh-view:not([hidden])) .refresh-cadence { display: none; }

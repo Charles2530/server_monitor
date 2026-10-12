@@ -11,6 +11,7 @@ import secrets
 import socket
 import tempfile
 import time
+import zlib
 
 import httpx
 from .acp_actions import ActionError
@@ -103,9 +104,9 @@ async def run_python(bridge, data, script, *, timeout=600, on_progress=None, ver
     tag = secrets.token_hex(16)
     reporter = "def _ilab_report_progress(stage, downloaded_bytes=None, total_bytes=None):\n    print(chr(30)+" + repr(tag) + "+json.dumps({'__ilab_progress__': {'stage': stage, 'downloaded_bytes': downloaded_bytes, 'total_bytes': total_bytes}})+chr(31), flush=True)\n"
     payload = 'import json\n' + reporter + 'try:\n' + '\n'.join('    ' + line for line in script.splitlines()) + '\nexcept Exception as exc:\n    RESULT = {"error": str(exc)}\nprint(chr(30)+' + repr(tag) + '+json.dumps(RESULT)+chr(31), flush=True)\n'
-    encoded = base64.b64encode(payload.encode()).decode()
+    encoded = base64.b64encode(zlib.compress(payload.encode(), 9)).decode()
     # Heredoc lines remain under canonical PTY input limits. Only our own shell is changed.
-    command = "stty -echo; python3 - <<'ILAB_EDITOR_PY'\nimport base64\nexec(base64.b64decode(\n" + '\n'.join(repr(encoded[i:i+1000]) for i in range(0, len(encoded), 1000)) + "))\nILAB_EDITOR_PY\nstty echo\n"
+    command = "stty -echo; python3 - <<'ILAB_EDITOR_PY'\nimport base64, zlib\nexec(zlib.decompress(base64.b64decode(\n" + '\n'.join(repr(encoded[i:i+1000]) for i in range(0, len(encoded), 1000)) + ")))\nILAB_EDITOR_PY\nstty echo\n"
     async def execute():
         for index, start in enumerate(range(0, len(command), 1800), 1):
             await bridge.write(key, sequence + index, command[start:start+1800], None, owner)
@@ -236,6 +237,8 @@ class SSHForward:
 
 
 class CCIEditor:
+    task_pattern = r'CCI:[A-Za-z0-9][A-Za-z0-9_-]{0,99}'
+
     def __init__(self, site, bridge, resolver, *, origin_registry=None):
         self.site, self.bridge, self.resolver = site, bridge, resolver
         self.origin_registry = origin_registry if origin_registry is not None else EditorOriginRegistry(MAOSHANWANG.data / 'ide-origins.json')
@@ -275,7 +278,7 @@ class CCIEditor:
 
     async def begin(self, action, data, origin):
         if action not in ('targets', 'open', 'recover'): raise ActionError('编辑器请求无效。')
-        if not isinstance(data.get('task_id'), str) or not re.fullmatch(r'CCI:[A-Za-z0-9][A-Za-z0-9_-]{0,99}', data['task_id']):
+        if not isinstance(data.get('task_id'), str) or not re.fullmatch(self.task_pattern, data['task_id']):
             raise ActionError('仅本人运行中的 CCI 支持站内 VS Code。')
         if action in ('open', 'recover'):
             for field in ('instance', 'container'):
@@ -538,7 +541,7 @@ class CCIEditor:
         session['optional_attempted'] = time.monotonic()
         async def prepare():
             try:
-                prepared = await run_python(self.bridge, data, bootstrap_script(data['instance'], session['address'], download_proxy=self.download_proxy()), cleanup_jobs=self.cleanup_jobs)
+                prepared = await run_python(self.bridge, data, self.bootstrap(data, session['address']), cleanup_jobs=self.cleanup_jobs)
                 if 'error' not in prepared and self.sessions.get(identity) is session:
                     session.update(codex=prepared.get('codex', {}), appearance=prepared.get('appearance', {}),
                                   extensions=prepared.get('extensions', {}),
@@ -550,6 +553,9 @@ class CCIEditor:
                 # Optional marketplace/setup failures must not break a usable editor.
                 pass
         self.optional_jobs[identity] = asyncio.create_task(prepare())
+
+    def bootstrap(self, data, address, *, install_optional=True):
+        return bootstrap_script(data['instance'], address, install_optional=install_optional, download_proxy=self.download_proxy())
 
     def download_proxy(self):
         prefix = 'SENSECORE' if self.site.id == 'sensecore' else 'MONITOR'
@@ -598,8 +604,10 @@ class CCIEditor:
                 if isinstance(warmed, CloudForward): warmed = None
                 warming = asyncio.create_task(warmed.warm()) if warmed else None
                 try:
-                    prepared = await run_python(self.bridge, data, bootstrap_script(data['instance'], address, install_optional=False, download_proxy=self.download_proxy()), on_progress=notify,
+                    prepared = await run_python(self.bridge, data, self.bootstrap(data, address, install_optional=False), on_progress=notify,
                                                 verified_targets=self.target_leases.get(data['task_id']), cleanup_jobs=self.cleanup_jobs)
+                    if prepared.get('error') == '当前编辑器仅支持 Linux x86_64 或 ARM64。':
+                        raise ActionError('此服务器暂不支持内置 VS Code（需要 Linux x86_64 或 ARM64），可使用 Terminal。')
                     if 'error' in prepared:
                         # Arbitrary remote output is never reflected to the browser.
                         raise ActionError('容器内编辑器准备失败，请检查 Python 3、GitHub 下载和专用 editor.log。')

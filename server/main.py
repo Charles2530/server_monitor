@@ -25,6 +25,8 @@ from .storage import StorageManager
 from .images import ImageManager
 from .task_history import TaskHistory
 from .utilization_queue import UtilizationQueue
+from .ssh import SSHCatalog, SSHBridge, SSHEditor
+from types import SimpleNamespace
 from .tokenhub import TokenHub
 from .tokenhub_routes import register_tokenhub_routes
 from .normalize import task_console_url
@@ -59,6 +61,9 @@ class SiteRuntime:
 
 def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=None, tokenhub=None):
     tokenhub = tokenhub or TokenHub()
+    ssh_catalog = SSHCatalog()
+    ssh_bridge = SSHBridge(ssh_catalog)
+    ssh_runtime = SimpleNamespace(terminal_bridge=ssh_bridge, ide=SSHEditor(ssh_bridge))
     if runtimes is None:
         if monitor is not None:
             runtimes={'maoshanwang':SiteRuntime(monitor,actions or ACPManager(monitor.store),logs or TaskLogs())}
@@ -84,6 +89,10 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         if site_id not in runtimes:
             raise HTTPException(status_code=400,detail='未知站点，未执行请求。')
         return runtimes[site_id]
+    def current_connection(request: Request):
+        if request.headers.get('x-monitor-site') == 'ssh': return ssh_runtime
+        return current_site(request)
+
     @asynccontextmanager
     async def lifespan(app):
         lock_file = None
@@ -101,6 +110,9 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
         try:
             yield
         finally:
+            await ssh_catalog.close()
+            await ssh_runtime.ide.close()
+            await ssh_bridge.close()
             await tokenhub.close()
             for runtime in runtimes.values():
                 await runtime.ide.close()
@@ -117,6 +129,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     app.state.monitor=runtimes["maoshanwang"].monitor
     app.state.runtimes=runtimes
     app.state.tokenhub=tokenhub
+    app.state.ssh=ssh_catalog
     app.state.runtime_profile=get_runtime_profile()
 
     @app.middleware('http')
@@ -198,9 +211,17 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
                 raise ActionError('云端读取超时，请稍后刷新。','source_timeout',504) from None
         return await perform(bounded)
 
-    register_terminal_routes(app,current_site,perform,action_body,runtimes)
-    register_ide_routes(app,current_site,perform,action_body)
+    register_terminal_routes(app,current_connection,perform,action_body,{**runtimes, 'ssh': ssh_runtime})
+    register_ide_routes(app,current_connection,perform,action_body)
     register_tokenhub_routes(app,tokenhub)
+
+    @app.get('/api/ssh')
+    async def ssh_state():
+        return ssh_catalog.snapshot()
+
+    @app.post('/api/ssh/refresh')
+    async def ssh_refresh():
+        return ssh_catalog.refresh()
 
     @app.get('/api/images')
     async def images(refresh: bool=False, namespace: str="", runtime=Depends(current_site)):

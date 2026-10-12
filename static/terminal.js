@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   const $ = id => document.getElementById(id), site = window.MonitorSite;
-  const taskId = new URL(location.href).searchParams.get("task_id"), isACP = taskId?.startsWith("ACP:"), kind = isACP ? "ACP" : "CCI";
+  const taskId = new URL(location.href).searchParams.get("task_id"), isACP = taskId?.startsWith("ACP:"), isSSH = site.id === "ssh", kind = isSSH ? "SSH" : isACP ? "ACP" : "CCI";
   const editorMedia = matchMedia("(max-width:760px), (pointer:coarse)");
   const consoleBase = site.id === "sensecore" ? "https://console.sensecore.cn/cn-sh-01" : "https://console.ms-sc-01.maoshanwangtech.com";
   let taskName = taskId, targets = [], loading = false, term, fit, session = null, socket = null, alive = false, sequence = 0, cursor = 0;
@@ -9,13 +9,19 @@
   let recovery = null, probeTimer = null, httpTransport = false, networkCheckPending = false, reopen = false;
   let focusMode = true, tmuxRequest = 0, tmuxToken = null, tmuxEntered = false, tmuxCurrent = "", shellInputPending = false;
   const mobile = new TerminalMobile({ getTerm: () => term, isAlive: () => alive, refit: () => scheduleFit() });
-  $("terminal-back").href = window.MonitorTaskContext?.returnUrl(taskId, new URL(location.href).searchParams.get("task_view")) || `/?site=${encodeURIComponent(site.id)}#tasks`;
+  $("terminal-back").href = isSSH ? "/#ssh" : window.MonitorTaskContext?.returnUrl(taskId, new URL(location.href).searchParams.get("task_view")) || `/?site=${encodeURIComponent(site.id)}#tasks`;
   $("terminal-mobile-back").href = $("terminal-menu-back").href = $("terminal-back").href;
   $("terminal-title").textContent = `${kind} Web Terminal`;
   document.title = `${kind} Web Terminal · iLab Server Monitor`;
   $("terminal-instance-label").textContent = isACP ? "Worker" : "实例";
   $("terminal-container-label").hidden = $("terminal-container").hidden = isACP;
-  $("terminal-container-field").hidden = isACP;
+  $("terminal-container-field").hidden = isACP || isSSH;
+  if (isSSH) {
+    $("terminal-instance-label").textContent = "服务器";
+    document.querySelector(".session-welcome h2").textContent = "连接 SSH 终端";
+    document.querySelector(".session-welcome p").textContent = "使用本机 SSH 配置连接服务器。";
+    document.querySelector(".welcome-tags").hidden = true;
+  }
 
   function applyFocus() {
     document.body.classList.toggle("terminal-focused", focusMode && alive);
@@ -97,10 +103,10 @@
   }
   function selected() { return targets.find(t => t.instance === $("terminal-instance").value && (isACP || t.container === $("terminal-container").value)); }
   function official() {
-    const t = selected(); $("terminal-official").hidden = !t;
-    if (t) $("terminal-official").href = t.url;
+    const t = selected(); $("terminal-official").hidden = !t || isSSH;
+    if (t && !isSSH) $("terminal-official").href = t.url;
     const editor = $("terminal-ide");
-    editor.hidden = !t || loading || !taskId?.startsWith("CCI:") || editorMedia.matches
+    editor.hidden = !t || loading || !(isSSH || taskId?.startsWith("CCI:")) || editorMedia.matches
       || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)
       || location.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(location.hostname);
     if (editor.hidden) editor.removeAttribute("href");
@@ -386,12 +392,12 @@
     loading = true; targets = []; $("terminal-picker").hidden = true; $("terminal-retry").hidden = true;
     official();
     $("terminal-connection").open = false;
-    $("terminal-task").textContent = taskId || "未选择任务"; status(isACP ? "正在读取最新 Worker…" : "正在读取最新实例与容器…");
+    $("terminal-task").textContent = taskId || "未选择任务"; status(isSSH ? "正在读取 SSH 服务器…" : isACP ? "正在读取最新 Worker…" : "正在读取最新实例与容器…");
     try {
-      if (!/^(CCI|ACP):[A-Za-z0-9][A-Za-z0-9_-]{0,62}$/.test(taskId || "")) throw new Error("请选择有效的 CCI 或 ACP 任务。");
+      if (!(isSSH ? /^SSH:[A-Za-z0-9][A-Za-z0-9_.-]{0,100}$/ : /^(CCI|ACP):[A-Za-z0-9][A-Za-z0-9_-]{0,62}$/).test(taskId || "")) throw new Error("请选择有效的 CCI 或 ACP 任务。");
       const data = await prepare("targets", { task_id: taskId });
       if (data.site !== site.id || data.task_id !== taskId || !Array.isArray(data.targets)) throw new Error("终端配置与当前站点或任务不一致。");
-      targets = data.targets.map(t => ({ ...t, url: safeURL(t) }));
+      targets = data.targets.map(t => ({ ...t, url: isSSH ? null : safeURL(t) }));
       taskName = data.name || taskId;
       $("terminal-task").textContent = `${taskName} · ${taskId}`;
       $("terminal-task").title = $("terminal-task").textContent;
@@ -399,7 +405,7 @@
       $("terminal-instance").replaceChildren(...[...new Set(targets.map(t => t.instance))].map(option));
       selectInstance(); $("terminal-picker").hidden = false;
       $("terminal-connection").open = targets.length > 1;
-      status(targets.length > 1 ? "请选择要连接的 Worker / 容器。" : "已找到运行容器。", "ready", "idle");
+      status(targets.length > 1 ? "请选择要连接的 Worker / 容器。" : isSSH ? "已找到 SSH 服务器。" : "已找到运行容器。", "ready", "idle");
     } catch (error) { status(error.message || "连接失败，请重试。", "error"); }
     finally { loading = false; official(); $("terminal-retry").hidden = false; }
     if (targets.length === 1) await openTerminal();

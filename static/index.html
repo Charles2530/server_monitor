@@ -41,6 +41,7 @@
     <link rel="stylesheet" href="/static/typography.css">
     <link rel="stylesheet" href="/static/tokenhub.css">
     <script src="/static/tokenhub.js" defer></script>
+    <script src="/static/ssh.js" defer></script>
     <link rel="stylesheet" href="/static/appearance.css">
   <link rel="stylesheet" href="/static/visual-tokens.css">
   <link rel="stylesheet" href="/static/visual-refresh.css">
@@ -56,6 +57,7 @@
       <nav>
         <a class="nav-item active" href="#overview" aria-current="page"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>资源总览</a>
         <a class="nav-item" href="#tokenhub"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6v5l5 11a1.5 1.5 0 0 1-1.4 2H5.4A1.5 1.5 0 0 1 4 19L9 8V3M8 3h8M7 15h10"/></svg>TokenHub</a>
+        <a class="nav-item" href="#ssh"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="m7 9 3 3-3 3m6 0h4"/></svg>SSH 管理</a>
         <a class="nav-item" href="#tasks"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>运行任务</a>
         <a class="nav-item" href="#acp"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>ACP 任务</a>
         <a class="nav-item" href="#waiting"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>队列管理</a>
@@ -131,6 +133,12 @@
         </section>
       </div>
       </div>
+      <section id="ssh-view" class="workspace-view" data-page="ssh" hidden>
+        <div class="ssh-toolbar"><div><h2>可用服务器 <span id="ssh-count" class="subtle-badge">0</span></h2><p id="ssh-status" role="status" aria-live="polite">进入页面后自动检测 SSH 连接</p></div><button id="ssh-refresh" class="button button-secondary" type="button">重新检测</button></div>
+        <div id="ssh-servers" class="ssh-grid" aria-label="可用 SSH 服务器"></div>
+        <p id="ssh-empty" class="ssh-empty">正在准备检测…</p>
+        <p class="ssh-note">读取本机 ~/.ssh/config · 仅展示本次 SSH 登录成功的服务器</p>
+      </section>
       <section id="tokenhub-view" class="workspace-view th-page" data-page="tokenhub" hidden>
         <div class="th-toolbar"><div class="th-account"><span class="th-account-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v5l5 11a1.5 1.5 0 0 1-1.4 2H5.4A1.5 1.5 0 0 1 4 19L9 8V3M8 3h8M7 15h10"/></svg></span><div><h2 id="tokenhub-account">我的 API 资源</h2><p id="tokenhub-status" role="status" aria-live="polite">正在读取账户状态…</p></div></div><div class="th-actions"><button type="button" class="button button-primary" data-tokenhub-connect>连接 TokenHub</button><button id="tokenhub-refresh" type="button" class="button button-secondary">刷新数据</button><a class="button button-secondary" href="https://tokenhub.ilab.beer/dashboard" target="_blank" rel="noopener noreferrer">打开原站 ↗</a><button id="tokenhub-disconnect" type="button" class="button button-secondary" hidden>断开本机连接</button></div></div>
         <p id="tokenhub-notice" class="th-notice" role="status" hidden></p>

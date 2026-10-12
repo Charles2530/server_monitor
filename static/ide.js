@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   const $ = id => document.getElementById(id), site = window.MonitorSite;
-  const taskId = new URL(location.href).searchParams.get("task_id");
+  const taskId = new URL(location.href).searchParams.get("task_id"), isSSH = site.id === "ssh";
   const mobileMedia = matchMedia("(max-width:760px), (pointer:coarse)");
   let targets = [], generation = 0, controller = null, busy = false, historyRevision = 0;
   let connection = null, nextCheck = 0, recoveryFailures = 0, retryTimer = null, initializationFailed = false;
@@ -101,8 +101,12 @@
     }
     return { instance, container };
   }
-  $("ide-back").href = window.MonitorTaskContext?.returnUrl(taskId, new URL(location.href).searchParams.get("task_view")) || `/?site=${encodeURIComponent(site.id)}#tasks`;
+  $("ide-back").href = isSSH ? "/#ssh" : window.MonitorTaskContext?.returnUrl(taskId, new URL(location.href).searchParams.get("task_view")) || `/?site=${encodeURIComponent(site.id)}#tasks`;
   $("ide-task").textContent = taskId || "未指定任务";
+  if (isSSH) {
+    document.querySelector('.session-welcome p').textContent = '在浏览器中编辑远程服务器上的文件，继续你的开发工作。';
+    document.querySelector('.welcome-tags span:nth-child(2)').textContent = 'SSH 服务器';
+  }
 
   function status(message, state = "loading") { $("ide-status").textContent = message; $("ide-status").dataset.state = state; window.MonitorConnectionLog?.update(navigator.onLine === false ? "offline" : state, message); }
   function progress(value) {
@@ -133,7 +137,7 @@
   function unsupported() {
     if (/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) || mobileMedia.matches) return "VS Code 仅支持桌面浏览器，请在电脑上打开此任务。";
     if (location.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(location.hostname)) return "请在本机通过 http://127.0.0.1 或 http://localhost 打开桌面监控，再进入 VS Code。";
-    if (!taskId?.startsWith("CCI:") || taskId.length <= 4) return "VS Code 仅支持运行中的 charles CCI 任务，请返回监控选择任务。";
+    if (!(isSSH ? /^SSH:[A-Za-z0-9][A-Za-z0-9_.-]{0,100}$/.test(taskId || "") : taskId?.startsWith("CCI:") && taskId.length > 4)) return "VS Code 仅支持运行中的 charles CCI 任务，请返回监控选择任务。";
     return "";
   }
   function cancel() { clearTimeout(retryTimer); retryTimer = null; progress(null); generation += 1; controller?.abort(); controller = null; busy = false; }

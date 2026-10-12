@@ -4,7 +4,7 @@
   const sites = ["maoshanwang", "sensecore"];
   const url = new URL(location.href);
   const requested = url.searchParams.get("site");
-  const id = sites.includes(requested) ? requested : "maoshanwang";
+  const id = requested === "ssh" && ["/terminal", "/ide"].includes(location.pathname) ? "ssh" : sites.includes(requested) ? requested : "maoshanwang";
   // Bind every request to this document's site. Switching loads a fresh document.
   const key = (name) => id === "maoshanwang" ? name : `${name}.${id}`;
   let writes = 0;
