@@ -79,9 +79,18 @@
   gap: 6px;
 }
 
+[data-ilab-file-directory] {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 16px;
+  vertical-align: middle;
+}
 [data-ilab-codex-file] [data-ilab-file-directory]::after,
 [data-composer-attachment-pill] [data-ilab-file-directory]::after {
   display: inline-block;
+  align-self: center;
   max-width: min(180px, 34vw);
   margin-left: 4px;
   overflow: hidden;
@@ -93,4 +102,18 @@
   font-weight: 400;
   font-size: 11px;
   letter-spacing: -.01em;
+}
+
+[data-ilab-codex-file="tile"][data-ilab-file-icon] > .composer-attachment-surface > :nth-child(2) > :first-child,
+[data-ilab-codex-file="card"][data-ilab-file-icon] .size-10,
+[data-composer-attachment-pill][data-ilab-file-icon] > :first-child {
+  background-image: var(--ilab-file-icon);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+[data-ilab-codex-file="tile"][data-ilab-file-icon] > .composer-attachment-surface > :nth-child(2) > :first-child svg,
+[data-ilab-codex-file="card"][data-ilab-file-icon] .size-10 svg,
+[data-composer-attachment-pill][data-ilab-file-icon] > :first-child svg {
+  visibility: hidden;
 }

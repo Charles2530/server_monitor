@@ -7,6 +7,30 @@
   const dropDocuments = new WeakSet();
   const scope = '[data-composer-attachments-row], [class*="_attachmentsDefault_"]';
   const candidates = '.group\\/composer-attachment, .group\\/file-attachment, button[data-composer-attachment-pill]';
+  const fileIcons = Object.freeze({
+    py: 'python', pyi: 'python', pyc: 'python',
+    js: 'javascript', mjs: 'javascript', cjs: 'javascript',
+    ts: 'typescript', mts: 'typescript', cts: 'typescript',
+    jsx: 'react', tsx: 'react', json: 'json', jsonc: 'json', jsonl: 'json',
+    md: 'markdown', mdx: 'markdown', rst: 'markdown', yml: 'yaml', yaml: 'yaml', toml: 'toml',
+    sh: 'console', bash: 'console', zsh: 'console', fish: 'console',
+    ini: 'settings', conf: 'settings', cfg: 'settings', env: 'settings',
+    sql: 'database', db: 'database', sqlite: 'database', sqlite3: 'database',
+    html: 'html', htm: 'html', css: 'css', scss: 'css', c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', hpp: 'cpp', cxx: 'cpp',
+    cu: 'cuda', cuh: 'cuda', ipynb: 'jupyter', pdf: 'pdf', zip: 'zip', gz: 'zip', tar: 'zip', '7z': 'zip', log: 'log',
+    png: 'image', jpg: 'image', jpeg: 'image', svg: 'image', gif: 'image', webp: 'image',
+    csv: 'table', tsv: 'table', parquet: 'table',
+    pt: 'pytorch', pth: 'pytorch', ckpt: 'pytorch', onnx: 'pytorch', safetensors: 'pytorch',
+  });
+  function fileIcon(filename) {
+    const name = filename.replace(/[\\/]$/, '').toLowerCase();
+    const fileNames = { dockerfile: 'docker', 'docker-compose.yml': 'docker', '.gitignore': 'git', '.gitattributes': 'git', makefile: 'settings' };
+    return fileNames[name] || fileIcons[name.slice(name.lastIndexOf('.') + 1)] || '';
+  }
+  function clearFileIcon(card) {
+    delete card.dataset.ilabFileIcon;
+    card.style?.removeProperty('--ilab-file-icon');
+  }
   function referenceDrop(event, target = event.target) {
     const transfer = event.dataTransfer;
     const types = Array.from(transfer?.types || []);
@@ -141,6 +165,7 @@
           if (!known) {
             if (label) delete label.dataset.ilabFileDirectory;
             delete card.dataset.ilabCodexFile;
+            clearFileIcon(card);
             continue;
           }
           // Pills are already compact; decorate their name without restyling
@@ -150,6 +175,11 @@
           const directory = path.slice(0, path.lastIndexOf('/'));
           if (path) label.dataset.ilabFileDirectory = directory.split('/').filter(Boolean).slice(-2).join('/') || '/';
           else delete label.dataset.ilabFileDirectory;
+          const icon = fileIcon(label.textContent.trim());
+          if (icon) {
+            card.dataset.ilabFileIcon = icon;
+            card.style?.setProperty('--ilab-file-icon', `url("/static/editor-appearance/extension/icons/${icon}.svg")`);
+          } else clearFileIcon(card);
           if (!card.title || card.title === card.dataset.ilabFileTitle) {
             card.title = path || label.textContent.trim();
             card.dataset.ilabFileTitle = card.title;
