@@ -17,7 +17,7 @@ RESOURCE_PATH = re.compile(r'^/stable-[a-f0-9]{40}/vscode-remote-resource$')
 RESOURCE_FILE = re.compile(r'^[A-Za-z0-9_./@+() -]+\.(?:json|tmLanguage|js|css|wasm|woff2?|ttf|svg|png|jpg|ico)$')
 WEBVIEW_PATH = re.compile(r'^/stable-[a-f0-9]{40}/static/out/vs/workbench/contrib/webview/browser/pre/(?:index\.html|fake\.html|service-worker\.js)$')
 WEBVIEW_QUERY = {'id', 'parentId', 'origin', 'swVersion', 'extensionId', 'platform',
-                 'vscode-resource-base-authority', 'parentOrigin', 'remoteAuthority', 'v'}
+                 'vscode-resource-base-authority', 'parentOrigin', 'remoteAuthority', 'purpose', 'v'}
 SAVED_HEADERS = {'content-type', 'content-encoding', 'cache-control', 'etag', 'last-modified', 'vary', 'content-security-policy'}
 
 

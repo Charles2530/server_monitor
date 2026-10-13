@@ -9,7 +9,6 @@ from .inventory import enrich_clusters
 from .config import SERVICES, WORKSPACE
 from .domain import is_target, summarize_metrics, merge_series
 from .normalize import task_from_raw, waiting_from_raw, cluster_from_raw, metric_series, iso
-from .acp_states import is_charles
 from .queue_states import QUEUE_LABELS
 from .runtime_profile import get_runtime_profile
 
@@ -175,7 +174,6 @@ class Collector:
         headers=(load_session(self.site) if self.site else load_session())['headers']
         state={'tasks':[], 'waiting_tasks':[], 'clusters':[], 'source_status':{}, 'updated_at':iso(now),'connected':True,'status':'ok','error':None}
         async with httpx.AsyncClient(headers=headers,timeout=25,follow_redirects=False) as client:
-            own_acp_names=set()
             async def source(kind):
                 if kind=='CCI':
                     rows=await self.paginate(client,'CCI','/compute/cci/data/v2'+self.workspace+'/appsOwn','apps',{'filter':"state='RUNNING'"})
@@ -183,7 +181,6 @@ class Collector:
                     states=('RUNNING',*QUEUE_LABELS['ACP'])
                     rows=await self.paginate(client,'AEC2','/compute/acp/data/v2'+self.workspace+'/trainingJobsOwn','training_jobs',
                         {'filter':' OR '.join("state='"+value+"'" for value in states)})
-                    own_acp_names.update(r['name'] for r in rows if is_charles(r.get('display_name')))
                 return [task_from_raw(r,kind,now) for r in rows if is_target(r.get('display_name',''),r.get('state'))]
             async def queue(kind,service,path,key):
                 # Filter before pagination: full CCI records can exceed the cloud's 4 MiB limit.
@@ -198,7 +195,7 @@ class Collector:
                 except Exception as error:
                     return error
             # Lists do not depend on telemetry metadata; overlap their reads, but
-            # wait for metadata before metrics and personal lists before queue permissions.
+            # wait for metadata before metrics.
             reads=[asyncio.create_task(read_list(read,auth_fatal)) for read,auth_fatal in (
                 (source('CCI'),True),(source('ACP'),True),
                 (queue('CCI','CCI','/compute/cci/data/v2'+self.workspace+'/apps','apps'),False),
@@ -233,7 +230,6 @@ class Collector:
                         if row.get('state') not in QUEUE_LABELS[kind]:
                             continue
                         task=waiting_from_raw(row,now,kind)
-                        task['can_stop']=task['can_stop'] and row['name'] in own_acp_names
                         waiting.append(task)
                     state['waiting_tasks'].extend(waiting)
                     state['source_status'][source_key]={'status':'ok','updated_at':iso(now)}

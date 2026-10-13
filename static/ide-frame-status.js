@@ -26,11 +26,15 @@
     if (workbench && workbench.getClientRects().length) {
       // Fixed code-server UI: a permanent remote failure leaves the workbench
       // mounted but stops its reconnect loop. Rendering alone is not recovery.
-      const dialogFailed = [...document.querySelectorAll('.monaco-dialog-box .dialog-message-text,.monaco-dialog-box .dialog-message-detail')]
-        .some(element => visible(element) && element.textContent.trim() === 'Cannot reconnect. Please reload the window.');
+      const messages = [...document.querySelectorAll('.monaco-dialog-box .dialog-message-text,.monaco-dialog-box .dialog-message-detail')]
+        .filter(visible).map(element => element.textContent.trim());
       const host = document.getElementById('status.host');
-      const disconnected = dialogFailed || !!(host && visible(host) && /Disconnected from /.test(host.textContent));
-      window.parent.postMessage({type: 'ilab-editor-alive', id: event.data.id, disconnected}, parentOrigin);
+      const hostText = host && visible(host) ? host.textContent : '';
+      const disconnected = messages.some(text => ['Cannot reconnect. Please reload the window.', '无法重新连接。请重新加载窗口。'].includes(text))
+        || /Disconnected from |已与 .+ 断开连接/.test(hostText);
+      const reconnecting = !disconnected && (messages.some(text => /^(?:Disconnected\. )?Attempting to reconnect|^(?:已断开连接。)?正在尝试(?:在 \d+ 秒内)?重新连接/.test(text))
+        || /Reconnecting to |正在重新连接到 /.test(hostText));
+      window.parent.postMessage({type: 'ilab-editor-alive', id: event.data.id, disconnected, reconnecting}, parentOrigin);
     }
   });
   let codexState;
@@ -135,13 +139,14 @@
     const style = panel.createElement('style');
     style.textContent = '[data-ilab-history-match="0"] { display: none !important; }';
     (panel.head || root).append(style);
+    const controls = 'button,[role="button"],textarea,[role="textbox"],[contenteditable="true"]';
     new MutationObserver(changes => {
       const changed = changes.some(change => {
         const target = change.target.nodeType === 1 ? change.target : change.target.parentElement;
         if (target?.closest('[data-ilab-history-filter]')) return false;
         return target?.closest('button,[role="button"],[data-ilab-history-match]')
           || [...change.addedNodes, ...change.removedNodes].some(node => node.nodeType === 1
-            && (node.matches('button,[role="button"]') || node.querySelector('button,[role="button"]')));
+            && (node.matches(controls) || node.querySelector(controls)));
       });
       if (changed) { historySignatures.delete(panel); scheduleProjectHistory(); }
     }).observe(root, {childList: true, subtree: true, characterData: true,
@@ -180,7 +185,8 @@
     return reported;
   }
   function scheduleProjectHistory() {
-    clearTimeout(historyTimer); historyTimer = setTimeout(inspectCodex, 180);
+    if (historyTimer !== null) return;
+    historyTimer = setTimeout(() => { historyTimer = null; inspectCodex(); }, 180);
   }
   if (embedded) window.addEventListener('message', event => {
     if (event.source !== window.parent || event.origin !== parentOrigin || event.data?.type !== 'ilab-codex-history') return;
@@ -218,16 +224,19 @@
   function inspectCodex() {
     if (document.hidden) return;
     let state = 'hidden';
-    const panels = codexPanels(true);
+    const panels = codexPanels(true), readyPanels = [];
     for (const panel of panels) {
       state = 'loading';
       if (!panel) continue;
       observeHistoryPanel(panel);
       continueWelcome(panel);
       if ([...panel.querySelectorAll('button,textarea,[role="textbox"],[contenteditable="true"]')]
-        .some(element => !element.closest('[data-ilab-history-filter]') && visible(element))) state = 'ready';
+        .some(element => !element.closest('[data-ilab-history-filter]') && visible(element))) {
+        state = 'ready'; readyPanels.push(panel);
+      }
     }
-    applyProjectHistory(panels.filter(Boolean));
+    // Early history must not add our controls before the native welcome renders.
+    applyProjectHistory(readyPanels);
     if (embedded && state !== codexState) {
       codexState = state;
       window.parent.postMessage({type: 'ilab-editor-codex', state}, parentOrigin);

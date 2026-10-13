@@ -2,7 +2,7 @@
 (() => {
   const $ = id => document.getElementById(id), site = window.MonitorSite;
   let active = false, timer = null, controller = null, serial = 0, snapshot = null;
-  let renderedSignature = null, renderedRows = new Map();
+  let renderedSignature = null, renderedRows = new Map(), kind = "CCI";
   const node = (tag, text, className) => {
     const element = document.createElement(tag);
     if (text !== undefined) element.textContent = text;
@@ -19,29 +19,34 @@
     if (!minutes) return "不足 1 分钟";
     return `${days ? `${days} 天 ` : ""}${hours ? `${hours} 小时 ` : ""}${minutes % 60} 分钟`;
   };
+  const durationText = (task, data) => `${data.status === "error" ? "上次观测已运行" : "已运行"} ${duration(task.duration_seconds)}${task.duration_estimated ? "（估算）" : ""}`;
 
   function render() {
     if (!snapshot) return;
-    const data = snapshot;
+    const source = snapshot.source_status?.[kind];
+    const data = { ...snapshot, tasks: snapshot.tasks.filter(task => task.kind === kind),
+      updated_at: source?.updated_at || snapshot.updated_at,
+      status: source?.status === "error" ? "error" : snapshot.status === "error" ? "error" : "ok",
+      warnings: (snapshot.warnings || []).filter(text => !text.startsWith(`${kind === "CCI" ? "ACP" : "CCI"} `)) };
     const mineOnly = $("utilization-mine").checked;
     const tasks = data.tasks.filter(task => !mineOnly || task.is_mine === true).sort((a, b) => Number(!known(a.gpu_utilization)) - Number(!known(b.gpu_utilization))
       || (known(a.gpu_utilization) && known(b.gpu_utilization) ? a.gpu_utilization - b.gpu_utilization : 0)
       || a.id.localeCompare(b.id));
     $("utilization-count").textContent = data.updated_at ? (mineOnly ? `${tasks.length} / ${data.tasks.length}` : tasks.length) : "—";
     const valid = tasks.filter(task => known(task.gpu_utilization)).length;
-    $("utilization-status").textContent = `${data.loading ? "正在读取实时 GPU 利用率，已取得的结果先显示" : data.status === "error" ? "读取失败 · 当前为旧列表" : "实时 GPU 利用率从低到高"} · ${mineOnly ? "仅我的任务 · " : ""}${valid} 个有效值 / ${tasks.length} 个 ACP 任务 · 列表更新 ${date(data.updated_at)}`;
+    $("utilization-status").textContent = `${data.loading ? "正在读取实时 GPU 利用率，已取得的结果先显示" : data.status === "error" ? "读取失败 · 当前为旧列表" : "实时 GPU 利用率从低到高"} · ${mineOnly ? "仅我的任务 · " : ""}${valid} 个有效值 / ${tasks.length} 个 ${kind} 任务 · 列表更新 ${date(data.updated_at)}`;
     const showWarnings = !mineOnly || data.status === "error" || tasks.some(task => !["ok", "no_gpu"].includes(task.metric_status));
     $("utilization-warning").hidden = !showWarnings || !data.warnings?.length;
     $("utilization-warning").textContent = (data.warnings || []).join(" ");
     // Header-only updates must not rebuild unchanged task rows.
-    const signature = JSON.stringify([data.status, tasks.length ? null : data.loading, mineOnly,
+    const signature = JSON.stringify([data.status, tasks.length ? null : data.loading, mineOnly, kind,
       tasks.map(task => [task.id, task.name, task.owner, task.cluster, task.gpu_count, task.replicas,
         task.is_mine, task.gpu_utilization, task.metric_status,
-        task.created_at, task.started_at, task.url])]);
+        task.created_at, task.started_at, task.duration_estimated, task.url, task.can_stop])]);
     if (signature === renderedSignature) {
       for (const task of tasks) {
         const row = renderedRows.get(task.id);
-        const text = `${data.status === "error" ? "上次观测已运行" : "已运行"} ${duration(task.duration_seconds)}`;
+        const text = durationText(task, data);
         if (row?._durationNode && row._durationNode.textContent !== text) row._durationNode.textContent = text;
         const title = `GPU 采样 ${date(task.metric_updated_at)}`;
         if (row && row.children[3].title !== title) row.children[3].title = title;
@@ -55,10 +60,10 @@
     const fragment = document.createDocumentFragment();
     for (const [index, task] of tasks.entries()) {
       const rowSignature = JSON.stringify([index, data.status, task.id, task.name, task.owner, task.cluster,
-        task.gpu_count, task.replicas, task.gpu_utilization, task.metric_status, task.created_at, task.started_at, task.url]);
+        task.gpu_count, task.replicas, task.gpu_utilization, task.metric_status, task.created_at, task.started_at, task.duration_estimated, task.url, task.can_stop]);
       const previous = previousRows.get(task.id);
       if (previous?._signature === rowSignature) {
-        const text = `${data.status === "error" ? "上次观测已运行" : "已运行"} ${duration(task.duration_seconds)}`;
+        const text = durationText(task, data);
         if (previous._durationNode.textContent !== text) previous._durationNode.textContent = text;
         previous.children[3].title = `GPU 采样 ${date(task.metric_updated_at)}`;
         renderedRows.set(task.id, previous); fragment.append(previous); continue;
@@ -74,7 +79,12 @@
         `utilization-value${known(task.gpu_utilization) ? "" : " utilization-unknown"}`));
       utilization.title = `GPU 采样 ${date(task.metric_updated_at)}`;
       if (task.metric_status === "stale") utilization.append(node("small", "旧采样，不参与排名"));
-      const action = node("td", "只读");
+      const action = node("td");
+      const button = node("button", "停止", "button button-danger");
+      button.type = "button"; button.disabled = !task.can_stop || data.status === "error";
+      button.setAttribute("aria-label", `停止 ${task.name || task.id}`);
+      button.addEventListener("click", () => document.dispatchEvent(new CustomEvent("monitor-stop", { detail: task })));
+      action.append(button);
       try {
         const url = new URL(task.url), origin = site.id === "sensecore" ? "https://console.sensecore.cn" : "https://console.ms-sc-01.maoshanwangtech.com";
         if (url.origin === origin && !url.username && !url.password) {
@@ -83,9 +93,9 @@
         }
       } catch { /* Invalid cloud links stay read-only text. */ }
       const timing = node("td", undefined, "utilization-time");
-      const durationNode = node("small", `${data.status === "error" ? "上次观测已运行" : "已运行"} ${duration(task.duration_seconds)}`, "utilization-duration");
+      const durationNode = node("small", durationText(task, data), "utilization-duration");
       timing.append(node("span", date(task.created_at)), durationNode);
-      timing.title = `启动时间 ${date(task.started_at)}`;
+      timing.title = task.duration_estimated ? "按创建时间估算，可能包含排队和停机时间" : `${task.kind === "CCI" ? "当前运行实例中最早的" : ""}启动时间 ${date(task.started_at)}`;
       const cells = [identity, node("td", task.owner || "—"), node("td", task.cluster || "—"), utilization,
         node("td", `${task.gpu_count ?? "—"} GPU / ${task.replicas ?? "—"} 副本`), timing, action];
       const labels = ["任务 / ID", "提交者", "集群", "实时 GPU 利用率", "GPU / 副本", "创建时间 / 已运行", "操作"];
@@ -95,7 +105,7 @@
       row.append(...cells); fragment.append(row);
     }
     if (!tasks.length) {
-      const cell = node("td", data.loading ? "正在读取运行中的 ACP 任务…" : data.status === "error" ? "ACP 列表暂不可用，请稍后重试" : mineOnly ? "当前没有我的运行中 ACP 任务（名称包含 charles）" : "当前没有运行中的 ACP 任务", "table-empty");
+      const cell = node("td", data.loading ? `正在读取运行中的 ${kind} 任务…` : data.status === "error" ? `${kind} 列表暂不可用，请稍后重试` : mineOnly ? `当前没有我的运行中 ${kind} 任务（名称包含 charles）` : `当前没有运行中的 ${kind} 任务`, "table-empty");
       cell.colSpan = 7; const row = node("tr"); row.append(cell); fragment.append(row);
       renderedRows.clear();
     }
@@ -115,13 +125,16 @@
       if (!response.ok) throw new Error(data.error || "利用率读取失败");
       if (data.site !== site.id || !Array.isArray(data.tasks)) throw new Error("利用率数据与站点不一致");
       if (!active || request !== serial) return;
-      snapshot = data; render();
+      snapshot = data;
+      document.dispatchEvent(new CustomEvent("monitor-utilization", { detail: snapshot }));
+      render();
       if (data.loading) delay = data.tasks.length ? 2000 : 500;
     } catch (error) {
       if (!active || request !== serial) return;
       if (snapshot) {
         snapshot = { ...snapshot, status: "error", loading: false,
           tasks: snapshot.tasks.map(task => ({ ...task, gpu_utilization: null, metric_status: "stale" })) };
+        document.dispatchEvent(new CustomEvent("monitor-utilization", { detail: snapshot }));
         render();
       }
       $("utilization-warning").hidden = false;
@@ -144,6 +157,15 @@
   document.addEventListener("visibilitychange", () => activate(location.hash.slice(1)));
   $("refresh-button").addEventListener("click", () => refresh(true));
   $("utilization-mine").addEventListener("change", render);
+  for (const button of document.querySelectorAll("[data-utilization-kind]")) button.addEventListener("click", () => {
+    kind = button.dataset.utilizationKind;
+    for (const item of document.querySelectorAll("[data-utilization-kind]")) {
+      item.classList.toggle("selected", item.dataset.utilizationKind === kind);
+      item.setAttribute("aria-pressed", String(item.dataset.utilizationKind === kind));
+    }
+    render();
+  });
+  document.addEventListener("monitor-refresh", () => refresh(true));
   window.addEventListener("pagehide", () => activate(""));
   activate(location.hash.slice(1));
 })();

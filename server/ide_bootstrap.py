@@ -92,8 +92,8 @@ def optional_setup():
     codex = prepare_codex(base, env, binary, progress=progress, install=s['install_optional'], configure_permissions=s['instance'] is not None)
     appearance = (prepare_appearance(base, env, binary, APPEARANCE_BUNDLE, progress=progress)
                   if s['install_optional'] else {'version': APPEARANCE_BUNDLE['version'], 'installed': appearance_installed(base, APPEARANCE_BUNDLE)})
-    # Install required extensions once; check them on later launches.
-    extensions = prepare_extensions(base, env, binary, progress=progress, install=True) if binary.is_file() else None
+    # The fast bootstrap only checks optional extensions; full setup installs them in the background.
+    extensions = prepare_extensions(base, env, binary, progress=progress, install=s['install_optional']) if binary.is_file() else None
     return codex, appearance, extensions
 codex, appearance, extensions = optional_setup() if binary.is_file() else (None, None, None)
 
@@ -201,6 +201,9 @@ RESULT['codex'] = codex
 RESULT['appearance'] = appearance
 RESULT['extensions'] = extensions
 RESULT['asset_roots'] = [str(folder / 'lib/vscode/extensions')]
+RESULT['asset_roots'].extend(str(extension / 'webview/assets')
+                            for extension in codex_extensions(base / 'extensions')
+                            if (extension / 'webview/assets').is_dir())
 if appearance and appearance.get('installed'):
     RESULT['asset_roots'].append(str(base / 'extensions' / ('ilab.workspace-appearance-' + APPEARANCE_BUNDLE['version'])))
 '''

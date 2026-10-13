@@ -13,7 +13,31 @@
 .task-config-fields dd { color: #294a40; }
 .task-config-overview { grid-template-columns: repeat(3, minmax(0, 1fr)); background: #f2f7f4; border-color: #dbe7df; }
 .task-config-field-wide { grid-column: 1 / -1; padding-bottom: 13px; border-bottom: 1px solid #e6eee9; }
-.task-config-state dd { display: inline-block; padding: 1px 8px; background: #fff; border: 1px solid #d9e5df; border-radius: 5px; font-size: 12px; }
+.task-config-state { --state-ink: var(--muted, #59716d); --state-bg: var(--surface-raised, #edf2ef); }
+.task-config-state:is([data-state="RUNNING"], [data-state="SUCCEEDED"]) { --state-ink: var(--accent, #087f6b); --state-bg: var(--success-bg, #edf7f2); }
+.task-config-state:is([data-state="WAIT_QUOTA"], [data-state="WAITING"], [data-state="INIT"], [data-state="QUEUEING"], [data-state="CREATING"], [data-state="STARTING"], [data-state="RESTARTING"], [data-state="RECOVERING"], [data-state="SUSPENDING"]) { --state-ink: var(--warning-ink, #956516); --state-bg: var(--warning-bg, #fffaeb); }
+.task-config-state[data-state="FAILED"] { --state-ink: #b44444; --state-bg: var(--danger-bg, #fff2f0); }
+:root[data-theme="dark"] .task-config-state[data-state="FAILED"] { --state-ink: #f0a09a; }
+/* Keep the badge palette above the shared theme rules for field values. */
+:root .task-config-dialog .task-config-fields .task-config-state dd {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 3px 11px;
+  border: 1px solid currentColor;
+  border-color: color-mix(in srgb, var(--state-ink) 25%, var(--state-bg));
+  border-radius: 999px;
+  background: var(--state-bg);
+  color: var(--state-ink);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: .035em;
+  vertical-align: middle;
+}
+.task-config-state dd::before { content: ''; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .task-config-section h3 { display: flex; align-items: center; gap: 9px; color: #294a40; }
 .task-config-section h3::before { content: ''; width: 3px; height: 15px; border-radius: 2px; background: #4c9b7a; }
 .task-config-mount { border-left: 3px solid #bfd8cb; }

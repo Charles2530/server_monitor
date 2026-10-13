@@ -4,8 +4,7 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 from .domain import finite_number, merge_series
-from .acp_states import STOPPABLE_STATES, is_charles
-from .queue_states import QUEUE_LABELS
+from .queue_states import QUEUE_LABELS, STOPPABLE_BY_KIND
 
 
 def iso(timestamp):
@@ -44,7 +43,7 @@ def task_from_raw(raw, kind, now):
             'kind': kind, 'name': raw.get('display_name', raw['name']),
             'cluster': raw.get('resource_pool', {}).get('display_name') or raw.get('resource_pool', {}).get('name'),
             'state': 'running', 'gpu_count': gpus, 'replicas': replicas,
-            'can_stop': kind=='ACP' and raw.get('state') in STOPPABLE_STATES,
+            'can_stop': raw.get('state') in STOPPABLE_BY_KIND.get(kind, ()),
             'created_at':raw.get('create_time'),
             'updated_at': None, 'observed_at': iso(now), 'url': None,
             'metrics': dict.fromkeys(('cpu','gpu','memory','gpu_memory')),
@@ -53,7 +52,6 @@ def task_from_raw(raw, kind, now):
 
 def waiting_from_raw(raw, now, kind='ACP'):
     task=task_from_raw(raw,kind,now)
-    task['can_stop'] = task['can_stop'] and is_charles(task['name'])
     owner=(raw.get('ownership') or {}).get('user_name')
     return {**{key:task[key] for key in ('id','kind','name','cluster','gpu_count','replicas','created_at','observed_at','can_stop')},
             'owner':owner if isinstance(owner,str) else None,

@@ -2,7 +2,7 @@
 
 (() => {
   const byId = (id) => document.getElementById(id);
-  const state = { options: null, snapshot: null, unavailable: false, selected: null, preview: null, stop: null, creating: false, stopping: false, createUnknown: false, stopUnknown: false, storageError: false };
+  const state = { options: null, snapshot: null, utilization: null, unavailable: false, selected: null, preview: null, stop: null, creating: false, stopping: false, createUnknown: false, stopUnknown: false, storageError: false };
   const siteKey = (name) => window.MonitorSite?.key(name) || name;
   const pendingKeys = { create: siteKey("charles-monitor.acp.create.pending"), stop: siteKey("charles-monitor.acp.stop.pending") };
   const form = byId("acp-create-form");
@@ -115,8 +115,16 @@
   }
 
   function stopFresh(taskId) {
-    const queued = state.snapshot?.waiting_tasks?.some((task) => task.id === taskId);
-    return fresh() && (!queued || fresh("ACP_queue"));
+    const kind = taskId?.split(":")[0];
+    if (!["CCI", "ACP"].includes(kind)) return false;
+    const queued = state.snapshot?.waiting_tasks?.find(task => task.id === taskId);
+    if (queued?.can_stop && fresh(`${kind}_queue`)) return true;
+    const running = state.snapshot?.tasks?.find(task => task.id === taskId);
+    if (running && fresh(kind)) return running.can_stop;
+    const data = state.utilization, task = data?.tasks?.find(task => task.id === taskId);
+    const source = data?.source_status?.[kind], stamp = Date.parse(source?.updated_at);
+    return Boolean(task?.can_stop && data.status !== "error" && source?.status === "ok"
+      && Number.isFinite(stamp) && Date.now() - stamp >= 0 && Date.now() - stamp <= 180000);
   }
 
   async function request(path, body) {
@@ -337,9 +345,9 @@
 
   function renderSelected() {
     if (document.hidden) return;
-    if (stopDialog.open) byId("acp-stop-confirm").disabled = state.stopping || state.storageError || !stopFresh(state.stop?.task_id);
+    if (stopDialog.open) byId("acp-stop-confirm").disabled = state.stopping || state.storageError || (!state.stopUnknown && !stopFresh(state.stop?.task_id));
     byId("acp-release-restart-selected").disabled = !fresh() || state.creating || state.createUnknown || state.stopping || state.stopUnknown || state.storageError;
-    byId("acp-stop-selected").disabled = !fresh() || state.creating || state.stopping || state.stopUnknown || state.storageError;
+    byId("acp-stop-selected").disabled = !stopFresh(state.selected?.id) || state.creating || state.stopping || state.stopUnknown || state.storageError;
     if (byId("tasks-view").hidden || byId("detail-panel").hidden) return;
     const task = state.selected, button = byId("acp-stop-selected");
     const terminal = byId("cci-terminal-selected");
@@ -352,14 +360,17 @@
     if (!ide.hidden) ide.href = `/ide?${new URLSearchParams({ site: window.MonitorSite?.id || "maoshanwang", task_id: task.id })}`;
     const releaseButton = byId("acp-release-restart-selected");
     releaseButton.hidden = !(task?.kind === "ACP" && task.can_stop && task.state === "running" && task.name?.toLowerCase().includes("charles"));
-    button.hidden = !(task?.kind === "ACP" && task.can_stop);
+    button.hidden = !(["CCI", "ACP"].includes(task?.kind) && task.can_stop);
+    button.textContent = `停止此 ${task?.kind || ""} 任务`;
     const note = byId("detail-action-note");
-    note.textContent = task?.kind === "ACP" && !fresh() ? "当前为旧数据或连接不可用；成功采集后可操作任务" : "";
+    note.textContent = task && !fresh(task.kind) ? "当前为旧数据或连接不可用；成功采集后可操作任务" : "";
     note.hidden = !note.textContent;
   }
 
   function openStop(task) {
-    if (!task?.can_stop || task.kind !== "ACP" || state.stopUnknown || state.storageError || !stopFresh(task.id)) return;
+    if (state.stopUnknown) { stopDialog.showModal(); return; }
+    if (!task?.can_stop || !["CCI", "ACP"].includes(task.kind) || state.stopping || state.storageError || !stopFresh(task.id)) return;
+    byId("acp-stop-title").textContent = `确认停止 ${task.kind} 任务`;
     state.stop = { task_id: task.id, display_name: task.name, request_id: crypto.randomUUID() };
     state.stopUnknown = false;
     byId("acp-stop-target").replaceChildren();
@@ -399,14 +410,14 @@
       time.append(element("div", "", `创建 ${date(task.created_at)}`), element("div", "", `观测 ${date(task.observed_at)}`));
       row.append(time);
       const action = element("td");
-      if (task.kind === "ACP" && task.can_stop && task.name?.toLowerCase().includes("charles")) {
+      if (["CCI", "ACP"].includes(task.kind) && task.can_stop) {
         const button = element("button", "button button-danger", "停止");
         button.type = "button";
-        button.disabled = !current || !fresh() || state.stopping || state.stopUnknown || state.storageError;
+        button.disabled = !current || state.stopping || state.stopUnknown || state.storageError;
         button.setAttribute("aria-label", `停止 ${task.name || task.id}`);
         button.addEventListener("click", () => openStop(task));
         action.append(button);
-      } else action.textContent = "只读";
+      } else action.textContent = "当前状态不可停止";
       try {
         const url = new URL(task.url);
         const origin = window.MonitorSite?.id === "sensecore" ? "https://console.sensecore.cn" : "https://console.ms-sc-01.maoshanwangtech.com";
@@ -623,7 +634,7 @@
   });
 
   byId("acp-stop-confirm").addEventListener("click", async () => {
-    if (state.stopping || !state.stop || state.storageError || !stopFresh(state.stop.task_id)) return;
+    if (state.stopping || !state.stop || state.storageError || (!state.stopUnknown && !stopFresh(state.stop.task_id))) return;
     const submission = { ...state.stop }, wasUnknown = state.stopUnknown;
     let remembered = false;
     state.stopping = true;
@@ -669,6 +680,8 @@
   });
   byId("acp-options-retry").addEventListener("click", () => options());
   byId("refresh-button").addEventListener("click", () => { if (location.hash === "#acp" && !optionsLoading) options(); });
+  document.addEventListener("monitor-stop", event => openStop(event.detail));
+  document.addEventListener("monitor-utilization", event => { state.utilization = event.detail; renderSelected(); });
   document.addEventListener("monitor-selection", (event) => { state.selected = event.detail; renderSelected(); });
   document.addEventListener("monitor-snapshot", (event) => { state.snapshot = event.detail.snapshot; state.unavailable = event.detail.unavailable; renderWaiting(); renderSelected(); });
   for (const event of ["workspace-page", "visibilitychange"]) document.addEventListener(event, () => { renderWaiting(); renderSelected(); });

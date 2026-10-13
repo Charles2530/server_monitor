@@ -270,7 +270,7 @@
       }
       function abort() { finish(false); }
       function message(event) {
-        if (event.source === frame.contentWindow && event.origin === origin && event.data?.type === 'ilab-editor-alive' && event.data.id === id) finish(event.data.disconnected !== true);
+        if (event.source === frame.contentWindow && event.origin === origin && event.data?.type === 'ilab-editor-alive' && event.data.id === id) finish(event.data.disconnected ? false : event.data.reconnecting ? 'reconnecting' : true);
       }
       const timer = setTimeout(() => finish(false), 2000);
       window.addEventListener('message', message); signal.addEventListener('abort', abort, { once: true });
@@ -306,10 +306,11 @@
   function historyNote(message, state) {
     if (connection.historyLog === message) return;
     connection.historyLog = message;
+    if (state === 'loading' && connection.ready && connection.codexPanel === 'ready' && !recoveryFailures) state = 'ready';
     window.MonitorConnectionLog?.note(message, state);
   }
   async function refreshHistory(gen, current = connection) {
-    if (!current?.workspace || !current.ready || current.entryExpired || current.codexPanel !== 'ready'
+    if (!current?.workspace || !current.ready || current.entryExpired || !['loading', 'ready'].includes(current.codexPanel)
         || gen !== generation || !controller || controller.signal.aborted || busy || recoveryFailures || document.hidden || navigator.onLine === false
         || $('ide-preserved-select')?.selectedIndex > 0 || current.historyRequest || current.historySupported === false
         || (current.historyWorkspace === current.workspace && Date.now() < current.historyNextCheck)) return;
@@ -363,7 +364,7 @@
         nextCheck = Date.now() + 30000;
         setupStatus(result); busy = false; controls();
         void refreshHistory(gen, connection);
-        status('连接已恢复；编辑器页面正常，当前编辑内容已保留。', 'ready');
+        status(alive === 'reconnecting' ? '连接通道已恢复，VS Code 正在重新连接；当前编辑内容已保留…' : '连接已恢复；编辑器页面正常，当前编辑内容已保留。', alive === 'reconnecting' ? 'loading' : 'ready');
         return;
       }
     }
@@ -415,14 +416,15 @@
       identity(result);
       if (result.instance !== connection.instance || result.container !== connection.container || result.port !== connection.port) throw new Error("编辑器连接已变化；请保留未保存内容后重新打开页面。");
       active(gen);
+      let alive = false;
       if (connection.ready) {
-        const alive = await workbenchAlive(gen); active(gen);
+        alive = await workbenchAlive(gen); active(gen);
         if (!alive) { rebuilding = true; await open({instance: connection.instance, container: connection.container}, gen, true); return; }
       }
       setupStatus(result);
       recoveryFailures = 0;
       busy = false; controls();
-      status(connection.ready ? `${connection.instance} / ${connection.container} · 连接可用` : "连接可用，正在加载编辑器…", connection.ready ? "ready" : "loading");
+      status(alive === 'reconnecting' ? 'VS Code 正在重新连接；当前编辑内容已保留…' : connection.ready ? `${connection.instance} / ${connection.container} · 连接可用` : "连接可用，正在加载编辑器…", connection.ready && alive !== 'reconnecting' ? "ready" : "loading");
     } catch (error) {
       if (gen !== generation) return;
       if (rebuilding) { failure(error, gen); return; }
@@ -487,7 +489,7 @@
         loading: 'Codex 面板加载中。', ready: 'Codex 面板已加载。', hidden: 'Codex 面板已隐藏。',
       }[event.data.state], event.data.state === 'ready' ? 'ready' : 'loading');
       connection.codexPanel = event.data.state; setupStatus();
-      if (event.data.state === 'ready') void refreshHistory(generation, connection);
+      if (event.data.state !== 'hidden') void refreshHistory(generation, connection);
       return;
     }
     if (event.data?.type === 'ilab-editor-codex-history-state' && ['loading', 'ready', 'empty', 'unavailable'].includes(event.data.state)) {

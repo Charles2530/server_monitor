@@ -211,7 +211,7 @@
       if (!cached) row.addEventListener("click", () => {
         model.selected = task.id; model.search = ""; model.kind = "all";
         byId("task-search").value = "";
-        document.querySelectorAll(".filter-button").forEach((button) => {
+        document.querySelectorAll(".filter-button[data-kind]").forEach((button) => {
           const selected = button.dataset.kind === "all";
           button.classList.toggle("selected", selected); button.setAttribute("aria-pressed", String(selected));
         });
@@ -647,9 +647,9 @@
     } finally { button.disabled = false; button.dataset.requestBusy = "false"; }
   }
 
-  document.querySelectorAll(".filter-button").forEach((button) => button.addEventListener("click", () => {
+  document.querySelectorAll(".filter-button[data-kind]").forEach((button) => button.addEventListener("click", () => {
     model.kind = button.dataset.kind;
-    document.querySelectorAll(".filter-button").forEach((item) => { const selected = item === button; item.classList.toggle("selected", selected); item.setAttribute("aria-pressed", String(selected)); });
+    document.querySelectorAll(".filter-button[data-kind]").forEach((item) => { const selected = item === button; item.classList.toggle("selected", selected); item.setAttribute("aria-pressed", String(selected)); });
     renderTasks(); renderDetail(); loadHistory();
   }));
   document.querySelectorAll(".range-button").forEach((button) => button.addEventListener("click", () => {
@@ -726,7 +726,7 @@
   });
   function restoreFilters() {
     byId("task-search").value = model.search;
-    document.querySelectorAll(".filter-button").forEach(button => {
+    document.querySelectorAll(".filter-button[data-kind]").forEach(button => {
       const selected = button.dataset.kind === model.kind;
       button.classList.toggle("selected", selected); button.setAttribute("aria-pressed", String(selected));
     });

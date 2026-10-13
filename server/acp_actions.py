@@ -15,6 +15,7 @@ from .config import SERVICES, WORKSPACE
 from .normalize import iso, cluster_from_raw
 from .domain import finite_number
 from .acp_states import is_charles, STOPPABLE_STATES
+from .queue_states import STOPPABLE_BY_KIND
 from .inventory import read_inventory, allocation_fit, TARGET_CLUSTERS, INVENTORY_TIMEOUT_SECONDS
 
 PRIORITY = ('modeltoolchain-test','modeltoolchain','vigen')
@@ -490,9 +491,11 @@ class ACPManager:
             self.previews.pop(preview_id,None)
             return result
 
-    async def write_once(self,client,path,body=None,params=None):
+    async def write_once(self,client,path,body=None,params=None,*,service='AEC2'):
         try:
-            response=await client.post(self.services['AEC2']+path,params=params,**({'json':body} if body is not None else {}))
+            response=await client.post(self.services[service]+path,params=params,
+                **({'headers':{'x-ui-valid':'x-ui-valid'}} if service=='CCI' else {}),
+                **({'json':body} if body is not None else {}))
         except httpx.HTTPError:
             raise ActionError('云端结果暂不明确，请核对任务状态；该请求不会自动重复提交。','outcome_unknown',502) from None
         if response.status_code>=500 or response.status_code in (408,409):
@@ -509,9 +512,11 @@ class ACPManager:
         if record['status']=='failed':raise ActionError(record['error'],'cloud_rejected',409)
         # A lost response or process restart is reconciled with a read, never a second POST.
         try:
-            async with self.client() as client:raw=await self.detail(client,record['target'])
+            async with self.client() as client:
+                raw=(await self.stop_detail(client,record['target'],'CCI' if kind=='stop_cci' else 'ACP')
+                     if kind in ('stop','stop_cci') else await self.detail(client,record['target']))
             if raw['display_name']==record['display_name'] and (kind=='create' or raw.get('state') in ('SUSPENDING','SUSPENDED')):
-                result={'id':'ACP:'+raw['name'],'name':raw['display_name'],'state':raw.get('state'),'message':'已从云端核实操作结果。'}
+                result={'id':('CCI:' if kind=='stop_cci' else 'ACP:')+raw['name'],'name':raw['display_name'],'state':raw.get('state'),'message':'已从云端核实操作结果。'}
                 await store_call(self.store.finish_operation,record['key'],'succeeded',result=result)
                 return result
         except Exception:pass
@@ -545,24 +550,38 @@ class ACPManager:
                     await store_call(self.store.finish_operation,preview_id,'unknown' if exc.code=='outcome_unknown' else 'failed',error=str(exc))
                     raise
 
+    def stop_api(self,kind):
+        return ('CCI','/compute/cci/data/v2'+self.workspace+'/apps') if kind=='CCI' else ('AEC2',self.api)
+
+    async def stop_detail(self,client,name,kind):
+        service,api=self.stop_api(kind)
+        raw=await self.reader.request(client,service,api+'/'+name)
+        resource='apps' if kind=='CCI' else 'trainingJobs'
+        if raw.get('name')!=name or raw.get('id')!=self.workspace+'/'+resource+'/'+name:
+            raise ActionError('任务不属于当前工作空间。','target_mismatch',403)
+        return raw
+
     async def stop(self,task_id,display_name,request_id):
-        name=job_name(task_id)
-        if not is_charles(display_name):raise ActionError('只能停止名称包含 charles 的 ACP 任务。')
+        if not isinstance(task_id,str) or not re.fullmatch(r'(CCI|ACP):[A-Za-z0-9][A-Za-z0-9_-]{0,62}',task_id):
+            raise ActionError('请选择当前工作空间的 CCI 或 ACP 任务。')
+        if not isinstance(display_name,str) or not display_name or len(display_name)>128:
+            raise ActionError('请核对任务的完整名称。')
+        kind,name=task_id.split(':',1)
+        operation='stop_cci' if kind=='CCI' else 'stop'
+        service,api=self.stop_api(kind)
         try:key=str(uuid.UUID(request_id))
         except (ValueError,TypeError,AttributeError):raise ActionError('无效的停止请求标识。') from None
         async with self.lock:
             old=await store_call(self.store.operation,key)
-            if old:return await self.previous_result(old,'stop',name,display_name)
+            if old:return await self.previous_result(old,operation,name,display_name)
             async with self.client() as client:
-                if not any(j.get('name')==name and is_charles(j.get('display_name')) for j in await self.own_jobs(client,"name='"+name+"'")):
-                    raise ActionError('没有找到可操作的本人 ACP 任务。','target_mismatch',403)
-                raw=await self.detail(client,name)
+                raw=await self.stop_detail(client,name,kind)
                 if raw['display_name']!=display_name:raise ActionError('任务名称已经变化，请刷新后重新核对。','target_mismatch',409)
-                if raw.get('state') not in STOPPABLE_STATES:raise ActionError('任务当前不可停止，请刷新查看最新状态。','state_changed',409)
-                if not await store_call(self.store.begin_operation,key,'stop',name,display_name):
-                    return await self.previous_result(await store_call(self.store.operation,key),'stop',name,display_name)
+                if raw.get('state') not in STOPPABLE_BY_KIND[kind]:raise ActionError('任务当前不可停止，请刷新查看最新状态。','state_changed',409)
+                if not await store_call(self.store.begin_operation,key,operation,name,display_name):
+                    return await self.previous_result(await store_call(self.store.operation,key),operation,name,display_name)
                 try:
-                    await self.write_once(client,self.api+'/'+name+':stop')
+                    await self.write_once(client,api+'/'+name+':stop',service=service)
                     result={'id':task_id,'name':display_name,'state':'SUSPENDING','message':'停止请求已提交，等待平台完成资源释放。'}
                     await store_call(self.store.finish_operation,key,'succeeded',result=result)
                     return result

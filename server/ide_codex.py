@@ -2,6 +2,7 @@
 import hashlib
 import json
 import platform
+import shlex
 from pathlib import Path
 import shutil
 import subprocess
@@ -116,6 +117,10 @@ def ensure_full_access_defaults(codex_home):
 
 
 def codex_installed(extensions):
+    return next(codex_extensions(extensions), None) is not None
+
+
+def codex_extensions(extensions):
     try:
         obsolete = json.loads((extensions / '.obsolete').read_text())
     except (OSError, ValueError):
@@ -128,10 +133,9 @@ def codex_installed(extensions):
             main = package.get('main')
             if (package.get('publisher') == 'openai' and package.get('name') == 'chatgpt'
                     and isinstance(main, str) and (manifest.parent / main).is_file()):
-                return True
+                yield manifest.parent
         except (OSError, ValueError):
             continue
-    return False
 
 
 def download_size(response):
@@ -182,6 +186,85 @@ def install_codex(base, binary, env, progress=None):
         shutil.rmtree(str(temporary), ignore_errors=True)
 
 
+SHARED_CODEX_BRIDGE = r"""'use strict';
+const { spawnSync } = require('node:child_process');
+const cli = __CODEX_CLI__;
+const args = process.argv.slice(2);
+const server = args.indexOf('app-server');
+if (server < 0 || args.slice(server + 1).some(arg => !arg.startsWith('-'))) {
+  const child = spawnSync(cli, args, {stdio:'inherit'});
+  process.exit(child.status ?? 1);
+}
+const started = spawnSync(cli, ['app-server','daemon','start'], {stdio:['ignore',2,2], timeout:30000});
+if (started.status !== 0) process.exit(started.status ?? 1);
+const WebSocket = require(__WS_MODULE__);
+const home = process.env.CODEX_HOME || require('node:path').join(require('node:os').homedir(), '.codex');
+const socket = require('node:path').join(home, 'app-server-control', 'app-server-control.sock');
+const ws = new WebSocket('ws://localhost/', {
+  createConnection: () => require('node:net').connect(socket),
+  handshakeTimeout: 10000,
+  maxPayload: 64 * 1024 * 1024,
+});
+ws.on('error', error => { console.error('Codex shared server connection failed:', error.code || error.name); process.exit(1); });
+let inputEnded = false;
+ws.on('close', code => process.exit(inputEnded || code === 1000 ? 0 : 1));
+ws.on('message', data => { if (!process.stdout.write(data.toString() + '\n')) ws.pause(); });
+process.stdout.on('drain', () => ws.resume());
+process.stdout.on('error', () => ws.close(1000));
+ws.on('open', async () => {
+  const lines = require('node:readline').createInterface({input:process.stdin, crlfDelay:Infinity});
+  try {
+    for await (const line of lines) {
+      if (line.trim()) await new Promise((resolve, reject) => ws.send(line, error => error ? reject(error) : resolve()));
+    }
+    inputEnded = true;
+    ws.close(1000);
+  } catch (_) { ws.terminate(); process.exit(1); }
+});
+"""
+
+
+def configure_shared_codex(base, env, binary):
+    """Connect the IDE to the CLI daemon so both clients share thread ownership."""
+    cli = shutil.which('codex', path=env.get('PATH', ''))
+    root = Path(binary).resolve().parent.parent
+    node, ws = root / 'lib/node', root / 'node_modules/ws'
+    if not cli or not node.is_file() or not ws.is_dir(): return False
+    settings = base / 'user-data/User/settings.json'
+    launcher = base / 'shared-codex'
+    try:
+        exists = settings.exists()
+        original = settings.read_text() if exists else '{}'
+        current = json.loads(original)
+        if not isinstance(current, dict): return False
+        if current.get('chatgpt.cliExecutable') not in (None, '', str(launcher)): return False
+        supported = subprocess.run([cli, 'app-server', 'daemon', 'start', '--help'],
+                                   env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, timeout=10)
+        if supported.returncode: return False
+        bridge = base / 'shared-codex.cjs'
+        source = SHARED_CODEX_BRIDGE.replace('__CODEX_CLI__', json.dumps(cli)).replace('__WS_MODULE__', json.dumps(str(ws)))
+        shell = '#!/bin/sh\nexec ' + shlex.quote(str(node)) + ' ' + shlex.quote(str(bridge)) + ' "$@"\n'
+        for path, content in ((bridge, source), (launcher, shell)):
+            if path.exists() and path.read_text() == content: continue
+            temporary = path.with_suffix(path.suffix + '.tmp')
+            temporary.write_text(content); temporary.chmod(0o700); temporary.replace(path)
+        if current.get('chatgpt.cliExecutable') == str(launcher): return True
+        settings.parent.mkdir(parents=True, exist_ok=True)
+        backup = settings.with_name('settings.before-shared-codex.json')
+        if settings.exists() and not backup.exists(): backup.write_text(original)
+        updated = {**current, 'chatgpt.cliExecutable': str(launcher)}
+        temporary = settings.with_suffix('.tmp')
+        temporary.write_text(json.dumps(updated, ensure_ascii=False, indent=2) + '\n')
+        if settings.exists() != exists or (exists and settings.read_text() != original):
+            temporary.unlink()
+            return False
+        temporary.replace(settings)
+        return True
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return False
+
+
 def prepare_codex(base, env, binary, progress=None, *, install=True, configure_permissions=True):
     home = Path(env.get('HOME') or str(Path.home()))
     configured = env.get('CODEX_HOME')
@@ -200,4 +283,5 @@ def prepare_codex(base, env, binary, progress=None, *, install=True, configure_p
             install_codex(base, binary, env, progress=progress)
         except (OSError, RuntimeError, subprocess.TimeoutExpired):
             return {'configured': True, 'installed': False, 'full_access': full_access}
+    configure_shared_codex(base, env, binary)
     return {'configured': True, 'installed': True, 'full_access': full_access}

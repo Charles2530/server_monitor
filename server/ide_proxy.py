@@ -55,7 +55,7 @@ WEBVIEW_RESOURCE_HTTP = r'''
 '''
 
 
-async def workbench_response(upstream, headers, parent_origin, *, webview_worker=False):
+async def workbench_response(upstream, headers, parent_origin, *, webview_worker=False, cache=None, cache_key=None):
     # Share bounded decoding for the workbench and the native webview worker.
     if upstream.headers.get('content-encoding', '').lower() not in ('', 'identity', 'gzip', 'deflate'):
         # Some installations do not have HTTPX's optional Brotli decoder. Preserve
@@ -75,6 +75,13 @@ async def workbench_response(upstream, headers, parent_origin, *, webview_worker
     await upstream.aclose()
     content = b''.join(chunks)
     if webview_worker:
+        # Cache only the native script; apply the current adapter on every read.
+        # Keep upstream cache restrictions, including cookies, before filtering.
+        if cache is not None and upstream.headers.get('content-length', str(upstream.num_bytes_downloaded)) == str(upstream.num_bytes_downloaded):
+            native_headers = {k: v for k, v in upstream.headers.items()
+                              if k not in ('content-length', 'content-encoding', 'etag', 'content-md5')}
+            native = httpx.Response(200, headers=native_headers, stream=httpx.ByteStream(content))
+            async for _ in cache.stream(cache_key, native): pass
         content = WEBVIEW_RESOURCE_HTTP.encode() + content
         headers['cache-control'] = 'no-cache'
         headers.pop('last-modified', None)
@@ -204,8 +211,10 @@ class EditorProxy:
         if path.rstrip('/') in ('/login', '/logout'): return PlainTextResponse('请返回监控网站重新连接编辑器。', 502)
         self.touched = time.monotonic()
         webview_worker = bool(request.method == 'GET' and WEBVIEW_PATH.fullmatch(path) and path.endswith('/service-worker.js'))
-        cache_key = self.assets.key(request) if self.assets and not webview_worker else None
+        cache_key = self.assets.key(request) if self.assets else None
         cached = await self.assets.get(cache_key) if self.assets else None
+        if webview_worker and cached is not None and cached[1].get('content-encoding', '').lower() not in ('', 'identity', 'gzip', 'deflate'):
+            cached = None  # Re-fetch legacy encodings we cannot safely adapt.
         if cached is not None:
             body, headers = cached
             directives = [x.strip() for x in headers.get('content-security-policy', '').split(';')
@@ -213,6 +222,9 @@ class EditorProxy:
             directives.append("frame-ancestors 'self' " + self.parent_origin)
             headers['content-security-policy'] = '; '.join(directives)
             headers['referrer-policy'] = 'no-referrer'
+            if webview_worker:
+                return await workbench_response(httpx.Response(200, headers=headers, content=body),
+                                                headers, self.parent_origin, webview_worker=True)
             if headers.get('etag') and request.headers.get('if-none-match') == headers['etag']:
                 return Response(status_code=304, headers={k: v for k, v in headers.items() if k != 'content-length'})
             return Response(b'' if request.method == 'HEAD' else body, headers=headers)
@@ -277,7 +289,8 @@ class EditorProxy:
             if path == '/' and request.method == 'GET' and upstream.status_code == 200 and upstream.headers.get('content-type', '').split(';')[0] == 'text/html':
                 return await workbench_response(upstream, headers, self.parent_origin)
             if webview_worker and upstream.status_code == 200:
-                return await workbench_response(upstream, headers, self.parent_origin, webview_worker=True)
+                return await workbench_response(upstream, headers, self.parent_origin, webview_worker=True,
+                                                cache=self.assets, cache_key=cache_key)
             stream = self.assets.stream(cache_key, upstream) if self.assets and request.method == 'GET' else upstream.aiter_raw()
             return StreamingResponse(stream, status_code=upstream.status_code, headers=headers, background=BackgroundTask(upstream.aclose))
         except (httpx.HTTPError, OSError) as exc:

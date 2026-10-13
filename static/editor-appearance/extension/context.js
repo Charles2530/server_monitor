@@ -40,6 +40,55 @@ async function addReference(clicked, selected, mode = 'auto') {
     vscode.window.showErrorMessage('添加 Codex 引用失败，请确认插件已加载后重试。');
   }
 }
+let capturingTerminal = false;
+async function addTerminalSelection(context) {
+  if (capturingTerminal) return;
+  const terminal = vscode.window.activeTerminal;
+  if (!terminal) return vscode.window.showWarningMessage('请先在终端中选中要引用的日志。');
+  if (!vscode.extensions.getExtension('openai.chatgpt')) {
+    return vscode.window.showWarningMessage('Codex 插件尚未安装完成，请重新打开编辑器后重试。');
+  }
+  capturingTerminal = true;
+  try {
+    const clipboard = vscode.env.clipboard;
+    // This action explicitly copies; the text-only API cannot restore rich clipboard data.
+    // Clear stale text so a vanished selection never attaches the previous clipboard.
+    await clipboard.writeText('');
+    await vscode.commands.executeCommand('workbench.action.terminal.copySelection');
+    const text = await clipboard.readText();
+    if (!text.trim()) return vscode.window.showWarningMessage('请先在终端中选中要引用的日志。');
+    if (Buffer.byteLength(text, 'utf8') > 65536) {
+      return vscode.window.showWarningMessage('选中的日志超过 64 KiB，请缩小选区后重试。');
+    }
+    // Keep snapshots outside the project, on the same host where Codex reads files.
+    const file = vscode.Uri.joinPath(context.globalStorageUri, `terminal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`);
+    const cwd = terminal.shellIntegration?.cwd?.fsPath;
+    await vscode.workspace.fs.createDirectory(context.globalStorageUri);
+    await vscode.workspace.fs.writeFile(file, Buffer.from(`终端：${terminal.name}\n${cwd ? `目录：${cwd}\n` : ''}\n${text}`, 'utf8'));
+    // Desktop storage may use vscode-userdata; Codex expects a host filesystem URI.
+    await addReference(vscode.Uri.file(file.fsPath), undefined, 'file');
+  } catch (_) {
+    vscode.window.showErrorMessage('引用终端日志失败，请确认剪贴板可用后重试。');
+  } finally {
+    capturingTerminal = false;
+  }
+}
+async function reviewChanges() {
+  try {
+    const git = vscode.extensions.getExtension('vscode.git');
+    if (git && !git.isActive) await git.activate();
+    const available = await vscode.commands.getCommands(true);
+    const items = [
+      { label: '$(diff) 工作区改动', command: 'git.viewChanges' },
+      { label: '$(check) 已暂存改动', command: 'git.viewStagedChanges' },
+    ].filter(item => available.includes(item.command));
+    if (!items.length) return vscode.window.showWarningMessage('当前 Git 差异视图不可用，请确认已启用内置 Git 扩展。');
+    const item = await vscode.window.showQuickPick(items, { placeHolder: '审阅工作区改动' });
+    if (item) await vscode.commands.executeCommand(item.command);
+  } catch (_) {
+    vscode.window.showErrorMessage('无法打开差异视图，请确认当前文件夹属于 Git 仓库。');
+  }
+}
 exports.activate = context => {
   const recent = vscode.window.createStatusBarItem('ilab.recentProjects', vscode.StatusBarAlignment.Left, 1);
   recent.name = '历史项目'; recent.text = '$(history) 历史项目';
@@ -47,6 +96,14 @@ exports.activate = context => {
   recent.command = 'workbench.action.openRecent';
   context.subscriptions.push(recent);
   recent.show();
+  const review = vscode.window.createStatusBarItem('ilab.reviewChanges', vscode.StatusBarAlignment.Left, 0);
+  review.name = '审阅改动'; review.text = '$(git-compare) 审阅改动';
+  review.tooltip = '打开工作区或已暂存改动的 Git 差异视图';
+  review.command = 'ilab.reviewChanges';
+  context.subscriptions.push(review,
+    vscode.commands.registerCommand('ilab.reviewChanges', reviewChanges),
+    vscode.commands.registerCommand('ilab.codex.addTerminalSelection', () => addTerminalSelection(context)));
+  review.show();
   for (const [name, mode] of [['addReference', 'auto'], ['addFileReference', 'file'],
     ['addFolderReference', 'file'], ['addSelectionReference', 'selection']]) {
     context.subscriptions.push(vscode.commands.registerCommand('ilab.codex.' + name,

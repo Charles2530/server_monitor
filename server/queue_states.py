@@ -1,5 +1,11 @@
 """Startup states for the all-user queues; stopping/finished tasks are excluded."""
-from .acp_states import WAITING_LABELS
+from .acp_states import WAITING_LABELS, STOPPABLE_STATES
+
+# CCI console's canStopApplication states; platform authorization remains authoritative.
+STOPPABLE_BY_KIND = {
+    'CCI': frozenset(('QUEUING', 'SCHEDULED', 'PROGRESSING', 'RUNNING', 'FAILED', 'UPDATING')),
+    'ACP': STOPPABLE_STATES,
+}
 
 QUEUE_LABELS = {
     'CCI': {

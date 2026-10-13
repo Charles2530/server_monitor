@@ -2,7 +2,7 @@
   "name": "workspace-appearance",
   "displayName": "iLab Workspace Appearance",
   "description": "Editor appearance and scoped Codex file, folder and selection references.",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "publisher": "ilab",
   "license": "MIT",
   "engines": {
@@ -166,6 +166,13 @@
       }
     },
     "menus": {
+      "terminal/context": [
+        {
+          "command": "ilab.codex.addTerminalSelection",
+          "group": "codex@1",
+          "when": "terminalTextSelected"
+        }
+      ],
       "explorer/context": [
         {
           "command": "ilab.codex.addReference",
@@ -204,6 +211,17 @@
       ]
     },
     "commands": [
+      {
+        "command": "ilab.codex.addTerminalSelection",
+        "title": "复制选中日志并引用到 Codex",
+        "category": "Codex",
+        "enablement": "terminalTextSelected"
+      },
+      {
+        "command": "ilab.reviewChanges",
+        "title": "审阅改动",
+        "category": "Git"
+      },
       {
         "command": "ilab.codex.addReference",
         "title": "添加引用到 Codex（优先选中代码）",

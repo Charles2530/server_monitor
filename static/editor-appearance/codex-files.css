@@ -78,3 +78,19 @@
 [data-composer-attachments-row]:has([data-ilab-codex-file]) {
   gap: 6px;
 }
+
+[data-ilab-codex-file] [data-ilab-file-directory]::after,
+[data-composer-attachment-pill] [data-ilab-file-directory]::after {
+  display: inline-block;
+  max-width: min(180px, 34vw);
+  margin-left: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  content: "· " attr(data-ilab-file-directory);
+  color: var(--vscode-descriptionForeground, #a7b0b7);
+  opacity: .78;
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: -.01em;
+}

@@ -22,6 +22,7 @@
     const list = node("dl", undefined, `task-config-fields ${className}`.trim());
     for (const [label, value, fieldClass] of items) {
       const field = node("div", undefined, fieldClass);
+      if (fieldClass === "task-config-state") field.dataset.state = String(value ?? "").trim().toUpperCase();
       field.append(node("dt", label), node("dd", value === null || value === undefined || value === "" ? "—" : String(value)));
       list.append(field);
     }
