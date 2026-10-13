@@ -5,9 +5,11 @@ from collections import deque
 from functools import partial
 import hashlib
 import json
+import logging
 import re
 import secrets
 import time
+from datetime import datetime, timezone
 from urllib.parse import urlencode, urlsplit, quote
 from websockets.asyncio.client import connect
 from websockets.exceptions import InvalidStatus
@@ -25,6 +27,9 @@ READ_TIMEOUT=20
 PREPARATION_POLL_SECONDS=10
 HEARTBEAT_INTERVAL_SECONDS=15
 WRITE_TIMEOUT_SECONDS=10
+CLOUD_KEEPALIVE_SECONDS=45
+KEEPALIVE_TIMEOUT_SECONDS=2
+logger=logging.getLogger(__name__)
 
 
 def dimensions(cols,rows):
@@ -40,14 +45,17 @@ class CloudConnection(connect):
 
 
 class Session:
-    def __init__(self,socket,owner):
+    def __init__(self,socket,owner,*,cloud_size=None):
         self.socket,self.owner=socket,owner
         self.tmux_token=secrets.token_hex(16)
         self.tmux_control=None;self.tmux_lock=asyncio.Lock()
         self.created=self.touched=time.monotonic()
+        self.cloud_size=dict(cloud_size) if cloud_size is not None else None
+        self.last_sent=self.created
         self.frames=deque();self.size=0;self.cursor=0
         self.sequence=0;self.last_digest=None
         self.ended=False;self.error=None;self.transport=None;self.retryable=False
+        self.close_reason=None;self.closed_at=None
         self.event=asyncio.Event();self.write_lock=asyncio.Lock()
         self.pump=asyncio.create_task(self.receive())
         self.heartbeat=asyncio.create_task(self.keepalive())
@@ -62,6 +70,7 @@ class Session:
                     # Keep reading so upstream pings aren't blocked by a background tab.
                     # Retain a bounded tail; read() explicitly reports any skipped output.
                     if len(data)>MAX_BUFFER:
+                        self.close_reason='output_overflow'
                         self.error='输出积压过多，已断开终端；请重新连接。';break
                     while self.frames and self.size+len(data)>MAX_BUFFER:
                         _,old=self.frames.popleft();self.size-=len(old)
@@ -75,15 +84,24 @@ class Session:
                     except ValueError:status=None
                     exited=isinstance(status,dict) and (status.get('status')=='Success' or status.get('reason')=='NonZeroExitCode')
                     self.retryable=not exited
+                    self.close_reason='shell_exit' if exited else 'upstream_status'
                     self.error='云端终端会话已结束。' if exited else '云端终端连接中断，正在重新连接。'
                     break
             else:
                 if not self.ended:
+                    self.close_reason='upstream_closed'
                     self.error='云端连接已关闭，正在重新连接。';self.retryable=True
         except asyncio.CancelledError:raise
         except Exception:
+            self.close_reason='upstream_error'
             self.error='云端终端连接中断，请重新连接。';self.retryable=True
         finally:
+            self.closed_at=time.monotonic()
+            if self.close_reason:
+                code=getattr(self.socket,'close_code',None)
+                logger.warning('terminal_closed at=%s reason=%s age_s=%d close_code=%s',
+                    datetime.now(timezone.utc).isoformat(timespec='seconds'),self.close_reason,
+                    max(0,int(self.closed_at-self.created)),code if type(code) is int else 'unknown')
             self.ended=True;self.event.set()
             await self.close_tmux_control()
             await self.socket.close()
@@ -93,11 +111,26 @@ class Session:
             while not self.ended:
                 await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
                 if self.transport is None and time.monotonic()-self.touched>IDLE_SECONDS:
+                    self.close_reason='browser_idle'
                     self.error='终端会话已过期，请重新连接。'
                     self.retryable=True
                     break
-                # The upstream WebSocket already sends protocol pings every 20 s.
-                # An extra stdin heartbeat must not hold the command lock or kill the shell.
+                # WebSocket pings don't carry terminal-channel activity. Resend
+                # the current PTY size without injecting stdin or using a sequence.
+                # SSH sessions opt out; a busy writer always takes priority.
+                if (self.cloud_size is None or self.write_lock.locked()
+                        or time.monotonic()-self.last_sent<CLOUD_KEEPALIVE_SECONDS):
+                    continue
+                async with self.write_lock:
+                    if self.ended:break
+                    self.last_sent=time.monotonic()
+                    try:
+                        payload=b'\4'+json.dumps(self.cloud_size,separators=(',',':')).encode()
+                        await asyncio.wait_for(self.socket.send(payload),min(KEEPALIVE_TIMEOUT_SECONDS,WRITE_TIMEOUT_SECONDS))
+                    except Exception:
+                        # A control-frame failure alone must not kill the shell.
+                        # Receive/input paths still detect a broken connection.
+                        pass
         except asyncio.CancelledError:raise
         except Exception:self.error='云端终端连接中断，请重新连接。'
         finally:
@@ -226,7 +259,7 @@ class TerminalBridge:
                 except ActionError:raise
                 except Exception:raise ActionError('终端连接暂不可用，请稍后重试。','terminal_unavailable',502) from None
             key=secrets.token_urlsafe(32)
-            self.sessions[key]=Session(socket,owner)
+            self.sessions[key]=Session(socket,owner,cloud_size=size)
             self.sessions[key].target={field:data[field] for field in ('task_id','instance','container')}
             return {'session_id':key,'site':self.site.id,'task_id':data['task_id'],'tmux_token':self.sessions[key].tmux_token}
 
@@ -272,6 +305,8 @@ class TerminalBridge:
                           for start in range(0,len(output),OUTPUT_CHUNK_BYTES)],
                 'closed':s.ended,'error':s.error,'sequence':s.sequence,
                 **({'truncated':True} if frames and frames[0][0]>cursor+1 else {}),
+                **({'close_reason':s.close_reason,'session_seconds':max(0,int((s.closed_at or time.monotonic())-s.created))}
+                   if s.ended and s.close_reason else {}),
                 **({'retryable':True} if s.ended and s.retryable else {})}
 
     async def write(self,key,sequence,data,size,owner):
@@ -290,13 +325,20 @@ class TerminalBridge:
                 if sequence!=s.sequence+1:raise ActionError('输入顺序不一致，已拒绝重复执行。','terminal_sequence',409)
                 s.sequence=sequence;s.last_digest=digest
                 await s.socket.send(payload)
+                s.last_sent=time.monotonic()
+                if size is not None and s.cloud_size is not None:
+                    s.cloud_size=dimensions(size['cols'],size['rows'])
                 return {'type':'ack','sequence':sequence}
         try:
-            # Include time queued behind heartbeats/other writers in the deadline.
-            return await asyncio.wait_for(send(),WRITE_TIMEOUT_SECONDS)
+            # Allow one in-flight control send without consuming the input budget.
+            # Always reserve this for cloud sessions to cover scheduling races;
+            # the default 12 s total remains below the browser's 15 s ACK limit.
+            grace=min(KEEPALIVE_TIMEOUT_SECONDS,WRITE_TIMEOUT_SECONDS) if s.cloud_size is not None else 0
+            return await asyncio.wait_for(send(),WRITE_TIMEOUT_SECONDS+grace)
         except ActionError:raise
         except Exception:
             s.error='输入结果无法确认，已断开终端；不会自动重发命令。'
+            s.close_reason='input_unconfirmed'
             s.retryable=True
             await s.close()
             raise ActionError(s.error,'terminal_disconnected',502) from None
