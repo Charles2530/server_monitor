@@ -67,6 +67,22 @@
     }
   }
   const outer = document.defaultView?.frameElement;
+  // The active Codex document is a VS Code webview. A root-relative asset URL
+  // there is rewritten to vscode-resource.vscode-cdn.net and returns 401. Use
+  // the containing workbench origin so the authenticated editor proxy serves
+  // the bundled icon directly.
+  const iconBase = (() => {
+    try {
+      const origin = outer?.ownerDocument?.defaultView?.location?.origin;
+      return origin ? new URL('/_ilab_appearance/extension/icons/', origin).href
+        : '/_ilab_appearance/extension/icons/';
+    } catch (_) {
+      return '/_ilab_appearance/extension/icons/';
+    }
+  })();
+  function iconURL(icon) {
+    return `${iconBase}${icon}.svg`;
+  }
   function workbenchDrop(event) {
     // VS Code disables webview pointer events during Explorer drags. Resolve
     // the drop position through both frames, allowing for workbench scaling.
@@ -178,7 +194,7 @@
           const icon = fileIcon(label.textContent.trim());
           if (icon) {
             card.dataset.ilabFileIcon = icon;
-            card.style?.setProperty('--ilab-file-icon', `url("/_ilab_appearance/extension/icons/${icon}.svg")`);
+            card.style?.setProperty('--ilab-file-icon', `url("${iconURL(icon)}")`);
           } else clearFileIcon(card);
           if (!card.title || card.title === card.dataset.ilabFileTitle) {
             card.title = path || label.textContent.trim();
