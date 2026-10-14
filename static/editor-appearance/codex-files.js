@@ -14,7 +14,7 @@
     jsx: 'react', tsx: 'react', json: 'json', jsonc: 'json', jsonl: 'json',
     md: 'markdown', mdx: 'markdown', rst: 'markdown', yml: 'yaml', yaml: 'yaml', toml: 'toml',
     sh: 'console', bash: 'console', zsh: 'console', fish: 'console',
-    ini: 'settings', conf: 'settings', cfg: 'settings', env: 'settings',
+    ini: 'settings', conf: 'settings', cfg: 'settings', env: 'settings', lock: 'settings',
     sql: 'database', db: 'database', sqlite: 'database', sqlite3: 'database',
     html: 'html', htm: 'html', css: 'css', scss: 'css', c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', hpp: 'cpp', cxx: 'cpp',
     cu: 'cuda', cuh: 'cuda', ipynb: 'jupyter', pdf: 'pdf', zip: 'zip', gz: 'zip', tar: 'zip', '7z': 'zip', log: 'log',
@@ -25,7 +25,7 @@
   function fileIcon(filename) {
     const name = filename.replace(/[\\/]$/, '').toLowerCase();
     const fileNames = { dockerfile: 'docker', 'docker-compose.yml': 'docker', '.gitignore': 'git', '.gitattributes': 'git', makefile: 'settings' };
-    return fileNames[name] || fileIcons[name.slice(name.lastIndexOf('.') + 1)] || '';
+    return fileNames[name] || fileIcons[name.slice(name.lastIndexOf('.') + 1)] || 'document';
   }
   function clearFileIcon(card) {
     delete card.dataset.ilabFileIcon;

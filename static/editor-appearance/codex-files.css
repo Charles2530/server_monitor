@@ -107,13 +107,18 @@
 [data-ilab-codex-file="tile"][data-ilab-file-icon] > .composer-attachment-surface > :nth-child(2) > :first-child,
 [data-ilab-codex-file="card"][data-ilab-file-icon] .size-10,
 [data-composer-attachment-pill][data-ilab-file-icon] > :first-child {
-  background-image: var(--ilab-file-icon);
+  background: transparent !important;
+  background-image: var(--ilab-file-icon) !important;
   background-position: center;
   background-repeat: no-repeat;
   background-size: contain;
+  color: transparent !important;
 }
 [data-ilab-codex-file="tile"][data-ilab-file-icon] > .composer-attachment-surface > :nth-child(2) > :first-child svg,
 [data-ilab-codex-file="card"][data-ilab-file-icon] .size-10 svg,
-[data-composer-attachment-pill][data-ilab-file-icon] > :first-child svg {
-  visibility: hidden;
+[data-composer-attachment-pill][data-ilab-file-icon] > :first-child svg,
+[data-ilab-codex-file="tile"][data-ilab-file-icon] > .composer-attachment-surface > :nth-child(2) > :first-child img,
+[data-ilab-codex-file="card"][data-ilab-file-icon] .size-10 img,
+[data-composer-attachment-pill][data-ilab-file-icon] > :first-child img {
+  display: none !important;
 }

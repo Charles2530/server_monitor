@@ -93,6 +93,16 @@ def launchagent_payload(python, profile):
     }
 
 
+def sync_runtime_sources():
+    """Copy the main checkout into the LaunchAgent runtime without stale UI assets."""
+    for directory in ('server', 'static'):
+        destination = RUNTIME / directory
+        if directory == 'static':
+            shutil.rmtree(destination / 'editor-appearance', ignore_errors=True)
+        shutil.copytree(SOURCE / directory, destination, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns('__pycache__'))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--profile-file', help='Restore a saved JSON profile; use auto to resume hardware detection')
@@ -121,8 +131,7 @@ def main(argv=None):
         with lock_path.open('a') as lock:
             fcntl.flock(lock,fcntl.LOCK_EX)
     wait_for_free_port()
-    for directory in ('server','static'):
-        shutil.copytree(SOURCE/directory,RUNTIME/directory,dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__'))
+    sync_runtime_sources()
     shutil.copy2(SOURCE/'requirements.lock',RUNTIME/'requirements.lock')
     profile = write_runtime_profile(RUNTIME, selected=selected_profile)
     if (SOURCE/'.env').exists():
