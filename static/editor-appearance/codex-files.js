@@ -178,7 +178,7 @@
           const icon = fileIcon(label.textContent.trim());
           if (icon) {
             card.dataset.ilabFileIcon = icon;
-            card.style?.setProperty('--ilab-file-icon', `url("/static/editor-appearance/extension/icons/${icon}.svg")`);
+            card.style?.setProperty('--ilab-file-icon', `url("/_ilab_appearance/extension/icons/${icon}.svg")`);
           } else clearFileIcon(card);
           if (!card.title || card.title === card.dataset.ilabFileTitle) {
             card.title = path || label.textContent.trim();
