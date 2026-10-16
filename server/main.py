@@ -26,7 +26,8 @@ from .images import ImageManager
 from .task_history import TaskHistory
 from .utilization_queue import UtilizationQueue
 from .ssh import SSHCatalog, SSHBridge, SSHEditor
-from .ssh_transfers import SSHTransfers, register_transfer_routes
+from .ssh_transfers import SSHTransfers, register_transfer_routes as register_ssh_transfer_routes
+from .transfers import TransferManager, register_transfer_routes as register_data_transfer_routes
 from types import SimpleNamespace
 from .tokenhub import TokenHub
 from .tokenhub_routes import register_tokenhub_routes
@@ -64,6 +65,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     tokenhub = tokenhub or TokenHub()
     ssh_catalog = SSHCatalog()
     ssh_transfers = SSHTransfers(ssh_catalog)
+    data_transfers = TransferManager(ssh_catalog)
     ssh_bridge = SSHBridge(ssh_catalog)
     ssh_runtime = SimpleNamespace(terminal_bridge=ssh_bridge, ide=SSHEditor(ssh_bridge))
     if runtimes is None:
@@ -76,6 +78,9 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
                 store=Store(site.data/'monitor.sqlite3')
                 instance=Monitor(store,Collector(site),renew=partial(connect_browser,site=site))
                 runtimes[site.id]=SiteRuntime(instance,ACPManager(store,site=site),TaskLogs(site=site),site)
+    # Transfer executors are resolved from the same per-site runtimes that back
+    # the Running Tasks page. This keeps CCI jobs separate from SSH aliases.
+    data_transfers.runtimes = runtimes
     for runtime in runtimes.values():
         if runtime.renamer is None:runtime.renamer=TaskRenamer(runtime.monitor.store,site=runtime.site)
         if runtime.terminal is None:runtime.terminal=CCITerminal(runtime.site)
@@ -113,6 +118,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
             yield
         finally:
             await ssh_transfers.close()
+            await data_transfers.close()
             await ssh_catalog.close()
             await ssh_runtime.ide.close()
             await ssh_bridge.close()
@@ -134,6 +140,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     app.state.tokenhub=tokenhub
     app.state.ssh=ssh_catalog
     app.state.ssh_transfers=ssh_transfers
+    app.state.transfers=data_transfers
     app.state.runtime_profile=get_runtime_profile()
 
     @app.middleware('http')
@@ -218,7 +225,8 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     register_terminal_routes(app,current_connection,perform,action_body,{**runtimes, 'ssh': ssh_runtime})
     register_ide_routes(app,current_connection,perform,action_body)
     register_tokenhub_routes(app,tokenhub)
-    register_transfer_routes(app,ssh_transfers,perform,action_body)
+    register_ssh_transfer_routes(app,ssh_transfers,perform,action_body)
+    register_data_transfer_routes(app,data_transfers,perform,action_body)
 
     @app.get('/api/ssh')
     async def ssh_state():

@@ -81,6 +81,10 @@
     if (!transferDialog) transferDialog = createTransferDialog();
     transferDialog.open(alias, direction, opener);
   }
+  window.openMonitorDirectoryPicker = options => {
+    if (!transferDialog) transferDialog = createTransferDialog();
+    transferDialog.openDirectory(options);
+  };
   function createTransferDialog() {
     const dialog = element("dialog", "ssh-transfer-dialog");
     dialog.setAttribute("aria-labelledby", "ssh-transfer-title");
@@ -96,7 +100,7 @@
     document.body.append(dialog);
     dialog.querySelector("[data-close]").append(icon("close"));
     const find = selector => dialog.querySelector(selector), title = find("h2"), step = find("[data-step]"), summary = find("[data-summary]"), browser = find("[data-browser]"), form = find("form"), path = find("input[aria-label='文件或目录路径']"), filter = find("input[type=search]"), hidden = find("[data-hidden]"), list = find(".ssh-transfer-files"), hint = find("[data-hint]"), message = find("[data-message]"), back = find("[data-back]"), folder = find("[data-folder]"), next = find("[data-next]"), jobs = find("[data-jobs]");
-    let alias, direction, phase, source, listing, selected, busy = false, version = 0, pollVersion = 0, request, pollTimer, opener, sourceDirectory = "";
+    let alias, direction, phase, source, listing, selected, picker, busy = false, version = 0, pollVersion = 0, request, pollTimer, opener, sourceDirectory = "";
     const label = () => direction === "download" ? "下载" : "上传";
     const side = () => (direction === "download") === (phase === "source") ? "remote" : "local";
     const formatBytes = value => {
@@ -146,6 +150,16 @@
       find("[data-count]").textContent = busy ? "读取中…" : listing ? `${list.querySelectorAll(".ssh-transfer-row").length} 项` : "";
       summary.textContent = source ? `${label()}来源：${source}` : selected ? `已选：${selected}` : "选择一项；点击文件夹名称可进入目录。";
       summary.dataset.selected = String(Boolean(source || selected));
+      find(".ssh-transfer-steps").hidden = find(".ssh-transfer-jobs").hidden = Boolean(picker);
+      if (picker) {
+        back.hidden = true;
+        next.textContent = "使用此目录";
+        step.textContent = picker.label;
+        path.placeholder = "输入目录的绝对路径";
+        find("[data-location]").textContent = "文件夹";
+        summary.textContent = listing ? `当前目录：${listing.path}` : "选择文件夹后确认，路径将填入传输表单。";
+        summary.dataset.selected = "false";
+      }
     }
     function renderFiles() {
       const query = filter.value.toLocaleLowerCase();
@@ -172,17 +186,17 @@
         const empty = element("div", "ssh-transfer-empty"); empty.append(icon("folder"), element("p", "", query ? "没有匹配的文件或文件夹" : "当前没有可显示的项目")); list.append(empty);
       }
       find("[data-count]").textContent = `${entries.length} 项`;
-      hint.textContent = listing?.truncated ? "此目录项目较多，列表已截断。可输入文件或目录的完整路径。" : phase === "destination" ? "文件将保存到当前目录；同名目标不会覆盖。" : "可选择文件，也可选择整个文件夹。";
+      hint.textContent = listing?.truncated ? "此目录项目较多，列表已截断。可输入文件或目录的完整路径。" : picker ? "点击文件夹进入；确认后使用当前目录。" : phase === "destination" ? "文件将保存到当前目录；同名目标不会覆盖。" : "可选择文件，也可选择整个文件夹。";
     }
     async function browse(target) {
       request?.abort(); const controller = new AbortController(); request = controller;
       const current = ++version, locationSide = side(); busy = true; listing = null; selected = null; path.value = target; notice("正在读取目录…"); list.replaceChildren(); controls();
       const timeout = setTimeout(() => controller.abort(), 35000);
       try {
-        let result = await api("/api/ssh/files", {side: locationSide, alias, path: target}, controller.signal), file = null;
+        let result = picker ? await picker.browse(target, controller.signal) : await api("/api/ssh/files", {side: locationSide, alias, path: target}, controller.signal), file = null;
         if (current !== version) return;
         if (result.kind === "file") {
-          if (phase !== "source") throw new Error("保存位置必须是文件夹，请输入目录路径。");
+          if (phase !== "source") throw new Error("选择的位置必须是文件夹，请输入目录路径。");
           file = result;
           result = await api("/api/ssh/files", {side: locationSide, alias, path: file.parent}, controller.signal);
           if (!(result.entries || []).some(entry => entry.path === file.path)) result.entries.push(file);
@@ -252,6 +266,10 @@
     }
     async function advance() {
       if (busy) return;
+      if (picker) {
+        if (listing) { picker.onSelect(listing.path); dialog.close(); }
+        return;
+      }
       if (phase === "started") { phase = "source"; source = null; await browse(sourceDirectory); return; }
       if (phase === "source") {
         if (!selected) return;
@@ -276,9 +294,13 @@
     find("[data-close]").addEventListener("click", () => dialog.close());
     dialog.addEventListener("close", () => { version++; pollVersion++; request?.abort(); clearTimeout(pollTimer); opener?.focus(); });
     return {open(host, mode, button) {
-      alias = host; direction = mode; opener = button; phase = "source"; source = null; sourceDirectory = ""; hidden.checked = false;
+      picker = null; alias = host; direction = mode; opener = button; phase = "source"; source = null; sourceDirectory = ""; hidden.checked = false;
       find(".ssh-transfer-mark").replaceChildren(icon(direction));
       title.textContent = `${label()} · ${alias}`; dialog.showModal(); browse(""); jobs.replaceChildren(); poll();
+    }, openDirectory(options) {
+      picker = options; opener = options.opener; phase = "destination"; source = null; hidden.checked = false;
+      find(".ssh-transfer-mark").replaceChildren(icon("folder"));
+      title.textContent = options.title; dialog.showModal(); browse(options.path || "");
     }};
   }
   const failures = element("details", "ssh-unavailable"), failureSummary = element("summary", ""), failureList = element("ul", "ssh-unavailable-list");

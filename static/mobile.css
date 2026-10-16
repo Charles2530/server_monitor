@@ -220,6 +220,12 @@
   .storage-actions .button { flex: 1; }
   #storage-status, #task-history-status { margin-inline: 14px; overflow-wrap: anywhere; }
   .storage-mount { overflow-wrap: anywhere; }
+  #storage-transfer-panel .transfer-card, #storage-transfer-panel .transfer-job-card { margin-inline: 0; }
+  #storage-transfer-panel .transfer-card select, #storage-transfer-panel .transfer-card input { min-height: 44px; font-size: 16px; }
+  #storage-transfer-panel .transfer-card .button { min-height: 44px; }
+  #storage-transfer-panel .transfer-route-card { padding: 14px; }
+  #storage-transfer-panel .transfer-route-kicker { font-size: 9px; }
+  #storage-transfer-panel .transfer-empty-state { min-height: 92px; }
   #task-history-section .history-summary { margin: 0 12px 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
   #task-history-section .history-stat { padding: 9px 6px; grid-template-columns: minmax(0, 1fr); gap: 6px; border: 1px solid var(--line); }
   #task-history-section .history-stat strong { font-size: 21px; }

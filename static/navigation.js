@@ -8,7 +8,7 @@
     tasks: ["运行任务", "RUNNING TASKS", "选择任务查看 CPU、GPU、内存与显存；支持停止 ACP 任务。"],
     acp: ["ACP 任务", "CREATE ACP TASK", window.MonitorSite?.id === "sensecore" ? "先选 AFS 分区，再选集群和卡数，预览镜像与挂载后创建。" : "配置任务并预览创建；可指定集群，默认按优先规则选择。"],
     history: ["任务历史", "TASK HISTORY", "查看 charles 已成功、失败或停止的任务，并跳转云控制台。"],
-    storage: ["存储管理", "AFS STORAGE", "查看 AFS 存储容量、分区与 charles 任务的挂载路径。"],
+    storage: ["存储管理", "AFS STORAGE", "查看 AFS 存储与挂载关系，或在远端 CCI / SSH 节点执行跨端数据传输。"],
     images: ["镜像管理", "IMAGE MANAGEMENT", "按当前云站点查看镜像仓库、版本信息与镜像传递方向。"],
     waiting: ["队列管理", "QUEUES", "查看和管理所有用户的 CCI / ACP 等待任务与运行队列。"],
   };

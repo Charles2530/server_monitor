@@ -243,3 +243,254 @@
   document.addEventListener("visibilitychange", () => activate(location.hash.slice(1)));
   activate(location.hash.slice(1));
 })();
+
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const tabs = [...document.querySelectorAll('[data-storage-tab]')];
+  const panels = {afs: $('storage-afs-panel'), transfer: $('storage-transfer-panel')};
+  if (!tabs.length || !panels.transfer) return;
+  const submit = $('transfer-submit'), message = $('transfer-message');
+  const sides = ['source', 'destination'];
+  const state = {executors: [], active: false, loading: false, polling: false, pollAgain: false, timer: null, executorError: ''};
+  const json = async (url, data, signal) => {
+    const response = await fetch(url, {method: data ? 'POST' : 'GET', headers: {'Content-Type': 'application/json', 'X-Monitor-Request': '1'}, body: data ? JSON.stringify(data) : undefined, cache: 'no-store', signal});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || '请求失败，请重试。');
+    return result;
+  };
+  const nodeType = (side) => $(`transfer-${side}-node-type`).value;
+  const nodeSelect = (side) => $(`transfer-${side}-node`);
+  const pathInput = (side) => $(`transfer-${side}-path`);
+  const pathText = (endpoint, job) => `${endpointName(endpoint, job)} · ${endpoint.path}`;
+  const stageLabel = (job) => ({starting: '准备中', prepare: '准备传输工具（首次使用会自动安装）', upload: '上传到中转存储', copy: '复制存储数据', sync: '同步存储数据', download: '下载到目标节点', completed: '已完成', cancelled: '已取消'}[job.stage?.split(':')[0]] || '准备中');
+  function setMessage(text, error = false) { message.textContent = text || ''; message.dataset.state = error ? 'error' : text ? 'success' : ''; }
+  function filtered(kind) { return state.executors.filter(item => item.type === kind); }
+  function renderNodes(side, preserve = '') {
+    const select = nodeSelect(side), list = filtered(nodeType(side));
+    select.replaceChildren(...(list.length
+      ? list.map(item => new Option(`${item.label} · 可用`, item.id))
+      : [new Option(nodeType(side) === 'ssh-node' ? '暂无可用 SSH 节点' : '暂无可用 CCI 运行任务', '')]));
+    if (preserve && list.some(item => item.id === preserve)) select.value = preserve;
+    if (!select.value && list[0]) select.value = list[0].id;
+    $(`transfer-${side}-browse`).disabled = !select.value;
+    renderRoute();
+  }
+  function endpointPayload(side) {
+    return {type: 'folder', path: pathInput(side).value,
+      executor: {type: nodeType(side), id: nodeSelect(side).value}};
+  }
+  function renderRoute() {
+    const name = side => ({sensecore: 'SenseCore CCI', maoshanwang: 'maoshanwang CCI', 'ssh-node': 'SSH 节点'}[nodeType(side)]);
+    $('transfer-route').textContent = `${name('source')} → ${name('destination')}`;
+    submit.disabled = state.loading || Boolean(validate());
+    $('transfer-executor-status').textContent = state.executorError || '首次使用自动准备工具，再上传、中转和下载。同名文件可能更新，中转数据会保留。';
+  }
+  async function loadExecutors() {
+    try {
+      const result = await json('/api/transfers/executors');
+      state.executors = result.executors || [];
+      state.executorError = '';
+      sides.forEach(side => renderNodes(side, nodeSelect(side).value));
+      renderJobPage(); renderLog();
+      renderRoute();
+    } catch (error) {
+      state.executorError = error.message;
+      renderRoute();
+    }
+  }
+  function browse(side) {
+    const executor = state.executors.find(item => item.id === nodeSelect(side).value);
+    if (!executor) return;
+    window.openMonitorDirectoryPicker({
+      title: `选择${side === 'source' ? '源端' : '目标端'}目录`, label: executor.label,
+      path: pathInput(side).value, opener: $(`transfer-${side}-browse`),
+      browse: (path, signal) => json('/api/transfers/browse', {executor_id: executor.id, path}, signal),
+      onSelect: path => { pathInput(side).value = path.replace(/\/+$/, '') + '/'; renderRoute(); },
+    });
+  }
+  function validate() {
+    if (state.executorError) return state.executorError;
+    const source = endpointPayload('source'), destination = endpointPayload('destination');
+    for (const endpoint of [source, destination]) if (!endpoint.path) return '请填写源端和目标端路径。';
+    for (const endpoint of [source, destination]) {
+      if (!state.executors.some(item => item.id === endpoint.executor.id)) return '请选择可用节点。';
+    }
+    if (!source.path.startsWith('/')) return '源端文件夹必须是绝对路径。';
+    if (!destination.path.startsWith('/')) return '目标端文件夹必须是绝对路径。';
+    return '';
+  }
+  const jobRows = new Map(), logDialog = $('transfer-log-dialog');
+  const logIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>';
+  const jobStatus = job => ({running: '传输中', cancelling: '正在取消', completed: '已完成', failed: '失败', cancelled: '已取消'}[job.state] || '未知状态');
+  function endpointName(endpoint, job) {
+    const saved = endpoint.executor || job.executor || {};
+    const node = state.executors.find(item => item.id === saved.id) || (job.executor?.id === saved.id ? job.executor : saved);
+    const site = {sensecore: 'SenseCore', maoshanwang: 'maoshanwang', 'ssh-node': 'SSH'}[saved.type] || '节点';
+    const name = (node.label || node.alias)?.split(' · ')[0] || (saved.id?.startsWith('cci:') ? saved.id.split(':').slice(2, 4).join(':') : saved.id?.replace(/^ssh:/, '')) || '未知节点';
+    return `${site} · ${name}`;
+  }
+  const jobName = job => `${endpointName(job.source, job)} → ${endpointName(job.destination, job)}`;
+  const jobMeta = job => job.started_at ? new Date(job.started_at * 1000).toLocaleString('zh-CN', {month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false}) : '时间未知';
+  let jobPage = 1;
+  function renderJobPage() {
+    const query = $('transfer-job-search').value.trim().toLowerCase(), status = $('transfer-job-filter').value;
+    const records = [...jobRows.values()].sort((a, b) => a.index - b.index), matches = records.filter(({job}) => (!status || job.state === status) && jobName(job).toLowerCase().includes(query));
+    const size = Number($('transfer-job-size').value) || 10, pages = Math.max(1, Math.ceil(matches.length / size));
+    jobPage = Math.max(1, Math.min(jobPage, pages));
+    const visible = new Set(matches.slice((jobPage - 1) * size, jobPage * size));
+    for (const record of records) {
+      record.row.hidden = !visible.has(record);
+      sides.forEach((side, index) => {
+        const cell = record.row.cells[index], label = endpointName(record.job[side], record.job);
+        const parts = label.split(' · ');
+        cell.title = label;
+        cell.querySelector('strong').textContent = parts.slice(1).join(' · ');
+        cell.querySelector('small').textContent = parts[0];
+      });
+    }
+    $('transfer-jobs').hidden = !matches.length;
+    const empty = $('transfer-jobs-empty'); empty.hidden = Boolean(matches.length);
+    empty.textContent = records.length ? '没有符合条件的传输任务，请调整搜索或筛选条件。' : '暂无传输任务。任务创建后，点击日志图标查看执行详情。';
+    $('transfer-job-page').textContent = `${matches.length === records.length ? `共 ${records.length} 项` : `${matches.length} 项匹配 / 共 ${records.length} 项`} · 第 ${jobPage} / ${pages} 页`;
+    $('transfer-job-prev').disabled = jobPage === 1;
+    $('transfer-job-next').disabled = jobPage === pages;
+  }
+  for (const id of ['transfer-job-search', 'transfer-job-filter', 'transfer-job-size']) {
+    $(id).addEventListener(id === 'transfer-job-search' ? 'input' : 'change', () => { jobPage = 1; renderJobPage(); });
+  }
+  $('transfer-job-prev').addEventListener('click', () => { jobPage--; renderJobPage(); });
+  $('transfer-job-next').addEventListener('click', () => { jobPage++; renderJobPage(); });
+  let logId = null, cancellingId = null, logState = null;
+  function logNotice(text = '') {
+    $('transfer-log-notice').textContent = text; $('transfer-log-notice').hidden = !text;
+  }
+  function applyLog(result) {
+    logState.lines = logState.lines.slice(Math.max(0, result.first - logState.first));
+    logState.first = result.first;
+    logState.lines.splice(result.start - result.first, logState.lines.length, ...result.lines);
+    logState.offset = result.next;
+    const output = $('transfer-log-output'), text = logState.lines.join('\n') || '等待执行输出…';
+    if (output.textContent !== text) {
+      const follow = output.scrollHeight - output.clientHeight - output.scrollTop < 24;
+      output.textContent = text;
+      if (follow) output.scrollTop = output.scrollHeight;
+    }
+    $('transfer-log-count').textContent = `${logState.lines.length} 条${result.first ? ` · 较早 ${result.first} 条已截断` : ' · 从任务开始记录'} · 连续进度合并`;
+  }
+  async function loadLog() {
+    if (!logDialog.open || !logState) return;
+    if (logState.loading) { logState.again = true; return; }
+    const current = logState;
+    current.loading = true;
+    try {
+      const result = await json(`/api/transfers/${encodeURIComponent(current.id)}/logs?offset=${current.offset}`);
+      if (logState !== current || !logDialog.open) return;
+      applyLog(result);
+    } catch (error) {
+      if (logState === current && logDialog.open) logNotice(`日志更新失败：${error.message}`);
+    } finally {
+      current.loading = false;
+      if (current.again && logState === current) { current.again = false; loadLog(); }
+    }
+  }
+  function renderLog() {
+    if (!logDialog.open) return;
+    const job = jobRows.get(logId)?.job;
+    if (!job) { logNotice('任务记录已不在列表中，以下保留最后一次结果。'); $('transfer-log-cancel').hidden = true; return; }
+    logNotice();
+    $('transfer-log-name').textContent = `${jobName(job)} · ${jobMeta(job)}`;
+    $('transfer-log-state').textContent = jobStatus(job); $('transfer-log-state').dataset.state = job.state;
+    $('transfer-log-stage').textContent = `${stageLabel(job)}${job.stage_index ? ` · 第 ${job.stage_index} / ${job.stage_count} 步` : ''}${Number.isFinite(job.progress_percent) ? ` · ${job.progress_percent}%` : ''}`;
+    const progress = $('transfer-log-progress');
+    if (Number.isFinite(job.progress_percent)) progress.value = job.progress_percent;
+    else progress.removeAttribute('value');
+    $('transfer-log-source').textContent = pathText(job.source, job);
+    $('transfer-log-destination').textContent = pathText(job.destination, job);
+    $('transfer-log-error').textContent = job.error || ''; $('transfer-log-error').hidden = !job.error;
+    loadLog();
+    const cancel = $('transfer-log-cancel');
+    cancel.hidden = !['running', 'cancelling'].includes(job.state);
+    cancel.disabled = job.state === 'cancelling' || cancellingId === job.id;
+  }
+  $('transfer-log-close').addEventListener('click', () => logDialog.close());
+  logDialog.addEventListener('close', () => { (jobRows.get(logId)?.row.hidden === false ? jobRows.get(logId).row.querySelector('button') : $('transfer-refresh-jobs')).focus(); logId = null; logState = null; });
+  $('transfer-log-cancel').addEventListener('click', async () => {
+    const id = logId; cancellingId = id; renderLog();
+    try { await json(`/api/transfers/${encodeURIComponent(id)}/cancel`, {}); await poll(); }
+    catch (error) { if (logId === id) logNotice(error.message); }
+    finally { cancellingId = null; $('transfer-log-cancel').disabled = jobRows.get(logId)?.job.state === 'cancelling'; }
+  });
+  function renderJobs(result) {
+    $('transfer-jobs-notice').hidden = true;
+    const root = $('transfer-jobs'), jobs = result.jobs || [], ids = new Set(jobs.map(job => job.id));
+    for (const [id, record] of jobRows) if (!ids.has(id)) { record.row.remove(); jobRows.delete(id); }
+    jobs.forEach((job, index) => {
+      let record = jobRows.get(job.id);
+      if (!record) {
+        const row = document.createElement('tr'); row.className = 'transfer-job';
+        row.innerHTML = `<td><strong></strong><small></small></td><td><strong></strong><small></small></td><td class="transfer-job-time"></td><td><span class="transfer-job-state"></span></td><td><button class="ssh-copy transfer-job-log" type="button" aria-label="查看执行日志" title="查看执行日志" aria-haspopup="dialog" aria-controls="transfer-log-dialog">${logIcon}</button></td>`;
+        record = {row}; jobRows.set(job.id, record);
+        row.querySelector('button').addEventListener('click', () => {
+          logId = job.id; logState = {id: job.id, first: 0, offset: 0, lines: [], loading: false};
+          $('transfer-log-output').textContent = '正在读取日志…'; $('transfer-log-count').textContent = '';
+          logDialog.showModal(); renderLog();
+          $('transfer-log-output').scrollTop = $('transfer-log-output').scrollHeight;
+        });
+      }
+      record.job = job; record.index = index;
+      const row = record.row;
+      row.querySelector('.transfer-job-time').textContent = jobMeta(job);
+      const status = row.querySelector('.transfer-job-state'); status.textContent = jobStatus(job); status.dataset.state = job.state;
+      if (root.children[index] !== row) root.insertBefore(row, root.children[index] || null);
+    });
+    renderJobPage(); renderLog();
+  }
+  async function poll() {
+    clearTimeout(state.timer);
+    if (!state.active || document.hidden) return;
+    if (state.polling) { state.pollAgain = true; return; }
+    state.polling = true;
+    let delay = 0;
+    try { const result = await json('/api/transfers'); renderJobs(result); if ((result.jobs || []).some(job => ['running', 'cancelling'].includes(job.state))) delay = 1000; }
+    catch (error) {
+      const notice = $('transfer-jobs-notice');
+      notice.textContent = `更新失败：${error.message}，正在重试。`; notice.hidden = false;
+      if (logDialog.open) logNotice(notice.textContent);
+      delay = 3000;
+    }
+    finally {
+      state.polling = false;
+      if (state.pollAgain) { delay = 1; state.pollAgain = false; }
+      if (delay && state.active && !document.hidden) state.timer = setTimeout(poll, delay);
+    }
+  }
+  async function submitJob() {
+    const error = validate(); if (error) return setMessage(error, true);
+    state.loading = true; renderRoute(); setMessage('正在创建远端传输任务…');
+    try { await json('/api/transfers', {source: endpointPayload('source'), destination: endpointPayload('destination')}); setMessage('任务已创建，正在执行。'); poll(); }
+    catch (failure) { setMessage(failure.message, true); }
+    finally { state.loading = false; renderRoute(); }
+  }
+  function selectTab(name) {
+    tabs.forEach(tab => { const selected = tab.dataset.storageTab === name; tab.classList.toggle('active', selected); tab.setAttribute('aria-selected', String(selected)); tab.tabIndex = selected ? 0 : -1; });
+    Object.entries(panels).forEach(([key, panel]) => { panel.hidden = key !== name; });
+    state.active = name === 'transfer';
+    clearTimeout(state.timer);
+    if (state.active) { loadExecutors(); poll(); }
+  }
+  for (const side of sides) {
+    $(`transfer-${side}-node-type`).addEventListener('change', () => renderNodes(side));
+    $(`transfer-${side}-node`).addEventListener('change', renderRoute);
+    $(`transfer-${side}-browse`).addEventListener('click', () => browse(side));
+    $(`transfer-${side}-path`).addEventListener('input', renderRoute);
+  }
+  tabs.forEach(tab => tab.addEventListener('click', () => selectTab(tab.dataset.storageTab)));
+  submit.addEventListener('click', submitJob); $('transfer-refresh-jobs').addEventListener('click', poll);
+  document.addEventListener('workspace-page', event => {
+    state.active = event.detail === 'storage' && !panels.transfer.hidden;
+    clearTimeout(state.timer);
+    if (state.active) { loadExecutors(); poll(); }
+  });
+  document.addEventListener('visibilitychange', () => { if (state.active && !document.hidden) poll(); });
+  sides.forEach(side => renderNodes(side));
+})();

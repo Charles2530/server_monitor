@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="/static/metrics.css">
     <link rel="stylesheet" href="/static/partitions.css">
     <link rel="stylesheet" href="/static/storage.css">
+    <link rel="stylesheet" href="/static/transfer.css">
     <link rel="stylesheet" href="/static/images.css">
     <link rel="stylesheet" href="/static/selects.css">
     <link rel="stylesheet" href="/static/workspace.css">
@@ -272,6 +273,8 @@
       </section>
       </div>
       <section id="storage-section" class="section-block cluster-panel workspace-view" data-page="storage" hidden>
+        <div class="storage-tabs" role="tablist" aria-label="存储管理分类"><button id="storage-afs-tab" class="active" type="button" role="tab" aria-selected="true" aria-controls="storage-afs-panel" data-storage-tab="afs">AFS 存储</button><button id="storage-transfer-tab" type="button" role="tab" aria-selected="false" aria-controls="storage-transfer-panel" data-storage-tab="transfer" tabindex="-1">数据传输</button></div>
+        <div id="storage-afs-panel" role="tabpanel" aria-labelledby="storage-afs-tab">
         <div class="section-heading"><div><h2>AFS 存储管理 <span class="count-badge" id="storage-count">—</span></h2></div><div class="storage-actions"><a id="storage-console" class="button button-secondary" target="_blank" rel="noopener noreferrer">云控制台 ↗</a><button id="storage-refresh" class="button button-secondary" type="button">刷新存储</button></div></div>
         <div class="storage-filters"><label class="storage-search">搜索<input id="storage-search" type="search" placeholder="名称、卷 ID、任务或挂载路径" autocomplete="off"></label><details id="storage-filter-details" class="responsive-details" data-mobile-collapse open><summary>筛选 <span data-filter-count></span></summary><div class="filter-options"><label>分区<select id="storage-zone"><option value="">全部分区</option></select></label><label class="storage-related"><input id="storage-related" type="checkbox"> 仅 charles 有挂载记录</label></div></details></div>
         <p id="storage-status" role="status" aria-live="polite">进入页面后读取存储信息</p>
@@ -279,6 +282,53 @@
         <div id="storage-summary" class="storage-summary" aria-label="当前筛选容量汇总"></div>
         <div class="table-scroll" role="region" aria-label="AFS 存储卷，可横向滚动" tabindex="0"><table class="resource-table storage-table"><thead><tr><th scope="col">存储卷 / 分区</th><th scope="col">容量 / 使用率</th><th scope="col">状态 / 到期时间</th><th scope="col">charles 最近挂载记录</th></tr></thead><tbody id="storage-body"><tr><td colspan="4" class="table-empty">等待读取存储信息</td></tr></tbody></table></div>
         <div class="table-note">只读查看，容量每 60 秒刷新，挂载记录后台补齐并缓存 5 分钟。容量为整个共享存储卷的用量，非 charles 独占用量；按 1000 进制展示 GB / TB。挂载记录包含历史任务，按服务类型和路径保留最新一条；无记录不代表存储卷未使用。“—” 表示未知。</div>
+        </div>
+        <div id="storage-transfer-panel" role="tabpanel" aria-labelledby="storage-transfer-tab" hidden>
+          <div class="transfer-compose">
+            <div class="transfer-grid" aria-label="跨端数据传输配置">
+              <section class="transfer-card" data-transfer-endpoint="source">
+                <div class="transfer-card-heading"><span class="transfer-endpoint-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 16V4m-4 4 4-4 4 4M4 15v5h16v-5"/></svg></span><h3>来源</h3></div>
+                <div class="transfer-endpoint-fields">
+                  <div class="transfer-fields">
+                    <label>节点类型<select id="transfer-source-node-type"><option value="sensecore">SenseCore CCI</option><option value="maoshanwang">maoshanwang CCI</option><option value="ssh-node">SSH 节点</option></select></label>
+                    <label>运行节点<select id="transfer-source-node"><option value="">正在读取…</option></select></label>
+                  </div>
+                  <div class="transfer-path-row"><label>文件夹路径<input id="transfer-source-path" type="text" placeholder="/path/to/source/" autocomplete="off" spellcheck="false"></label><button id="transfer-source-browse" class="button button-secondary" type="button" aria-haspopup="dialog">浏览目录</button></div>
+                </div>
+              </section>
+              <section class="transfer-card" data-transfer-endpoint="destination">
+                <div class="transfer-card-heading"><span class="transfer-endpoint-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 4v12m-4-4 4 4 4-4M4 15v5h16v-5"/></svg></span><h3>目标</h3></div>
+                <div class="transfer-endpoint-fields">
+                  <div class="transfer-fields">
+                    <label>节点类型<select id="transfer-destination-node-type"><option value="maoshanwang">maoshanwang CCI</option><option value="sensecore">SenseCore CCI</option><option value="ssh-node">SSH 节点</option></select></label>
+                    <label>运行节点<select id="transfer-destination-node"><option value="">正在读取…</option></select></label>
+                  </div>
+                  <div class="transfer-path-row"><label>文件夹路径<input id="transfer-destination-path" type="text" placeholder="/path/to/destination/" autocomplete="off" spellcheck="false"></label><button id="transfer-destination-browse" class="button button-secondary" type="button" aria-haspopup="dialog">浏览目录</button></div>
+                </div>
+              </section>
+            </div>
+            <section class="transfer-route-card" aria-label="传输设置">
+              <div class="transfer-route-summary"><p id="transfer-route" role="status">请选择两端路径。</p><p id="transfer-executor-status" class="transfer-help" role="status"></p></div>
+            </section>
+            <div class="transfer-actions"><p id="transfer-message" class="transfer-message" role="status" aria-live="polite"></p><button id="transfer-submit" class="button button-primary" type="button" disabled>开始传输 <span aria-hidden="true">→</span></button></div>
+          </div>
+          <section class="transfer-job-card">
+            <div class="transfer-job-heading">
+              <h3>传输任务</h3>
+              <div class="transfer-job-tools">
+                <span class="history-search-control"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="transfer-job-search" type="search" aria-label="搜索节点" placeholder="搜索来源或目标节点" autocomplete="off"></span>
+                <select id="transfer-job-filter" class="history-select" aria-label="任务状态"><option value="">全部状态</option><option value="running">传输中</option><option value="cancelling">正在取消</option><option value="completed">已完成</option><option value="failed">失败</option><option value="cancelled">已取消</option></select>
+                <button id="transfer-refresh-jobs" class="button button-secondary" type="button">刷新任务</button>
+              </div>
+            </div>
+            <p id="transfer-jobs-notice" class="transfer-help" role="status" hidden></p>
+            <div class="table-scroll" role="region" aria-label="传输任务，可横向滚动" tabindex="0">
+              <table class="resource-table transfer-table" aria-label="传输任务"><thead><tr><th scope="col">来源节点</th><th scope="col">目标节点</th><th scope="col">创建时间</th><th scope="col">状态</th><th scope="col">日志</th></tr></thead><tbody id="transfer-jobs" hidden></tbody></table>
+            </div>
+            <p id="transfer-jobs-empty" class="transfer-empty-state" role="status">暂无传输任务。</p>
+            <div class="task-history-pagination"><label>每页<select id="transfer-job-size" class="history-select"><option value="5">5 条</option><option value="10" selected>10 条</option><option value="20">20 条</option><option value="50">50 条</option></select></label><span id="transfer-job-page" role="status">第 1 / 1 页</span><button id="transfer-job-prev" class="button button-secondary" type="button" disabled>上一页</button><button id="transfer-job-next" class="button button-secondary" type="button" disabled>下一页</button></div>
+          </section>
+        </div>
       </section>
       <section id="images-section" class="section-block workspace-view th-page" data-page="images" hidden>
         <div class="dashboard-panel image-registry-card">
@@ -376,6 +426,17 @@
       </section>
       <footer class="page-footer"><span>iLab Server Monitor<span class="footer-divider">/</span>运行监控：charles · 等待队列：所有用户</span><span>本地历史保留 7 天 · 60 秒采样</span></footer>
     </main>
+    <dialog id="transfer-log-dialog" class="ssh-transfer-dialog transfer-log-dialog" aria-labelledby="transfer-log-title">
+      <header class="ssh-transfer-header"><span class="ssh-transfer-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span><div><h2 id="transfer-log-title">执行日志</h2><p id="transfer-log-name"></p></div><button id="transfer-log-close" class="ssh-copy" type="button" data-close aria-label="关闭执行日志">×</button></header>
+      <div class="transfer-log-status"><span id="transfer-log-state" class="transfer-job-state" role="status"></span><span id="transfer-log-stage"></span></div>
+      <progress id="transfer-log-progress" max="100" aria-label="传输进度"></progress>
+      <dl class="transfer-log-paths"><dt>来源</dt><dd id="transfer-log-source"></dd><dt>目标</dt><dd id="transfer-log-destination"></dd></dl>
+      <p id="transfer-log-error" class="ssh-transfer-message" data-kind="error" hidden></p>
+      <p id="transfer-log-notice" class="ssh-transfer-message" role="status" hidden></p>
+      <div class="transfer-log-toolbar"><span>执行输出 · 本机时间</span><span id="transfer-log-count">最多保留 2000 条 · 增量更新</span></div>
+      <pre id="transfer-log-output" tabindex="0" aria-label="执行输出"></pre>
+      <footer class="ssh-transfer-footer"><button id="transfer-log-cancel" class="button button-secondary" type="button">取消传输</button></footer>
+    </dialog>
     <dialog id="task-rename-dialog" class="task-rename-dialog" aria-labelledby="task-rename-title" aria-describedby="task-rename-description">
       <form id="task-rename-form" novalidate>
         <div class="task-rename-heading"><span class="task-rename-emblem" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15l-1 6Z"/></svg></span><div><span class="task-rename-eyebrow">任务设置</span><h2 id="task-rename-title">重命名任务</h2></div></div>
