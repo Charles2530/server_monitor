@@ -89,6 +89,16 @@
 :root[data-theme] :is(.table-note, .th-summary-footer, .task-history-pagination, .th-pagination) { background: var(--surface-raised); border-color: var(--line); color: var(--muted); }
 :root[data-theme] .table-note { font-size: 12px; line-height: 1.75; }
 :root[data-theme] .table-scroll { scrollbar-width: thin; scrollbar-color: var(--accent-line) transparent; }
+:root[data-theme] #storage-section .storage-table td { padding-block: 10px; }
+:root[data-theme] #storage-section .storage-table td:first-child { width: 24%; }
+:root[data-theme] #storage-section .storage-table td:last-child { width: 32%; }
+:root[data-theme] #storage-section .storage-overview-metric { background: var(--accent-soft); border-color: var(--accent-line); }
+:root[data-theme] #storage-section .storage-overview-metric strong { color: var(--accent-strong); }
+@media (max-width: 620px) {
+  :root[data-theme] #storage-section .storage-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :root[data-theme] #storage-section .storage-summary > div { padding: 10px; }
+  :root[data-theme] #storage-section .storage-summary strong { font-size: 18px; }
+}
 :root[data-theme] .task-card { border-radius: 12px; background: var(--surface); border-color: var(--line); box-shadow: var(--panel-shadow); }
 :root[data-theme] .task-card:hover { border-color: var(--accent-line); }
 :root[data-theme] #task-list .task-card.selected,

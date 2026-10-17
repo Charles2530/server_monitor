@@ -159,6 +159,15 @@
       const card = node("div"); card.append(node("span", label), node("strong", values.length ? amount(values.reduce((sum, v) => sum + v[field], 0)) : "—"));
       card.append(node("small", `${values.length} 个已知 · ${rows.length - values.length} 个未知${values.length < rows.length ? "（部分汇总）" : ""}`)); summary.append(card);
     }
+    const totalValues = rows.filter((v) => known(v.total_bytes) && v.total_bytes > 0);
+    const usedValues = rows.filter((v) => known(v.used_bytes) && known(v.total_bytes) && v.total_bytes > 0);
+    const totalBytes = totalValues.reduce((sum, v) => sum + v.total_bytes, 0);
+    const usedBytes = usedValues.reduce((sum, v) => sum + v.used_bytes, 0);
+    const usedRate = totalBytes > 0 ? `${(usedBytes / totalBytes * 100).toFixed(1)}%` : "—";
+    const zones = new Set(rows.map((v) => v.zone).filter(Boolean)).size;
+    const overview = node("div", undefined, "storage-overview-metric");
+    overview.append(node("span", "存储概况"), node("strong", `${rows.length} 卷`), node("small", `${zones} 个分区 · 综合使用率 ${usedRate}`));
+    summary.append(overview);
     const body = $("storage-body"), children = [], newlyConnected = [];
     const liveKeys = new Set(snapshot.volumes.map(v => `${v.zone}:${v.id}`));
     for (const [key, record] of volumeRows) if (!liveKeys.has(key)) {

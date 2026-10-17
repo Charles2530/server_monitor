@@ -112,25 +112,29 @@
 
 /* Match storage filters and summaries to the rest of the monitor. */
 #storage-section { margin-top: 0; }
-#storage-section .section-heading { align-items: flex-start; }
+#storage-section .storage-tabs { margin-bottom: 10px; }
+#storage-section .section-heading { align-items: flex-start; padding: 13px 20px 10px; margin-bottom: 0; }
 .storage-actions { gap: 8px; }
-#storage-section .storage-filters { gap: 14px; padding: 16px; background: #f6f9f7; border: 1px solid #e3ece6; border-radius: 10px; margin-top: 4px; }
+#storage-section .storage-filters { display: grid; grid-template-columns: minmax(240px, 1fr) auto; align-items: end; gap: 10px; padding: 11px 14px; background: #f6f9f7; border: 1px solid #e3ece6; border-radius: 10px; margin-top: 0; margin-bottom: 10px; }
 .storage-filters > label { font-size: 11px; color: #607967; gap: 7px; }
-.storage-filters > label:first-child { min-width: 170px; }
-.storage-filters input[type=search] { min-height: 38px; font-size: 12px; border-color: #cfded5; background: #fff; }
-.storage-filters .storage-related { font-size: 11px; padding-top: 20px; gap: 7px; }
+.storage-filters > label:first-child { min-width: 0; }
+.storage-filters input[type=search] { min-height: 34px; font-size: 12px; border-color: #cfded5; background: #fff; }
+.storage-filters .storage-related { font-size: 11px; padding-top: 0; gap: 7px; }
+.storage-filters .filter-options { gap: 10px; }
 .storage-related input { width: 14px; height: 14px; accent-color: #148a68; }
-#storage-status { font-size: 11px; padding: 0 2px; line-height: 1.8; }
-.storage-summary { gap: 13px; }
-.storage-summary > div { background: #fff; border-color: #dfe9e2; padding: 17px 18px; gap: 8px; box-shadow: var(--panel-shadow); }
+#storage-status { font-size: 11px; padding: 0 2px; margin-bottom: 4px; line-height: 1.5; }
+#storage-warning.inventory-notice { margin: 4px 20px 10px; padding: 8px 12px; line-height: 1.45; }
+.storage-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 10px; margin-bottom: 14px; }
+.storage-summary > div { background: #fff; border-color: #dfe9e2; padding: 12px 14px; gap: 4px; box-shadow: var(--panel-shadow); }
 .storage-summary > div > span { color: #647e6d; font-size: 11px; }
-.storage-summary strong { color: #315b43; font-size: 28px; letter-spacing: -.7px; font-weight: 600; }
+.storage-summary strong { color: #315b43; font-size: 22px; letter-spacing: -.5px; font-weight: 600; line-height: 1.2; }
 .storage-summary > div:last-child { background: #f4faf6; border-color: #d6e8dc; }
 .storage-summary > div:last-child strong { color: #0e936b; }
-.storage-summary small { font-size: 11px; line-height: 1.6; }
+.storage-summary small { font-size: 10px; line-height: 1.45; }
 .storage-table strong { color: #365942; font-weight: 600; font-size: 12px; }
-.storage-table code { display: inline-block; padding: 3px 6px; border-radius: 4px; background: #f2f6f3; color: #648170; font-size: 11px; }
+.storage-table code { display: inline-block; padding: 2px 5px; border-radius: 4px; background: #f2f6f3; color: #648170; font-size: 11px; }
 .storage-table .storage-mount { padding-left: 11px; border-left: 2px solid #d9eade; font-size: 11px; }
+.storage-table .storage-mount + .storage-mount { padding-top: 8px; margin-top: 8px; }
 .storage-table progress { appearance: none; border: 0; border-radius: 10px; background: #eaf1ec; overflow: hidden; }
 .storage-table progress::-webkit-progress-bar { background: #eaf1ec; border-radius: 10px; }
 .storage-table progress::-webkit-progress-value { background: #2da27a; border-radius: 10px; }
@@ -251,10 +255,10 @@
   .acp-form-footer strong { font-size: 18px; }
   .command-heading > span { padding-left: 0; }
   .command-editor-footer > span:last-child { display: none; }
-  #storage-section .storage-filters { margin-inline: 14px; padding: 13px; gap: 13px; }
+  #storage-section .storage-filters { grid-template-columns: minmax(0, 1fr); margin-inline: 14px; padding: 11px 12px; gap: 8px; }
   .storage-filters .storage-related { padding-top: 0; }
   .storage-filters > label:first-child, .storage-search { min-width: 0!important; }
-  #storage-section .storage-summary { margin-inline: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #storage-section .storage-summary { margin-inline: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .storage-summary > div { padding: 12px 9px; gap: 6px; }
   .storage-summary strong { font-size: 19px; letter-spacing: -.5px; overflow-wrap: anywhere; }
   .storage-summary small { font-size: 11px; }
