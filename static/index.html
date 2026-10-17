@@ -79,10 +79,8 @@
     <main id="main" class="main-content" tabindex="-1">
       <header class="page-header">
         <div><div class="eyebrow" id="page-eyebrow">WORKSPACE / OVERVIEW</div><h1><span id="page-title">资源总览</span><span class="heading-tag" data-site-label>maoshanwang</span></h1><p class="page-description" id="page-description">查看 charles 的任务与资源，支持 ACP 创建和停止。</p></div>
-        <div class="header-actions"><span class="refresh-cadence"><span class="pulse-dot"></span>每 60 秒采集</span><button class="button button-secondary" id="refresh-button" type="button"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-2l2 2M4 17l2 2a7 7 0 0 0 12-2"/></svg>立即刷新</button><button class="button button-primary" id="connect-button" type="button">连接会话<span aria-hidden="true">↗</span></button></div>
+        <div class="header-actions"><span class="refresh-cadence"><span class="pulse-dot"></span>每 60 秒采集</span><button class="button button-secondary" id="refresh-button" type="button"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-2l2 2M4 17l2 2a7 7 0 0 0 12-2"/></svg>立即刷新</button><button class="button button-primary" id="connect-button" type="button">连接会话<span aria-hidden="true">↗</span></button><div class="action-message" id="action-message" role="status" aria-live="polite" hidden></div><div class="status-banner status-loading" id="status-banner" role="status" aria-live="polite"><span class="status-symbol" id="status-symbol" aria-hidden="true">◌</span><div><strong id="status-title">正在读取监控状态</strong><span id="status-description">首次连接后，将开始采集你的任务与资源数据。</span></div><time id="last-updated">等待首次采集</time></div></div>
       </header>
-      <div class="status-banner status-loading" id="status-banner" role="status" aria-live="polite"><span class="status-symbol" id="status-symbol" aria-hidden="true">◌</span><div><strong id="status-title">正在读取监控状态</strong><span id="status-description">首次连接后，将开始采集你的任务与资源数据。</span></div><time id="last-updated">等待首次采集</time></div>
-      <div class="action-message" id="action-message" role="status" aria-live="polite" hidden></div>
       <div id="acp-message" class="acp-notice" role="status" aria-live="polite" hidden></div>
       <div class="acp-resume-actions"><button id="acp-create-resume" class="button button-secondary" type="button" hidden>核对此次创建结果</button><button id="acp-stop-resume" class="button button-secondary" type="button" hidden>核对此次停止结果</button></div>
       <div id="overview-view" class="workspace-view" data-page="overview">
@@ -95,22 +93,25 @@
       </section>
 
 
-
-      <section id="clusters-section" class="section-block cluster-panel">
-        <div class="section-heading"><div><h2>标准集群资源</h2></div><span class="subtle-badge">STANDARD CLUSTER</span></div>
-        <div id="inventory-notice" class="inventory-notice" role="status" hidden></div>
-        <p class="table-scroll-hint">横向滚动查看全部指标 <span aria-hidden="true">↔</span></p>
-        <div class="table-scroll" role="region" aria-label="标准集群资源，可横向滚动" tabindex="0"><table class="resource-table"><thead><tr><th scope="col">集群</th><th scope="col">总 GPU <span>张</span></th><th scope="col">可用 GPU <span>张</span></th><th scope="col">可用 vCPU <span>核</span></th><th scope="col">可用内存 <span>GiB</span></th><th scope="col">节点健康</th></tr></thead><tbody id="cluster-body"><tr><td colspan="6" class="table-empty">正在读取集群资源…</td></tr></tbody></table></div>
-        <div class="table-note"><span class="note-dot"></span>总 GPU 含异常及禁用节点，可用资源来自工作空间标准配额。整组空闲 GPU 表示健康、启用且可调度节点的全部 GPU 均未分配（如 8 卡 × 2 组）；CPU、内存仍需满足任务要求。节点余量与工作空间配额独立，不相减估算占用。“—” 表示未知或未接入。</div>
-      </section>
-
-      <section id="tokenhub-summary" class="dashboard-panel th-summary" aria-label="TokenHub 摘要">
-        <div class="panel-heading"><div><span class="th-eyebrow">AI API</span><h2>TokenHub</h2></div><a class="panel-link" href="#tokenhub">查看详情 ↗</a></div>
-        <div id="tokenhub-summary-metrics" class="th-metrics"></div>
-        <div id="tokenhub-summary-quotas" class="th-summary-quotas"></div>
-        <div class="th-summary-footer"><span id="tokenhub-summary-status">正在读取 TokenHub…</span><button type="button" class="button button-secondary" data-tokenhub-connect>连接 TokenHub</button></div>
-      </section>
-      <div class="overview-panels">
+      <div class="overview-content-grid">
+        <div class="overview-main-column">
+          <section id="clusters-section" class="section-block cluster-panel">
+            <div class="section-heading"><div><h2>标准集群资源</h2></div><span class="subtle-badge">STANDARD CLUSTER</span></div>
+            <div id="inventory-notice" class="inventory-notice" role="status" hidden></div>
+            <p class="table-scroll-hint">横向滚动查看全部指标 <span aria-hidden="true">↔</span></p>
+            <div class="table-scroll" role="region" aria-label="标准集群资源，可横向滚动" tabindex="0"><table class="resource-table"><thead><tr><th scope="col">集群</th><th scope="col">总 GPU <span>张</span></th><th scope="col">可用 GPU <span>张</span></th><th scope="col">可用 vCPU <span>核</span></th><th scope="col">可用内存 <span>GiB</span></th><th scope="col">节点健康</th></tr></thead><tbody id="cluster-body"><tr><td colspan="6" class="table-empty">正在读取集群资源…</td></tr></tbody></table></div>
+            <div class="table-note"><span class="note-dot"></span>总 GPU 含异常及禁用节点，可用资源来自工作空间标准配额。整卡空闲表示健康、启用且可调度节点上的 GPU 全部未分配（如 8 卡、2 组）；CPU、内存仍需满足任务要求。节点余量与工作空间配额独立，不相减估算占用。“—” 表示未知或未接入。</div>
+          </section>
+        </div>
+        <aside class="overview-aside-column">
+          <section id="tokenhub-summary" class="dashboard-panel th-summary" aria-label="TokenHub 摘要">
+            <div class="panel-heading"><div><span class="th-eyebrow">AI API</span><h2>TokenHub</h2></div><a class="panel-link" href="#tokenhub">查看详情 ↗</a></div>
+            <div id="tokenhub-summary-metrics" class="th-metrics"></div>
+            <div id="tokenhub-summary-quotas" class="th-summary-quotas"></div>
+            <div class="th-summary-footer"><span id="tokenhub-summary-status">正在读取 TokenHub…</span><button type="button" class="button button-secondary" data-tokenhub-connect>连接 TokenHub</button></div>
+          </section>
+        </aside>
+        <div class="overview-panels">
         <section class="dashboard-panel recent-panel" aria-labelledby="recent-title"><div class="panel-heading"><div class="overview-panel-title"><span class="overview-panel-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg></span><div><h2 id="recent-title">运行任务速览 <span id="overview-task-count" class="overview-task-count">—</span></h2><p>查看最近任务与资源使用情况</p></div></div><a class="panel-link" href="#tasks">全部任务 <svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a></div><div id="overview-task-list" class="overview-task-list"><p class="overview-empty">正在读取任务快照</p></div></section>
         <section class="dashboard-panel allocation-panel" aria-labelledby="allocation-title">
           <div class="panel-heading"><div class="overview-panel-title"><span class="overview-panel-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6" height="16" rx="2"/><rect x="14" y="4" width="6" height="10" rx="2"/><path d="M14 18h6"/></svg></span><div><h2 id="allocation-title">任务 GPU 分布</h2><p>运行任务的配置构成</p></div></div><span class="allocation-caption">CCI / ACP</span></div>
@@ -133,6 +134,7 @@
           </div>
           <div class="allocation-distribution"><div class="allocation-bar-label"><span>GPU 配置占比</span><span class="allocation-bar-legend"><span><i class="legend-dot cci" aria-hidden="true"></i>CCI</span><span><i class="legend-dot acp" aria-hidden="true"></i>ACP</span></span></div><div class="allocation-bar" id="allocation-bar" role="img" aria-label="等待 GPU 配置数据" aria-describedby="allocation-note"></div><p class="allocation-note" id="allocation-note">配置数量不代表实时 GPU 利用率。</p></div>
         </section>
+        </div>
       </div>
       </div>
       <section id="ssh-view" class="workspace-view" data-page="ssh" hidden>
@@ -190,9 +192,8 @@
       </section>
 
       <section id="acp-section" class="section-block acp-panel workspace-view" data-page="acp" hidden>
-        <div class="section-heading"><div><h2>创建 ACP 任务</h2><p>复制已确认的任务模板；提交前核对实际资源和最终命令</p></div><span class="subtle-badge">ACP</span></div>
+        <div class="section-heading"><div><h2>创建 ACP 任务</h2><p>配置资源、命令、镜像与挂载，提交前预览确认。</p></div><button id="acp-options-retry" class="button button-secondary" type="button">重新读取配置</button></div>
         <p class="acp-helper" id="acp-options-status" role="status">正在读取模板与 GPU 规格…</p>
-        <button id="acp-options-retry" class="button button-secondary" type="button">重新读取配置</button>
         <form id="acp-create-form" class="acp-form">
           <div class="acp-config-block">
             <div class="form-block-heading"><span class="form-step" aria-hidden="true">01</span><div><h3>任务与资源</h3><p>配置任务名称、分区与算力</p></div></div>
@@ -204,7 +205,7 @@
           <label class="acp-cluster-field"><span class="field-label">集群 <span class="optional-label">可选</span></span><select id="acp-cluster" name="cluster_id" disabled><option value="">自动选择（使用优先规则）</option></select><small>不指定时按优先规则选择；指定后固定使用该集群，资源不足时排队。</small></label>
             </div>
             <p class="acp-resource-total">配置总量 <strong id="acp-resource-total">—</strong></p>
-            <details id="acp-template-details" class="responsive-details acp-template-details" data-mobile-collapse open><summary>模板详情与挂载</summary></details>
+            <details id="acp-template-details" class="acp-template-details"><summary>模板详情与挂载</summary></details>
           </div>
           <div class="acp-command-field" id="acp-command-editor">
             <div class="command-heading"><div class="form-block-heading"><span class="form-step" aria-hidden="true">02</span><label for="acp-command">启动命令 <span class="optional-label">Shell</span></label></div><span id="acp-command-source">正在读取运行任务命令…</span></div>
@@ -216,13 +217,17 @@
             <p class="command-help" id="acp-command-help">默认读取最新运行中 charles ACP 任务的启动命令；留空使用 sleep inf。提交时若末尾没有独立的 sleep inf，会自动补上。</p>
             <p class="command-help" id="acp-command-notice" role="status" hidden></p>
           </div>
-          <section class="acp-image-config" aria-labelledby="acp-image-title">
-            <div class="form-block-heading"><span class="form-step" aria-hidden="true">03</span><div><h3 id="acp-image-title">镜像配置</h3><p>沿用任务模板，或从当前站点的私有仓库选择</p></div></div>
-            <div class="detail-tabs" role="tablist" aria-label="镜像配置方式">
-              <button id="acp-image-template-tab" type="button" role="tab" aria-selected="true" aria-controls="acp-image-template" data-acp-image-mode="template">沿用模板</button>
-              <button id="acp-image-private-tab" type="button" role="tab" aria-selected="false" aria-controls="acp-image-private" tabindex="-1" data-acp-image-mode="private">私有镜像</button>
+          <section class="acp-option-config acp-image-config" aria-labelledby="acp-image-title">
+            <div class="acp-config-heading">
+              <div class="form-block-heading"><span class="form-step" aria-hidden="true">03</span><div><h3 id="acp-image-title">镜像配置</h3></div></div>
+              <div class="acp-config-mode">
+                <div class="detail-tabs" role="tablist" aria-label="镜像配置方式">
+                  <button id="acp-image-template-tab" type="button" role="tab" aria-selected="true" aria-controls="acp-image-template" data-acp-image-mode="template">沿用模板</button>
+                  <button id="acp-image-private-tab" type="button" role="tab" aria-selected="false" aria-controls="acp-image-private" tabindex="-1" data-acp-image-mode="private">私有镜像</button>
+                </div>
+                <div id="acp-image-template" role="tabpanel" aria-labelledby="acp-image-template-tab"><p class="acp-image-note">使用所选任务模板中的镜像配置。</p></div>
+              </div>
             </div>
-            <div id="acp-image-template" role="tabpanel" aria-labelledby="acp-image-template-tab"><p class="acp-image-note">使用所选任务模板中的镜像配置。</p></div>
             <div id="acp-image-private" role="tabpanel" aria-labelledby="acp-image-private-tab" hidden>
               <div class="acp-image-selectors">
                 <label>命名空间<select id="acp-image-namespace" disabled><option value="">正在读取…</option></select></label>
@@ -231,9 +236,27 @@
               </div>
               <div class="acp-image-status"><p id="acp-image-help" class="acp-image-note" role="status">正在读取当前站点的镜像目录…</p><button id="acp-image-refresh" type="button" class="button button-secondary">刷新镜像</button></div>
             </div>
-            <div class="acp-image-resolved"><span>最终镜像地址</span><code id="acp-image-address" aria-live="polite">正在读取模板…</code></div>
+            <div class="acp-config-resolved acp-image-resolved"><span>最终镜像地址</span><code id="acp-image-address" aria-live="polite">正在读取模板…</code></div>
           </section>
-          <div class="acp-form-footer"><div class="acp-submit-summary"><span class="form-step" aria-hidden="true">04</span><p>配置总量 <strong id="acp-total">—</strong><small id="acp-cluster-policy">标准资源自动选集群：modeltoolchain_test → modeltoolchain → vigen</small></p></div><button id="acp-preview-button" class="button button-primary" type="submit" disabled>预览创建配置</button></div>
+          <section class="acp-option-config acp-afs-config" aria-labelledby="acp-afs-title">
+            <div class="acp-config-heading">
+              <div class="form-block-heading"><span class="form-step" aria-hidden="true">04</span><div><h3 id="acp-afs-title">AFS 配置</h3></div></div>
+              <div class="acp-config-mode">
+                <div class="detail-tabs" role="tablist" aria-label="AFS 配置方式">
+                  <button id="acp-afs-template-tab" type="button" role="tab" aria-selected="true" aria-controls="acp-afs-template" data-acp-afs-mode="template">沿用模板</button>
+                  <button id="acp-afs-private-tab" type="button" role="tab" aria-selected="false" aria-controls="acp-afs-private" tabindex="-1" data-acp-afs-mode="private">选择 AFS</button>
+                </div>
+                <div id="acp-afs-template" role="tabpanel" aria-labelledby="acp-afs-template-tab"><p class="acp-afs-note">使用所选任务模板中的 AFS 挂载配置。</p></div>
+              </div>
+            </div>
+            <div id="acp-afs-private" role="tabpanel" aria-labelledby="acp-afs-private-tab" hidden>
+              <div id="acp-afs-rows" class="acp-afs-rows" aria-live="polite"></div>
+              <button id="acp-afs-add" class="button button-secondary acp-afs-add" type="button">＋添加存储卷</button>
+              <p id="acp-afs-help" class="acp-afs-note" role="status">正在读取当前站点的 AFS 存储卷…</p>
+            </div>
+            <div class="acp-config-resolved acp-afs-resolved"><span>最终 AFS 挂载</span><div id="acp-afs-address" aria-live="polite">正在读取模板…</div></div>
+          </section>
+          <div class="acp-form-footer"><div class="acp-submit-summary"><span class="form-step" aria-hidden="true">05</span><p>配置总量 <strong id="acp-total">—</strong><small id="acp-cluster-policy">标准资源自动选集群：modeltoolchain_test → modeltoolchain → vigen</small></p></div><button id="acp-preview-button" class="button button-primary" type="submit" disabled>预览创建配置</button></div>
         </form>
       </section>
       <div id="tasks-view" class="workspace-view tasks-view" data-page="tasks" hidden>
@@ -433,7 +456,7 @@
       <dl class="transfer-log-paths"><dt>来源</dt><dd id="transfer-log-source"></dd><dt>目标</dt><dd id="transfer-log-destination"></dd></dl>
       <p id="transfer-log-error" class="ssh-transfer-message" data-kind="error" hidden></p>
       <p id="transfer-log-notice" class="ssh-transfer-message" role="status" hidden></p>
-      <div class="transfer-log-toolbar"><span>执行输出 · 本机时间</span><span id="transfer-log-count">最多保留 2000 条 · 增量更新</span></div>
+      <div class="transfer-log-toolbar"><span>执行输出 · 本机时间</span><span><span id="transfer-log-count">最多保留 2000 条 · 增量更新</span><button id="transfer-log-full" class="button button-secondary transfer-log-full" type="button" hidden>查看完整日志</button></span></div>
       <pre id="transfer-log-output" tabindex="0" aria-label="执行输出"></pre>
       <footer class="ssh-transfer-footer"><button id="transfer-log-cancel" class="button button-secondary" type="button">取消传输</button></footer>
     </dialog>

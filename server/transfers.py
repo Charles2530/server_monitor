@@ -111,10 +111,38 @@ def _progress_from_output(line):
 
 
 class TransferManager(SSHTransfers):
+    _EXECUTOR_CACHE_SECONDS = 10
+    _BROWSE_SESSION_IDLE_SECONDS = 90
+
     def __init__(self, catalog, runtimes=None, ads_script=None):
         super().__init__(catalog)
         self.runtimes = runtimes or {}
         self.ads_script = Path(ads_script or os.getenv('MONITOR_ADS_CLI_SOURCE', str(Path.home() / 'initial/tools/ads-cli.sh')))
+        self.full_logs = {}
+        self._executor_cache = {}
+        self._browse_sessions = {}
+        self._browse_locks = {}
+
+    async def _expire_browse_session(self, key, session):
+        lock = self._browse_locks.get(key)
+        if lock is None:
+            return
+        async with lock:
+            current = self._browse_sessions.get(key)
+            if current is not session or time.monotonic() - session['used_at'] < self._BROWSE_SESSION_IDLE_SECONDS:
+                return
+            self._browse_sessions.pop(key, None)
+            try:
+                await session['bridge'].disconnect(session['id'], 'cci-editor-bootstrap')
+            except ActionError:
+                pass
+
+    def _schedule_browse_expiry(self, key, session):
+        if session.get('expiry'):
+            session['expiry'].cancel()
+        session['expiry'] = asyncio.get_running_loop().call_later(
+            self._BROWSE_SESSION_IDLE_SECONDS,
+            lambda: asyncio.create_task(self._expire_browse_session(key, session)))
 
     async def _aliases(self):
         hosts = await self.catalog.hosts()
@@ -184,13 +212,19 @@ class TransferManager(SSHTransfers):
         if not isinstance(executor, dict) or executor.get('type') not in EXECUTOR_TYPES:
             raise ActionError('请选择有效的执行节点。')
         executor_id = executor.get('id')
+        cache_key = (executor.get('type'), executor_id)
+        cached = self._executor_cache.get(cache_key)
+        if cached and time.monotonic() - cached[0] < self._EXECUTOR_CACHE_SECONDS:
+            return cached[1]
         if executor['type'] == 'ssh-node':
             alias = executor_id.split(':', 1)[-1] if isinstance(executor_id, str) else ''
             hosts = await self._aliases()
             if alias not in set(self.catalog.snapshot().get('verified', [])) or alias not in hosts:
                 raise ActionError('该 SSH 节点当前不可用，请刷新 SSH 节点列表后重试。')
-            return {'type': 'ssh-node', 'executor_kind': 'ssh', 'id': executor_id,
-                    'alias': alias, 'host': hosts[alias], 'label': alias}
+            result = {'type': 'ssh-node', 'executor_kind': 'ssh', 'id': executor_id,
+                      'alias': alias, 'host': hosts[alias], 'label': alias}
+            self._executor_cache[cache_key] = (time.monotonic(), result)
+            return result
         parsed = self._parse_cci_id(executor_id)
         if parsed is None or parsed[0] != executor['type']:
             raise ActionError('CCI 执行节点标识无效，请刷新运行任务列表后重试。')
@@ -206,9 +240,11 @@ class TransferManager(SSHTransfers):
                    for target in result.get('targets', [])):
             raise ActionError('该 CCI 容器当前不可用，请刷新运行任务列表后重试。')
         task_name = result.get('name') or task_id
-        return {'type': site, 'executor_kind': 'cci', 'id': executor_id,
-                'site': site, 'task_id': task_id, 'instance': instance, 'container': container,
-                'label': f'{task_name} · {instance} · {container}', 'runtime': runtime}
+        result = {'type': site, 'executor_kind': 'cci', 'id': executor_id,
+                  'site': site, 'task_id': task_id, 'instance': instance, 'container': container,
+                  'label': f'{task_name} · {instance} · {container}', 'runtime': runtime}
+        self._executor_cache[cache_key] = (time.monotonic(), result)
+        return result
 
     async def _job_executor(self, job):
         if job.get('executor'):
@@ -239,14 +275,18 @@ class TransferManager(SSHTransfers):
     async def _cci_browse(self, executor, path=''):
         validate_path(path, allow_home=True)
         script = """
-import json, os, stat
+import itertools, json, os, stat
 path = os.path.realpath(os.path.expanduser(PATH or '~'))
 info = os.stat(path)
 if not stat.S_ISDIR(info.st_mode):
     raise ValueError('not_directory')
 entries = []
+truncated = False
 with os.scandir(path) as items:
-    for item in items:
+    for index, item in enumerate(itertools.islice(items, 2001)):
+        if index >= 2000:
+            truncated = True
+            break
         try:
             kind = 'directory' if item.is_dir() else 'file' if item.is_file() else None
             if kind and not any(ord(char) < 32 for char in item.name):
@@ -254,14 +294,55 @@ with os.scandir(path) as items:
         except OSError:
             pass
 entries.sort(key=lambda entry: (entry['kind'] != 'directory', entry['name'].lower()))
-RESULT = {'path': path, 'parent': os.path.dirname(path), 'entries': entries[:50], 'truncated': len(entries) > 50}
+RESULT = {'path': path, 'parent': os.path.dirname(path), 'entries': entries[:50], 'truncated': truncated or len(entries) > 50}
 """.replace('PATH', repr(path))
-        result = await run_python(executor['runtime'].terminal_bridge,
-                                  {'task_id': executor['task_id'], 'instance': executor['instance'],
-                                   'container': executor['container']}, script, timeout=45)
+        key = executor['id']
+        lock = self._browse_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            session = self._browse_sessions.get(key)
+            bridge = executor['runtime'].terminal_bridge
+            target = {'task_id': executor['task_id'], 'instance': executor['instance'],
+                      'container': executor['container']}
+            if session and time.monotonic() - session['used_at'] >= self._BROWSE_SESSION_IDLE_SECONDS:
+                if session.get('expiry'):
+                    session['expiry'].cancel()
+                try:
+                    await bridge.disconnect(session['id'], 'cci-editor-bootstrap')
+                except ActionError:
+                    pass
+                session = self._browse_sessions.pop(key, None)
+            if session is None:
+                opened = await bridge.open({**target, 'cols': 240, 'rows': 40}, 'cci-editor-bootstrap')
+                session = {'id': opened['session_id'], 'used_at': time.monotonic(), 'bridge': bridge, 'target': target, 'expiry': None}
+                self._browse_sessions[key] = session
+            try:
+                result = await run_python(bridge, target, script, timeout=45, session_id=session['id'])
+                session['used_at'] = time.monotonic()
+                self._schedule_browse_expiry(key, session)
+            except Exception:
+                self._browse_sessions.pop(key, None)
+                if session.get('expiry'):
+                    session['expiry'].cancel()
+                try:
+                    await bridge.disconnect(session['id'], 'cci-editor-bootstrap')
+                except ActionError:
+                    pass
+                raise
         if not isinstance(result, dict) or result.get('error'):
             raise ActionError('无法读取 CCI 目录，请检查路径和容器权限。')
         return result
+
+    async def close(self):
+        for key, session in list(self._browse_sessions.items()):
+            if session.get('expiry'):
+                session['expiry'].cancel()
+            try:
+                await session['bridge'].disconnect(session['id'], 'cci-editor-bootstrap')
+            except ActionError:
+                pass
+            self._browse_sessions.pop(key, None)
+        await super().close()
+        self.full_logs.clear()
 
     def _prepare_command(self):
         """Ship the user's helper through the selected transport; reuse its installer."""
@@ -402,12 +483,14 @@ with os.fdopen(os.open(str(target) + '.monitor-lock', os.O_CREAT | os.O_RDWR, 0o
                 if self.tasks[key].done():
                     del self.jobs[key]
                     del self.tasks[key]
+                    self.full_logs.pop(key, None)
             key = secrets.token_urlsafe(18)
             public_executor = {'type': executor['type'], 'id': executor['id'], 'label': executor['label']}
             job = {'id': key, **job_config, 'executor': public_executor,
                    'state': 'running', 'started_at': time.time(), 'finished_at': None,
                    'error': None, 'last_output': [], 'stage': 'starting', 'progress_percent': 0,
                    'current_file': None, 'speed_bps': None, 'eta_seconds': None}
+            self.full_logs[key] = []
             commands = self._commands(job)
             self.jobs[key] = job
             self.tasks[key] = asyncio.create_task(self._run(job, commands))
@@ -446,10 +529,13 @@ with os.fdopen(os.open(str(target) + '.monitor-lock', os.O_CREAT | os.O_RDWR, 0o
             if index:
                 label = f'{index}/{len(commands)} {label}'
             entry = f'{time.strftime("%H:%M:%S")} [{label}] {text}'
+            full_log = self.full_logs.setdefault(job['id'], [])
             if bar and last_progress:
                 job['last_output'][-1] = entry
+                full_log[-1] = entry
             else:
                 job['last_output'].append(entry)
+                full_log.append(entry)
                 if len(job['last_output']) > 2000:
                     del job['last_output'][0]
                     job['log_offset'] = job.get('log_offset', 0) + 1
@@ -601,14 +687,15 @@ with os.fdopen(os.open(str(target) + '.monitor-lock', os.O_CREAT | os.O_RDWR, 0o
         jobs = sorted(self.jobs.values(), key=lambda item: item['started_at'], reverse=True)
         return {'jobs': [{**job, 'last_output': job['last_output'][-20:]} for job in jobs[:50]]}
 
-    def logs(self, key, offset=0):
+    def logs(self, key, offset=0, full=False):
         job = self.get(key)
-        first = job.get('log_offset', 0)
-        total = first + len(job['last_output'])
+        lines = self.full_logs.get(key, job['last_output']) if full else job['last_output']
+        first = 0 if full else job.get('log_offset', 0)
+        total = len(lines) if full else first + len(lines)
         # Re-send the last line because a live progress row may have changed.
         start = max(first, min(offset, total) - 1)
         return {'first': first, 'start': start, 'next': total,
-                'lines': job['last_output'][start - first:]}
+                'lines': lines[start - first:]}
 
 
 def register_transfer_routes(app, manager, perform, action_body):
@@ -637,9 +724,9 @@ def register_transfer_routes(app, manager, perform, action_body):
         return manager.listing()
 
     @app.get('/api/transfers/{key}/logs')
-    async def logs(key: str, offset: int = 0):
+    async def logs(key: str, offset: int = 0, full: bool = False):
         async def read():
-            return manager.logs(key, offset)
+            return manager.logs(key, offset, full)
         return await perform(read)
 
     @app.post('/api/transfers/{key}/cancel')

@@ -98,8 +98,9 @@
     heading.append(node("h3", row.name || platformName(row.platform)), node("span", row.available === true ? "可用" : row.available === false ? "不可用" : "状态未知", `th-badge${row.available === false ? " is-warning" : row.available === true ? "" : " is-unknown"}`));
     card.append(heading, node("small", [platformName(row.platform), row.subscription_tier].filter(Boolean).join(" · ")));
     const windows = [...(row.windows || []).map((entry) => ({ ...entry, label: windowName(entry.key) })), ...(row.model_quotas || []).map((entry) => ({ ...entry, label: entry.model || "模型额度" }))];
+    const visibleWindows = compact ? windows.filter((window) => window.key !== "five_hour") : windows;
     const windowGrid = node("div", undefined, "th-quota-windows");
-    for (const window of compact ? windows.slice(0, 2) : windows) {
+    for (const window of compact ? visibleWindows.slice(0, 2) : visibleWindows) {
       const item = node("div", undefined, `th-quota-window${window.utilization >= 90 ? " is-danger" : window.utilization >= 70 ? " is-warning" : ""}`);
       const line = node("div", undefined, "th-quota-line");
       line.append(node("span", window.label), node("strong", known(window.utilization) ? `${count(window.utilization)}% 已用` : "使用率未知")); item.append(line);
@@ -111,7 +112,7 @@
       item.append(node("small", `重置 ${date(window.resets_at)}`)); windowGrid.append(item);
     }
     card.append(windowGrid);
-    if (!windows.length) card.append(node("p", "暂无周期额度数据", "th-empty"));
+    if (!visibleWindows.length) card.append(node("p", "暂无周期额度数据", "th-empty"));
     if (!compact) for (const credit of row.credits || []) card.append(node("p", `${credit.type || "信用额度"} · ${count(credit.amount)}${known(credit.minimum_balance) ? ` · 最低余额 ${count(credit.minimum_balance)}` : ""}`, "th-credit"));
     card.append(node("small", `${fresh("account_quotas") ? "来源更新" : "旧数据 · 来源更新"} ${date(row.updated_at)}`));
     return card;
@@ -124,7 +125,7 @@
       if (route !== "tokenhub" || selectedTab !== (compact ? "dashboard" : "quotas")) continue;
       const target = $(id); target.replaceChildren();
       if (!Array.isArray(rows) || !rows.length) target.append(node("p", rows ? "暂无可查看的账号额度" : "账号额度尚未获取", "th-empty"));
-      else (compact ? rows.slice(0, 2) : rows).forEach((row) => target.append(quotaCard(row, compact)));
+      else rows.forEach((row) => target.append(quotaCard(row, compact)));
     }
   }
 
@@ -249,7 +250,7 @@
       metrics($("tokenhub-summary-metrics"));
       const quotaSummary = $("tokenhub-summary-quotas"); quotaSummary.replaceChildren();
       for (const row of sectionData("account_quotas") || []) {
-        const values = (row.windows || []).map((window) => `${windowName(window.key)} ${known(window.utilization) ? `已用 ${count(window.utilization)}%` : "未知"}`);
+        const values = (row.windows || []).filter((window) => window.key !== "five_hour").map((window) => `${windowName(window.key)} ${known(window.utilization) ? `已用 ${count(window.utilization)}%` : "未知"}`);
         quotaSummary.append(node("span", `${row.name || platformName(row.platform)} · ${values.join(" / ") || "暂无周期额度"}${fresh("account_quotas") ? "" : " · 旧数据"}`));
       }
     }
@@ -561,8 +562,8 @@
         const line = node("div"); line.append(node("span", label), node("strong", count(value))); tokens.append(line);
       }
       const amount = cell(money(item.actual_cost)); amount.className = "th-usage-cost";
-      row.append(cell(item.model || "未知模型", date(item.created_at)), cell(item.key_name || "—"), tokens, cell(known(item.cache_creation_tokens) && known(item.cache_read_tokens) ? count(item.cache_creation_tokens + item.cache_read_tokens) : "—"), amount);
-      const labels = ["时间 / 模型", "API 密钥名称", "输入 / 输出 Token", "缓存 Token", "实际扣费 USD"];
+      row.append(cell(item.model || "未知模型", date(item.created_at)), cell(item.key_name || "—", item.group_name || "未分组"), tokens, cell(known(item.cache_creation_tokens) && known(item.cache_read_tokens) ? count(item.cache_creation_tokens + item.cache_read_tokens) : "—"), amount);
+      const labels = ["时间 / 模型", "API 密钥名称 / 分组", "输入 / 输出 Token", "缓存 Token", "实际扣费 USD"];
       Array.from(row.children).forEach((item, index) => { item.dataset.label = labels[index]; });
       body.append(row);
     });

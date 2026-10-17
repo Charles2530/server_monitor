@@ -303,7 +303,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     async def acp_preview(request:Request,runtime=Depends(current_site)):
         actions,monitor=runtime.actions,runtime.monitor
         async def run():
-            data=await action_body(request,('display_name','replicas','gpus_per_replica','command'),optional=('cluster_id','partition_id','image_path'))
+            data=await action_body(request,('display_name','replicas','gpus_per_replica','command'),optional=('cluster_id','partition_id','image_path','afs_mount','afs_mounts'))
             return await actions.preview(data)
         return await read_only(run)
 

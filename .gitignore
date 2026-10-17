@@ -2,7 +2,8 @@
 __pycache__/
 .pytest_cache/
 data/
-# Actual .env is versioned in this private repository for cross-machine setup.
+# Local credentials and environment configuration.
+.env
 .env.*
 !.env.example
 *.sqlite3

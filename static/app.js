@@ -331,7 +331,7 @@
     for (const cluster of visibleClusters()) {
       const inventory = cluster.inventory;
       if (cluster.inventory_error) notices.push(`${cluster.name}：${cluster.inventory_error}`);
-      else if (known(inventory?.abnormal_nodes) && inventory.abnormal_nodes > 0) notices.push(`${cluster.name}：${count(inventory.abnormal_nodes)} 个异常节点，涉及 ${count(inventory.abnormal_node_gpus)} 张 GPU`);
+      else if (known(inventory?.abnormal_nodes) && inventory.abnormal_nodes > 0) notices.push(`${cluster.name}：${count(inventory.abnormal_nodes)} 个异常节点`);
       if (inventory?.allocation?.error && !cluster.inventory_error) notices.push(`${cluster.name}：${inventory.allocation.error}`);
       const row = element("tr"), nameCell = element("td"), name = element("div", "cluster-name-cell");
       name.append(element("span", "cluster-dot"), document.createTextNode(cluster.name || cluster.id));
@@ -339,7 +339,6 @@
       row.append(nameCell);
       const totalCell = element("td");
       totalCell.append(element("span", "resource-value", count(inventory?.total_gpus)));
-      if (inventory && known(inventory.abnormal_node_gpus) && inventory.abnormal_node_gpus > 0) totalCell.append(element("small", "inventory-caption", `含异常节点 ${count(inventory.abnormal_node_gpus)} 张`));
       if (cluster.inventory_error) totalCell.append(element("small", "inventory-warning", inventory ? "旧总量" : "采集失败"));
       row.append(totalCell);
       for (const key of ["available_gpus", "available_vcpu", "available_memory_gib"]) {
@@ -349,8 +348,10 @@
           const allocation = inventory.allocation;
           const fresh = !cluster.inventory_error && allocation.status === "ok";
           const groups = fresh && Array.isArray(allocation.idle_gpu_groups) ? allocation.idle_gpu_groups : null;
-          const text = groups ? groups.length ? groups.map(group => `${count(group.gpus_per_node)} 卡 × ${count(group.nodes)} 组`).join(" · ") : "0 组" : "未知";
-          cell.append(element("small", groups ? "inventory-caption" : "inventory-warning", `整组空闲 GPU：${text}`));
+          if (groups?.length) {
+            const text = groups.map(group => `${count(group.gpus_per_node)}×${count(group.nodes)}组`).join(" · ");
+            cell.append(element("small", "inventory-caption inventory-idle", `整卡 ${text}`));
+          } else if (!groups) cell.append(element("small", "inventory-warning", "整卡空闲未知"));
         }
         row.append(cell);
       }
@@ -636,6 +637,7 @@
   async function action(buttonId, endpoint, message) {
     const button = byId(buttonId), notice = byId("action-message");
     button.disabled = true; button.dataset.requestBusy = "true";
+    if (notice._hideTimer) { clearTimeout(notice._hideTimer); notice._hideTimer = null; }
     notice.hidden = false;
     notice.textContent = endpoint === "/api/connect" ? "正在使用本地 IAM 配置自动连接，请稍候…" : "正在请求新的采集…";
     try {
@@ -644,7 +646,10 @@
       await poll();
     } catch (error) {
       notice.textContent = error.name === "AbortError" ? "请求暂未得到响应，请稍后重试。" : error.message;
-    } finally { button.disabled = false; button.dataset.requestBusy = "false"; }
+    } finally {
+      button.disabled = false; button.dataset.requestBusy = "false";
+      notice._hideTimer = setTimeout(() => { notice.hidden = true; notice._hideTimer = null; }, 4500);
+    }
   }
 
   document.querySelectorAll(".filter-button[data-kind]").forEach((button) => button.addEventListener("click", () => {

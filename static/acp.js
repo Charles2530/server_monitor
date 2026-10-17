@@ -2,7 +2,7 @@
 
 (() => {
   const byId = (id) => document.getElementById(id);
-  const state = { options: null, snapshot: null, utilization: null, unavailable: false, selected: null, preview: null, stop: null, creating: false, stopping: false, createUnknown: false, stopUnknown: false, storageError: false };
+  const state = { options: null, afsCatalog: null, snapshot: null, utilization: null, unavailable: false, selected: null, preview: null, stop: null, creating: false, stopping: false, createUnknown: false, stopUnknown: false, storageError: false };
   const siteKey = (name) => window.MonitorSite?.key(name) || name;
   const pendingKeys = { create: siteKey("charles-monitor.acp.create.pending"), stop: siteKey("charles-monitor.acp.stop.pending") };
   const form = byId("acp-create-form");
@@ -10,7 +10,10 @@
   const imageSelect = byId("acp-image");
   const imageNamespace = byId("acp-image-namespace"), imageRepository = byId("acp-image-repository");
   const imageTabs = [...document.querySelectorAll("[data-acp-image-mode]")];
+  const afsRows = byId("acp-afs-rows"), afsAdd = byId("acp-afs-add");
+  const afsTabs = [...document.querySelectorAll("[data-acp-afs-mode]")];
   let imageMode = "template";
+  let afsMode = "template", afsSelection = null, afsSelectionTouched = false;
   let commandTouched = false, commandRevision = 0, pastePending = false;
   const partitioned = window.MonitorSite?.id === "sensecore";
   const partitionDrafts = new Map();
@@ -214,6 +217,140 @@
       : imageSelect.value || "请选择命名空间、镜像仓库和版本";
   }
 
+  function templateAfsMounts() {
+    return (state.options?.template_config?.afs_mounts || []).map(mount => ({
+      id: mount.id || "", zone: mount.zone || "", subdir: mount.subdir || "/", mount_path: mount.mount_path || "",
+    }));
+  }
+
+  function afsVolumeKey(mount) { return mount?.zone && mount?.id ? `${mount.zone}:${mount.id}` : ""; }
+  function afsCatalogVolumes() { return (state.afsCatalog?.volumes || []).filter(volume => volume?.id && volume?.zone); }
+
+  function blankAfsMount() { return { id: "", zone: "", subdir: "/", mount_path: "" }; }
+  function isBlankAfsMount(mount) {
+    return !mount?.id && !mount?.zone && !mount?.mount_path && (!mount?.subdir || mount.subdir === "/");
+  }
+  function ensureAfsSelection() {
+    const template = templateAfsMounts();
+    if (afsSelection === null || (!afsSelectionTouched && afsSelection.length === 1 && isBlankAfsMount(afsSelection[0]))) {
+      afsSelection = template.length ? template : [blankAfsMount()];
+    }
+    if (!afsSelection.length) afsSelection = [blankAfsMount()];
+  }
+
+  function renderAfsAddress() {
+    const container = byId("acp-afs-address");
+    const mounts = afsMode === "template" ? templateAfsMounts() : (afsSelection || []);
+    container.replaceChildren();
+    if (!mounts.length) {
+      container.append(element("span", "acp-afs-empty", afsMode === "template" ? "当前模板未配置 AFS 挂载。" : "尚未添加 AFS 挂载。"));
+      return;
+    }
+    mounts.forEach((mount, index) => {
+      const row = element("div", "acp-afs-address-row");
+      row.append(element("strong", "", mount.id || `AFS 挂载 ${index + 1}`), element("span", "acp-afs-address-zone", mount.zone || "未选择存储卷"));
+      row.append(element("code", "", `${mount.subdir || "/"} → ${mount.mount_path || "未填写挂载路径"}`));
+      container.append(row);
+    });
+  }
+
+  function volumeOptions(currentKey) {
+    const volumes = afsCatalogVolumes();
+    const entries = volumes.map(volume => [afsVolumeKey(volume), `${volume.name || volume.id} · ${volume.zone}`]);
+    if (currentKey && !entries.some(([value]) => value === currentKey)) entries.unshift([currentKey, `${currentKey.split(":").slice(1).join(":")} · ${currentKey.split(":")[0]}（当前模板）`]);
+    return entries;
+  }
+
+  function renderAfsRows() {
+    if (!afsRows) return;
+    afsRows.replaceChildren();
+    if (afsMode !== "private") return;
+    ensureAfsSelection();
+    const volumes = afsCatalogVolumes();
+    afsSelection.forEach((mount, index) => {
+      const row = element("div", "acp-afs-row");
+      const volumeLabel = element("label", "", "存储卷");
+      const volume = element("select");
+      volume.setAttribute("aria-label", `第 ${index + 1} 条 AFS 存储卷`);
+      const placeholder = element("option", "", state.afsCatalog ? "请选择存储卷" : "正在读取…"); placeholder.value = "";
+      const options = volumeOptions(afsVolumeKey(mount));
+      volume.append(placeholder, ...options.map(([value, label]) => { const option = element("option", "", label); option.value = value; return option; }));
+      volume.value = afsVolumeKey(mount);
+      volume.disabled = !volumes.length && !volume.value;
+      volume.addEventListener("change", () => {
+        const selected = volumes.find(item => afsVolumeKey(item) === volume.value);
+        const history = selected?.mounts?.[0];
+        afsSelectionTouched = true;
+        afsSelection[index] = {
+          ...afsSelection[index], id: selected?.id || "", zone: selected?.zone || "",
+          subdir: afsSelection[index].subdir || history?.subdir || "/",
+          mount_path: afsSelection[index].mount_path || history?.mount_path || "/mnt/afs",
+        };
+        renderAfsRows(); renderAfsAddress();
+      });
+      volumeLabel.append(volume);
+
+      const subdirLabel = element("label", "", "存储目录");
+      const subdir = element("input");
+      subdir.type = "text"; subdir.value = mount.subdir || "/"; subdir.placeholder = "/"; subdir.maxLength = 512;
+      subdir.setAttribute("aria-label", `第 ${index + 1} 条 AFS 存储目录`);
+      subdir.addEventListener("input", () => { afsSelectionTouched = true; afsSelection[index].subdir = subdir.value; renderAfsAddress(); });
+      subdirLabel.append(subdir);
+
+      const mountLabel = element("label", "", "挂载路径");
+      const mountPath = element("input");
+      mountPath.type = "text"; mountPath.value = mount.mount_path || ""; mountPath.placeholder = "/mnt/afs"; mountPath.maxLength = 512;
+      mountPath.setAttribute("aria-label", `第 ${index + 1} 条 AFS 挂载路径`);
+      mountPath.addEventListener("input", () => { afsSelectionTouched = true; afsSelection[index].mount_path = mountPath.value; renderAfsAddress(); });
+      mountLabel.append(mountPath);
+
+      const remove = element("button", "button button-secondary", "删除");
+      remove.type = "button"; remove.setAttribute("aria-label", `删除第 ${index + 1} 条 AFS 挂载`);
+      remove.addEventListener("click", () => { afsSelectionTouched = true; afsSelection.splice(index, 1); renderAfsRows(); renderAfsAddress(); });
+      row.append(volumeLabel, subdirLabel, mountLabel, remove);
+      afsRows.append(row);
+    });
+  }
+
+  function renderAfsOptions() {
+    if (afsMode === "private") renderAfsRows();
+    const volumes = afsCatalogVolumes();
+    byId("acp-afs-help").textContent = state.afsCatalog?.warnings?.join(" ") || (volumes.length
+      ? `当前可选择 ${volumes.length} 个 AFS 存储卷；可直接修改存储目录和挂载路径。`
+      : "当前站点没有可选择的 AFS 存储卷，可沿用模板或刷新重试。");
+    renderAfsAddress();
+  }
+
+  function selectAfsMode(mode, focus = false) {
+    afsMode = mode;
+    if (mode === "private") ensureAfsSelection();
+    for (const tab of afsTabs) {
+      const active = tab.dataset.acpAfsMode === mode;
+      tab.setAttribute("aria-selected", String(active)); tab.tabIndex = active ? 0 : -1;
+    }
+    byId("acp-afs-template").hidden = mode !== "template";
+    byId("acp-afs-private").hidden = mode !== "private";
+    renderAfsOptions();
+    if (focus) afsTabs.find(tab => tab.dataset.acpAfsMode === mode).focus();
+  }
+
+  afsTabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => selectAfsMode(tab.dataset.acpAfsMode));
+    tab.addEventListener("keydown", event => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === "Home" ? 0 : event.key === "End" ? afsTabs.length - 1 : (index + 1) % afsTabs.length;
+      selectAfsMode(afsTabs[next].dataset.acpAfsMode, true);
+    });
+  });
+  afsAdd.addEventListener("click", () => {
+    ensureAfsSelection();
+    afsSelectionTouched = true;
+    afsSelection.push(blankAfsMount());
+    renderAfsRows(); renderAfsAddress();
+    afsRows.lastElementChild?.querySelector("select")?.focus();
+  });
+
   function renderImageOptions(data, choice = imageChoice()) {
     imageMode = choice.mode || "template";
     const catalog = window.MonitorImages?.[window.MonitorSite?.id];
@@ -265,7 +402,7 @@
 
   function savePartitionDraft() {
     if (!state.options?.partition?.id) return;
-    partitionDrafts.set(state.options.partition.id, { command: command.value, touched: commandTouched, cluster: byId("acp-cluster").value, gpu: byId("acp-gpus").value, image: imageChoice() });
+    partitionDrafts.set(state.options.partition.id, { command: command.value, touched: commandTouched, cluster: byId("acp-cluster").value, gpu: byId("acp-gpus").value, image: imageChoice(), afs: { mode: afsMode, touched: afsSelectionTouched, selection: afsSelection === null ? null : afsSelection.map(mount => ({...mount})) } });
   }
 
   async function options(requestedPartition = partitionSelect?.value || "", switching = false) {
@@ -304,11 +441,21 @@
         if (draft) { command.value = draft.command; commandTouched = draft.touched; }
         else if (switching) commandTouched = false;
       }
+      if (partitioned && draft?.afs) {
+        afsMode = draft.afs.mode || "template";
+        afsSelectionTouched = Boolean(draft.afs.touched);
+        afsSelection = Array.isArray(draft.afs.selection) ? draft.afs.selection.map(mount => ({...mount})) : null;
+      } else if (partitioned && switching) {
+        afsMode = "template"; afsSelectionTouched = false; afsSelection = null;
+      }
       const config = byId("acp-template-config"); config.replaceChildren();
       const created = data.template.created_at ? new Date(data.template.created_at).toLocaleString("zh-CN", { hour12: false }) : "—";
       pair(config, "模板创建时间", created);
       renderTemplateConfig(config, data.template_config);
       renderImageOptions(data, draft?.image || (switching ? {mode: "template"} : imageChoice()));
+      renderAfsOptions();
+      selectAfsMode(afsMode);
+      renderAfsAddress();
       if (!commandTouched) command.value = typeof data.default_command === "string" && data.default_command.trim() ? data.default_command : "sleep inf";
       byId("acp-command-source").textContent = data.command_source ? `来源：${data.command_source.name} · ${data.command_source.id}` : partitioned ? "所选分区模板未运行，默认 sleep inf" : "无可用的运行中任务命令，默认 sleep inf";
       byId("acp-command-restore").disabled = false;
@@ -494,6 +641,14 @@
     if (!state.options || optionsLoading || state.creating || state.createUnknown || state.storageError) return;
     if (!byId("acp-gpus").value || !byId("acp-gpus").validity.valid) { message("acp-message", "请选择可用集群和 GPU 规格。"); return; }
     if (imageMode === "private" && !imageSelect.value) { message("acp-message", "请选择完整的私有镜像版本，或切换为沿用模板。"); return; }
+    if (afsMode === "private") {
+      const mounts = (afsSelection || []).map(mount => ({...mount, subdir: (mount.subdir || "/").trim(), mount_path: (mount.mount_path || "").trim()}));
+      const complete = mounts.filter(mount => mount.id || mount.zone || mount.mount_path || (mount.subdir && mount.subdir !== "/"));
+      if (!complete.length || complete.some(mount => !mount.id || !mount.zone || !mount.mount_path)) {
+        message("acp-message", "请补全每条 AFS 挂载的存储卷、存储目录和挂载路径，或删除空白行。"); return;
+      }
+      afsSelection = mounts;
+    }
     const button = byId("acp-preview-button"), previewRevision = ++previewRequest;
     button.disabled = true; button.textContent = "正在生成预览…";
     message("acp-message", "");
@@ -501,6 +656,7 @@
       const context = state.options, revision = optionsRequest;
       const submission = { display_name: byId("acp-name").value, replicas: Number(byId("acp-replicas").value), gpus_per_replica: Number(byId("acp-gpus").value), command: byId("acp-command").value, cluster_id: byId("acp-cluster").value };
       if (imageSelect.value) submission.image_path = imageSelect.value;
+      if (afsMode === "private") submission.afs_mounts = afsSelection.map(mount => ({...mount}));
       if (partitioned) submission.partition_id = context.partition.id;
       const data = await request("/api/acp/preview", submission);
       if (previewRevision !== previewRequest || location.hash !== "#acp" || revision !== optionsRequest || context !== state.options) return;
@@ -711,8 +867,20 @@
   }
   const config = element("dl", "acp-preview-details"); config.id = "acp-template-config";
   byId("acp-template-details").append(config);
+  async function loadAfsCatalog() {
+    try {
+      const data = await request("/api/storage");
+      if (!data || !Array.isArray(data.volumes)) throw new Error("AFS 存储卷格式异常。");
+      state.afsCatalog = data;
+      renderAfsOptions();
+    } catch (error) {
+      state.afsCatalog = {volumes: [], warnings: [error.message]};
+      renderAfsOptions();
+    }
+  }
   function ensureOptions() {
     if (location.hash === "#acp" && !document.hidden && !state.options && !optionsLoading) options();
+    if (location.hash === "#acp" && !document.hidden && !state.afsCatalog) loadAfsCatalog();
   }
   document.addEventListener("workspace-page", () => {
     if (location.hash !== "#acp") { previewRequest += 1; resetPreviewButton(); }

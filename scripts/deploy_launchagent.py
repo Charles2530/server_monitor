@@ -22,8 +22,10 @@ if str(SOURCE) not in sys.path:
     sys.path.insert(0, str(SOURCE))
 RUNTIME = Path.home()/'Library/Application Support/CharlesCloudMonitor'
 LABEL = 'charles.server-monitor'
+SYNC_LABEL = LABEL + '-sync'
 DOMAIN = 'gui/'+str(os.getuid())
 PLIST = Path.home()/'Library/LaunchAgents'/(LABEL+'.plist')
+SYNC_PLIST = Path.home()/'Library/LaunchAgents'/(SYNC_LABEL+'.plist')
 
 
 def wait_for_free_port():
@@ -93,14 +95,24 @@ def launchagent_payload(python, profile):
     }
 
 
+def sync_launchagent_payload(python):
+    paths = [SOURCE/'server', SOURCE/'static', SOURCE/'scripts'/'sync_runtime.py']
+    for directory in (SOURCE/'server', SOURCE/'static'):
+        paths.extend(path for path in directory.rglob('*') if path.is_file() and '__pycache__' not in path.parts)
+    return {
+        'Label':SYNC_LABEL,
+        'ProgramArguments':[str(python), str(SOURCE/'scripts'/'sync_runtime.py')],
+        'WorkingDirectory':str(SOURCE), 'RunAtLoad':True, 'KeepAlive':False,
+        'WatchPaths':[str(path) for path in sorted(set(paths))], 'StartInterval':10, 'ThrottleInterval':5,
+        'ProcessType':'Background', 'StandardOutPath':str(RUNTIME/'data'/'sync.log'),
+        'StandardErrorPath':str(RUNTIME/'data'/'sync.err.log'),
+    }
+
+
 def sync_runtime_sources():
     """Copy the main checkout into the LaunchAgent runtime without stale UI assets."""
-    for directory in ('server', 'static'):
-        destination = RUNTIME / directory
-        if directory == 'static':
-            shutil.rmtree(destination / 'editor-appearance', ignore_errors=True)
-        shutil.copytree(SOURCE / directory, destination, dirs_exist_ok=True,
-                        ignore=shutil.ignore_patterns('__pycache__'))
+    from scripts.sync_runtime import copy_sources
+    copy_sources(SOURCE, RUNTIME)
 
 
 def main(argv=None):
@@ -160,6 +172,16 @@ def main(argv=None):
         temporary.replace(path)
     subprocess.run(['/usr/bin/plutil','-lint',str(PLIST)],check=True)
     subprocess.run(['/bin/launchctl','bootstrap',DOMAIN,str(PLIST)],check=True)
+    sync_target=DOMAIN+'/'+SYNC_LABEL
+    if subprocess.run(['/bin/launchctl','print',sync_target],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0:
+        subprocess.run(['/bin/launchctl','bootout',sync_target],check=True)
+    sync_payload=sync_launchagent_payload(SOURCE/'.venv/bin/python')
+    temporary=SYNC_PLIST.with_suffix('.tmp')
+    temporary.write_bytes(plistlib.dumps(sync_payload,sort_keys=False))
+    os.chmod(temporary,0o644)
+    temporary.replace(SYNC_PLIST)
+    subprocess.run(['/usr/bin/plutil','-lint',str(SYNC_PLIST)],check=True)
+    subprocess.run(['/bin/launchctl','bootstrap',DOMAIN,str(SYNC_PLIST)],check=True)
     for _ in range(50):
         try:
             with urlopen('http://127.0.0.1:8766/api/state',timeout=1) as response:

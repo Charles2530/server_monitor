@@ -375,7 +375,10 @@
       output.textContent = text;
       if (follow) output.scrollTop = output.scrollHeight;
     }
-    $('transfer-log-count').textContent = `${logState.lines.length} 条${result.first ? ` · 较早 ${result.first} 条已截断` : ' · 从任务开始记录'} · 连续进度合并`;
+    const full = $('transfer-log-full');
+    full.hidden = !logState.full && !result.first;
+    full.textContent = logState.full ? '查看最近 2000 条' : '查看完整日志';
+    $('transfer-log-count').textContent = `${logState.lines.length} 条${logState.full ? ' · 完整日志' : result.first ? ` · 较早 ${result.first} 条已截断` : ' · 从任务开始记录'} · 连续进度合并`;
   }
   async function loadLog() {
     if (!logDialog.open || !logState) return;
@@ -383,7 +386,9 @@
     const current = logState;
     current.loading = true;
     try {
-      const result = await json(`/api/transfers/${encodeURIComponent(current.id)}/logs?offset=${current.offset}`);
+      const query = new URLSearchParams({offset: String(current.offset)});
+      if (current.full) query.set('full', 'true');
+      const result = await json(`/api/transfers/${encodeURIComponent(current.id)}/logs?${query}`);
       if (logState !== current || !logDialog.open) return;
       applyLog(result);
     } catch (error) {
@@ -392,6 +397,13 @@
       current.loading = false;
       if (current.again && logState === current) { current.again = false; loadLog(); }
     }
+  }
+  function toggleFullLog() {
+    if (!logState) return Promise.resolve();
+    logState.full = !logState.full;
+    logState.first = logState.offset = 0;
+    logState.lines = [];
+    return loadLog();
   }
   function renderLog() {
     if (!logDialog.open) return;
@@ -413,6 +425,7 @@
     cancel.disabled = job.state === 'cancelling' || cancellingId === job.id;
   }
   $('transfer-log-close').addEventListener('click', () => logDialog.close());
+  $('transfer-log-full').addEventListener('click', toggleFullLog);
   logDialog.addEventListener('close', () => { (jobRows.get(logId)?.row.hidden === false ? jobRows.get(logId).row.querySelector('button') : $('transfer-refresh-jobs')).focus(); logId = null; logState = null; });
   $('transfer-log-cancel').addEventListener('click', async () => {
     const id = logId; cancellingId = id; renderLog();
@@ -431,7 +444,7 @@
         row.innerHTML = `<td><strong></strong><small></small></td><td><strong></strong><small></small></td><td class="transfer-job-time"></td><td><span class="transfer-job-state"></span></td><td><button class="ssh-copy transfer-job-log" type="button" aria-label="查看执行日志" title="查看执行日志" aria-haspopup="dialog" aria-controls="transfer-log-dialog">${logIcon}</button></td>`;
         record = {row}; jobRows.set(job.id, record);
         row.querySelector('button').addEventListener('click', () => {
-          logId = job.id; logState = {id: job.id, first: 0, offset: 0, lines: [], loading: false};
+          logId = job.id; logState = {id: job.id, first: 0, offset: 0, lines: [], loading: false, full: false};
           $('transfer-log-output').textContent = '正在读取日志…'; $('transfer-log-count').textContent = '';
           logDialog.showModal(); renderLog();
           $('transfer-log-output').scrollTop = $('transfer-log-output').scrollHeight;

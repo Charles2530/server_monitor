@@ -11,7 +11,10 @@
 #overview-view .summary-number { margin: 8px 0; font-size: 42px; line-height: 1.15; font-weight: 650; }
 #overview-view .summary-number small { margin-left: 6px; font-size: 12px; }
 #overview-view .summary-foot { padding-top: 10px; font-size: var(--type-small); line-height: 1.6; }
-#overview-view .overview-panels { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-bottom: 24px; }
+#overview-view .overview-content-grid { display: grid; align-items: start; gap: 20px; }
+#overview-view .overview-main-column { display: grid; gap: 20px; min-width: 0; align-content: start; }
+#overview-view .overview-aside-column { width: min(100%, 380px); min-width: 0; align-self: start; justify-self: end; }
+#overview-view .overview-panels { display: grid; grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr); gap: 16px; margin-bottom: 24px; }
 #overview-view :is(.dashboard-panel, .cluster-panel) { border-radius: 14px; box-shadow: none; }
 #overview-view .panel-heading { padding: 20px 24px 0; }
 :root[data-theme] #overview-view :is(.panel-heading, .section-heading) h2 { padding-left: 0; border-left: 0; font-size: 18px; letter-spacing: -.015em; }
@@ -68,10 +71,20 @@
 #overview-view .row-arrow { justify-self: end; color: var(--muted); }
 #overview-view .overview-empty { min-height: 112px; margin: 0; padding: 20px; gap: 10px; font-size: 12px; }
 #overview-view .overview-empty::before { width: 30px; height: 30px; border-radius: 8px; }
-#overview-view > #clusters-section { margin-bottom: 24px; }
+#overview-view #clusters-section { margin-top: 0; margin-bottom: 0; }
 #overview-view .cluster-panel .section-heading { padding: 20px 24px 16px; }
 #overview-view .table-note { font-size: var(--type-small); line-height: 1.7; padding: 12px 22px; }
-#overview-view #tokenhub-summary { margin-bottom: 24px; }
+#overview-view #clusters-section .resource-table { table-layout: fixed; }
+#overview-view #clusters-section .resource-table th:first-child { width: 22%; }
+#overview-view #clusters-section .resource-table th:nth-child(2) { width: 12%; }
+#overview-view #clusters-section .resource-table th:nth-child(3) { width: 15%; }
+#overview-view #clusters-section .resource-table th:nth-child(4) { width: 14%; }
+#overview-view #clusters-section .resource-table th:nth-child(5) { width: 15%; }
+#overview-view #clusters-section .resource-table th:nth-child(6) { width: 22%; }
+#overview-view #clusters-section .resource-table :is(th, td):nth-child(n+2):nth-child(-n+5) { text-align: center; }
+#overview-view #clusters-section .resource-table .node-health { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+#overview-view #clusters-section .resource-table .inventory-idle { display: block; width: fit-content; max-width: 100%; margin: 8px auto 0; padding: 4px 7px; border-radius: 999px; background: var(--success-bg); color: var(--accent); font-size: 11px; white-space: nowrap; overflow-wrap: anywhere; text-align: center; line-height: 1.3; }
+#overview-view #tokenhub-summary { margin-bottom: 0; }
 #overview-view #tokenhub-summary .th-eyebrow { margin-bottom: 5px; font-size: 9px; letter-spacing: .12em; }
 #overview-view #tokenhub-summary-metrics { gap: 12px; }
 #overview-view #tokenhub-summary-metrics .th-metric:nth-child(n) { border-radius: 9px; padding: 14px 16px; }
@@ -84,9 +97,8 @@
 }
 /* Put independent summaries alongside capacity when there is room for both. */
 @media (min-width: 1400px) {
-  #overview-view:not([hidden]) { display: grid; grid-template-columns: minmax(0, 2fr) minmax(360px, 1fr); gap: 20px; align-items: start; }
-  #overview-view > :is(.overview-heading, .summary-grid, .overview-panels) { grid-column: 1 / -1; margin-bottom: 0; }
-  #overview-view > :is(#clusters-section, #tokenhub-summary) { min-width: 0; margin-bottom: 0; }
+  #overview-view .overview-content-grid { grid-template-columns: minmax(0, 1fr) minmax(280px, 380px); align-items: start; }
+  #overview-view .overview-panels { margin-bottom: 0; }
   #overview-view #tokenhub-summary-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 18px 16px; }
   #overview-view #tokenhub-summary-metrics .th-metric:nth-child(n) { padding: 14px 12px; }
   #overview-view #tokenhub-summary-metrics .th-metric strong { font-size: clamp(20px, 1.5vw, 26px); }

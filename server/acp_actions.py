@@ -38,7 +38,7 @@ def integer(value,label,maximum=1024):
 
 def validate_form(data):
     required={'display_name','replicas','gpus_per_replica','command'}
-    if not isinstance(data,dict) or not required <= set(data) <= required | {'cluster_id','partition_id','image_path'}:
+    if not isinstance(data,dict) or not required <= set(data) <= required | {'cluster_id','partition_id','image_path','afs_mount','afs_mounts'}:
         raise ActionError('请填写显示名称、副本数、每副本 GPU 数和启动命令。')
     partition=data.get('partition_id','')
     if not isinstance(partition,str) or len(partition)>253 or (partition and not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_+\-]*',partition)):
@@ -55,6 +55,22 @@ def validate_form(data):
     image_path=data.get('image_path')
     if image_path is not None and (not isinstance(image_path,str) or not 1 <= len(image_path) <= 512 or any(c.isspace() or ord(c)<32 for c in image_path)):
         raise ActionError('镜像地址必须是 1 到 512 字符且不含空白的文本。')
+    def validate_afs_mount(mount):
+        if not isinstance(mount,dict) or set(mount)-{'id','zone','subdir','mount_path'} or not all(isinstance(mount.get(key),str) and mount[key] for key in ('id','zone','mount_path')):
+            raise ActionError('AFS 挂载配置格式不完整。')
+        if any(len(mount[key])>512 or any(ord(char)<32 for char in mount[key]) for key in ('id','zone','mount_path','subdir') if isinstance(mount.get(key),str)):
+            raise ActionError('AFS 挂载路径格式无效。')
+        if any(char.isspace() for key in ('id','zone','mount_path') for char in mount[key]):
+            raise ActionError('AFS 挂载配置不能包含空白字符。')
+        return {**mount,'subdir':mount.get('subdir') or '/'}
+    afs_mount=data.get('afs_mount')
+    if afs_mount is not None:
+        afs_mount=validate_afs_mount(afs_mount)
+    afs_mounts=data.get('afs_mounts')
+    if afs_mounts is not None:
+        if not isinstance(afs_mounts,list) or len(afs_mounts)>10:
+            raise ActionError('AFS 挂载配置最多支持 10 条。')
+        afs_mounts=[validate_afs_mount(mount) for mount in afs_mounts]
     command=data['command'].replace('\r\n','\n').strip()
     if command and not re.fullmatch(r'sleep[ \t]+inf[ \t]*;?',command.splitlines()[-1].strip()):
         command += '\nsleep inf'
@@ -91,6 +107,16 @@ def public_partition(raw):
 def template_config(raw):
     return {'images':[r['image_path'] for r in raw.get('roles',[]) if r.get('image_path')],
             'afs_mounts':[{k:m.get(k) for k in ('id','zone','mount_path','subdir')} for m in raw.get('mount',[]) if m.get('type')=='PV_AFS']}
+
+
+def selected_afs_template(raw, afs_mounts):
+    if afs_mounts is None:return raw
+    if isinstance(afs_mounts,dict):afs_mounts=[afs_mounts]
+    result=copy.deepcopy(raw)
+    selected=[{'type':'PV_AFS',**{key:mount[key] for key in ('id','zone','mount_path')},'subdir':mount.get('subdir') or '/'} for mount in afs_mounts]
+    mounts=result.get('mount') or []
+    result['mount']=[mount for mount in mounts if mount.get('type')!='PV_AFS']+selected
+    return result
 
 
 def restart_revision(raw):
@@ -300,6 +326,8 @@ class ACPManager:
         cluster_id=form.get('cluster_id','')
         async with self.client() as client:
             template,_=await self.template_context(client,form.get('partition_id'))
+            selected_mounts=form.get('afs_mounts') if 'afs_mounts' in form else form.get('afs_mount')
+            template=selected_afs_template(template,selected_mounts)
             template,catalog=await self.catalog(client,template=template,cluster_id=cluster_id or None)
         if cluster_id:
             catalog=[(b,specs) for b,specs in catalog if b['name']==cluster_id]

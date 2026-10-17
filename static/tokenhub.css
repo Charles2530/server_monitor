@@ -87,9 +87,9 @@
 .th-quota-window.is-danger progress::-webkit-progress-value { background: #c6574d; }
 .th-quota-window.is-danger progress::-moz-progress-bar { background: #c6574d; }
 .th-quota > small:last-child { border-top: 1px solid #e9efeb; padding-top: 10px; margin-top: 14px; font-size: 12px; }
-.th-quota-preview-panel .th-quota-grid { grid-template-columns: minmax(0, 1fr); padding: 14px 20px 18px; }
+.th-quota-preview-panel .th-quota-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); padding: 14px 20px 18px; }
 .th-quota-preview-panel .th-quota { background: transparent; border: 0; padding: 0; }
-.th-quota-preview-panel .th-quota + .th-quota { border-top: 1px solid var(--th-line); padding-top: 20px; }
+.th-quota-preview-panel .th-quota + .th-quota { border-top: 0; padding-top: 0; }
 /* Quota content keeps its natural height independently of the two plots. */
 .th-quota-preview-panel { display: flex; flex-direction: column; }
 .th-quota-preview-panel .th-quota-grid { flex: 1; }

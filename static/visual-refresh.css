@@ -31,6 +31,21 @@
   border-radius: var(--radius-panel); border-color: var(--line); background: var(--surface); box-shadow: var(--panel-shadow);
 }
 :root[data-theme] .status-banner { border-radius: 10px; }
+:root[data-theme] .header-actions > #status-banner {
+  display: flex; align-items: center; flex: 0 1 auto; min-width: 0; max-width: 190px;
+  margin: 0 0 0 3px; padding: 0; gap: 6px; border: 0; border-radius: 0; background: transparent; white-space: nowrap;
+}
+:root[data-theme] .header-actions > #action-message {
+  display: block; flex: 1 1 220px; min-width: 0; max-width: min(360px, 30vw);
+  margin: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface-raised); color: var(--muted); font-size: 11px; line-height: 1.4;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+:root[data-theme] .header-actions > #status-banner > div { display: flex; align-items: baseline; min-width: 0; max-height: none; overflow: hidden; }
+:root[data-theme] .header-actions > #status-banner strong { flex-shrink: 0; color: var(--ink); font-size: 11px; }
+:root[data-theme] .header-actions > #status-banner div > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
+:root[data-theme] .header-actions > #status-banner .status-symbol { width: 16px; height: 16px; font-size: 10px; }
+:root[data-theme] .header-actions > #status-banner time { margin-left: 2px; color: var(--muted); font-size: 10px; white-space: nowrap; }
 :root[data-theme] .status-ok { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-strong); }
 :root[data-theme] .summary-card { display: flex; flex-direction: column; padding: 20px; }
 :root[data-theme] a.summary-card { color: inherit; text-decoration: none; }
@@ -218,6 +233,10 @@
   :root[data-theme] .running-badge { font-size: 10px; }
   :root[data-theme] .metric-value { font-size: 24px; }
   :root[data-theme] .status-banner { padding: 10px 12px; }
+  :root[data-theme] .header-actions { flex-wrap: wrap; }
+  :root[data-theme] .header-actions > #action-message { flex: 1 1 100%; max-width: none; order: 5; }
+  :root[data-theme] .header-actions > #status-banner { max-width: 130px; margin-left: 0; gap: 5px; }
+  :root[data-theme] .header-actions > #status-banner time { display: none; }
 }
 
 /* Keep page-level actions available while long workspace views are scrolled. */

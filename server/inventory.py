@@ -157,7 +157,7 @@ async def enrich_clusters(request, client, state, previous, now, targets=None, a
     targets=[c for c in state['clusters'] if c.get('id','').rsplit('/',1)[-1] in allowed]
     old={c['id']:c.get('inventory') for c in previous.get('clusters',[])}
     results=await asyncio.gather(*(asyncio.wait_for(read_inventory(request,client,c,now,allowed,
-        include_allocation=not all_bound and c['id'].rsplit('/',1)[-1] in TARGET_CLUSTERS),timeout=INVENTORY_TIMEOUT_SECONDS) for c in targets),return_exceptions=True)
+        include_allocation=True),timeout=INVENTORY_TIMEOUT_SECONDS) for c in targets),return_exceptions=True)
     failed=[]
     for cluster,result in zip(targets,results):
         if isinstance(result,Exception):

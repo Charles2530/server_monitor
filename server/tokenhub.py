@@ -399,6 +399,7 @@ class TokenHub:
         for row in data['items']:
             item = pick(row, ('id', 'created_at', 'model', 'input_tokens', 'output_tokens', 'cache_creation_tokens', 'cache_read_tokens', 'actual_cost', 'total_cost', 'duration_ms'))
             item['key_name'] = pick(row.get('api_key') or {}, ('name',)).get('name')
+            item['group_name'] = pick(row.get('group') or {}, ('name',)).get('name')
             result['items'].append(item)
         return result
 
