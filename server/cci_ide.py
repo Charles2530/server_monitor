@@ -541,7 +541,8 @@ class CCIEditor:
         self.optional_jobs[identity] = asyncio.create_task(prepare())
 
     def bootstrap(self, data, address, *, install_optional=True):
-        return bootstrap_script(data['instance'], address, install_optional=install_optional, download_proxy=self.download_proxy())
+        return bootstrap_script(data['instance'], address, install_optional=install_optional,
+                                download_proxy=self.download_proxy(), activate_proxy=self.site.id == 'sensecore')
 
     def download_proxy(self):
         prefix = 'SENSECORE' if self.site.id == 'sensecore' else 'MONITOR'
