@@ -224,12 +224,11 @@
 body:has(#tokenhub-view:not([hidden])) .page-description { display: none; }
 .th-account { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .th-account > div { min-width: 0; overflow-wrap: anywhere; }
-.th-account-mark { display: grid; place-items: center; flex: 0 0 42px; height: 42px; border: 1px solid #d5e7dc; border-radius: 11px; color: #16795b; background: #edf7f1; }
+.th-account-mark { display: grid; place-items: center; flex: 0 0 24px; height: 28px; color: var(--accent); }
 .th-account-mark svg { width: 24px; height: 24px; }
 .th-metric-heading { font-size: 13px; }
-.th-detail-metrics .th-metric-heading svg { width: 28px; height: 28px; flex-basis: 28px; padding: 5px; border-radius: 7px; background: #edf4ef; opacity: 1; }
-.th-detail-metrics .th-metric:first-child .th-metric-heading svg { background: #ffffff12; }
-.th-detail-metrics .th-metric:nth-child(2) .th-metric-heading svg { background: #f6efde; }
+.th-detail-metrics .th-metric-heading svg { width: 20px; height: 20px; flex-basis: 20px; opacity: 1; }
+
 #tokenhub-account-quotas { grid-template-columns: minmax(0, 1fr); }
 #tokenhub-account-quotas .th-quota { background: #f8fbf9; }
 #tokenhub-account-quotas .th-quota-windows { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
@@ -260,7 +259,7 @@ body:has(#tokenhub-view:not([hidden])) .page-description { display: none; }
   .th-actions { width: 100%; padding-top: 10px; border-top: 1px solid #e6ede8; }
   .th-original-dialog .th-actions { margin-top: 12px; }
   .th-metric-heading { font-size: 12px; }
-  .th-detail-metrics .th-metric-heading svg { width: 24px; height: 24px; flex-basis: 24px; padding: 4px; }
+  .th-detail-metrics .th-metric-heading svg { width: 18px; height: 18px; flex-basis: 18px; }
   .th-section .panel-heading { flex-wrap: wrap; }
   .th-filters input { font-size: 16px; }
   .th-page .th-table tr { gap: 12px; padding: 14px; }
@@ -349,7 +348,7 @@ body:has(#tokenhub-view:not([hidden])) .page-description { display: none; }
 :root[data-theme="dark"] .th-trend-panel { --th-chart-tint: #27364b; }
 :root[data-theme="dark"] .th-hourly-panel { --th-chart-tint: #203c40; }
 #tokenhub-view :is(.th-trend-panel, .th-hourly-panel) .panel-heading h2 { display: flex; align-items: center; gap: 9px; font-size: 17px; line-height: 1.5; }
-#tokenhub-view :is(.th-trend-panel, .th-hourly-panel) .panel-heading h2::before { content: ""; width: 28px; height: 28px; flex: 0 0 28px; border: 6px solid var(--th-chart-tint); border-radius: 8px; background-color: var(--th-chart-color); box-shadow: 0 0 0 1px var(--th-chart-tint); box-sizing: border-box; mask-image: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M2 11 6 7l3 2 5-6M10 3h4v4' stroke='white' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-size: 16px; background-position: center; background-repeat: no-repeat; }
+#tokenhub-view :is(.th-trend-panel, .th-hourly-panel) .panel-heading h2::before { content: ""; width: 20px; height: 20px; flex: 0 0 20px; background: var(--th-chart-color); mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M3 17 9 11l4 3 8-9M15 5h6v6' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; }
 #tokenhub-view :is(.th-trend-panel, .th-hourly-panel) .panel-heading p { margin-top: 7px; }
 #tokenhub-view .th-trend-panel .th-range { background: transparent; border-color: var(--line); padding: 3px; }
 #tokenhub-view .th-trend-panel .th-range button[aria-pressed="true"] { background: var(--th-chart-tint); color: var(--ink); box-shadow: none; }
@@ -399,8 +398,9 @@ body:has(#tokenhub-view:not([hidden])) .page-description { display: none; }
 .account-tools > div { position: absolute; z-index: 40; top: calc(100% + 6px); right: 0; display: grid; gap: 6px; min-width: 172px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: var(--dialog-shadow); }
 .account-tools > div .button { justify-content: flex-start; width: 100%; }
 @media (max-width: 760px), (pointer: coarse) and (max-width: 1100px) {
-  #tokenhub-view .th-toolbar { padding: 12px; gap: 8px; }
-  #tokenhub-view .th-toolbar .th-actions { margin-top: 0; padding-top: 8px; }
+  #tokenhub-view .th-toolbar { flex-direction: row; flex-wrap: wrap; align-items: center; padding: 12px; gap: 8px; }
+  #tokenhub-view .th-account { flex: 1 1 180px; gap: 10px; }
+  #tokenhub-view .th-toolbar .th-actions { width: auto; margin-top: 0; padding-top: 0; border-top: 0; }
   #tokenhub-view .th-account h2 { font-size: 18px; }
   #tokenhub-view .th-account p { font-size: 11px; }
   #tokenhub-metrics .th-metric:nth-child(n+3) { padding: 10px 12px; }

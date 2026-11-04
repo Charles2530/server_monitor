@@ -8,7 +8,7 @@
 .task-rename-dialog{width:520px;max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);padding:28px;border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--ink);box-shadow:0 24px 80px #0004;overflow:auto}
 .task-rename-dialog::backdrop{background:#0c171d80;backdrop-filter:blur(3px)}
 .task-rename-heading{display:flex;align-items:center;gap:14px;margin-bottom:18px}
-.task-rename-emblem{display:grid;place-items:center;width:46px;height:46px;flex:0 0 46px;border-radius:14px;background:var(--accent-soft);border:1px solid var(--accent-line);color:var(--accent)}
+.task-rename-emblem{display:grid;place-items:center;width:26px;height:32px;flex:0 0 26px;color:var(--accent)}
 .task-rename-emblem svg{width:22px;height:22px}
 .task-rename-eyebrow{display:block;margin-bottom:3px;color:var(--muted);font-size:11px;letter-spacing:.05em}
 .task-rename-dialog h2{font-size:22px;margin:0;letter-spacing:-.03em}

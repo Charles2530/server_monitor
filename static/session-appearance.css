@@ -10,8 +10,8 @@ body { background: var(--page); color: var(--ink); }
 .button.primary { color: #fff; background: #087d70; border-color: #087d70; }
 .button.primary:hover { background: #07685d; border-color: #07685d; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
-.welcome-icon, .ide-brand-icon { color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-line); box-shadow: none; }
-.welcome-icon { border-radius: 16px; width: 56px; height: 56px; }
+.welcome-icon, .ide-brand-icon { color: var(--accent); background: transparent; border: 0; box-shadow: none; }
+.welcome-icon { width: 32px; height: 36px; margin-bottom: 16px; }
 .session-welcome h2 { color: var(--ink); font-size: 28px; letter-spacing: -.04em; }
 .session-welcome p { color: var(--muted); line-height: 1.85; }
 .welcome-tags span { color: var(--muted); background: var(--surface-raised); border-color: var(--line); border-radius: 6px; padding: 5px 9px; }

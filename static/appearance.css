@@ -108,9 +108,9 @@
 :root[data-theme="light"] .th-detail-metrics .th-metric:first-child::after { border-color: #087f6b04; }
 :root[data-theme="light"] .th-detail-metrics .th-metric:nth-child(2) { background: var(--surface); border-color: var(--line); }
 :root[data-theme="light"] .th-detail-metrics .th-metric .th-metric-heading { color: #596579; }
-:root[data-theme="light"] .th-detail-metrics .th-metric .th-metric-heading svg { background: #f0f3f6; color: #667085; }
-:root[data-theme="light"] .th-detail-metrics .th-metric:first-child .th-metric-heading svg { background: #dfefe7; color: #25745d; }
-:root[data-theme="light"] .th-detail-metrics .th-metric:nth-child(2) .th-metric-heading svg { background: #fbf4e7; color: #976a22; }
+:root[data-theme="light"] .th-detail-metrics .th-metric .th-metric-heading svg { background: transparent; color: #667085; }
+:root[data-theme="light"] .th-detail-metrics .th-metric:first-child .th-metric-heading svg { background: transparent; color: #25745d; }
+:root[data-theme="light"] .th-detail-metrics .th-metric:nth-child(2) .th-metric-heading svg { background: transparent; color: #976a22; }
 :root[data-theme="light"] .th-detail-metrics .th-metric.is-stale strong { color: #976a22; }
 :root[data-theme="light"] :is(.th-eyebrow, .th-metric-heading, .th-metric small, .th-detail-metrics .th-metric:first-child small, .th-summary-footer, .th-section-status, .th-quota small, .th-trend-summary, .th-spend-label, .th-spend-period, .th-spend-period small, .th-filters label, .th-pagination, .th-key-meta, .th-group-dialog label, .th-group-note, .th-empty, .th-credit) { color: var(--muted); }
 :root[data-theme="light"] .th-trend-panel .th-trend-summary { background: #f8fafb; border-color: var(--line); }
@@ -236,7 +236,7 @@
 :root[data-theme="dark"] :is(.button-secondary:hover, select:hover:not(:disabled)) { background-color: var(--surface-hover); }
 :root[data-theme="dark"] :is(.button-primary, #cci-terminal-selected) { background: #168663; color: #fff; }
 :root[data-theme="dark"] .button-primary:hover { background: #1b9b73; }
-:root[data-theme="dark"] :is(.heading-tag, .subtle-badge, .avatar-circle, .meta-pill, .count-badge, .form-step, .optional-label, .th-account-mark, .th-summary-quotas span, .th-group-edit, .th-key-copy) { background: var(--surface-raised); color: var(--accent); border-color: var(--line); }
+:root[data-theme="dark"] :is(.heading-tag, .subtle-badge, .avatar-circle, .meta-pill, .count-badge, .form-step, .optional-label, .th-summary-quotas span, .th-group-edit, .th-key-copy) { background: var(--surface-raised); color: var(--accent); border-color: var(--line); }
 :root[data-theme="dark"] :is(.summary-card:nth-child(3), .storage-summary > div:last-child, .acp-form-footer) { background: #1a3026; border-color: #345743; }
 :root[data-theme="dark"] :is(.summary-card:nth-child(3) .summary-number, .resource-value.gpu-value, .overview-task-metric strong, .running-badge, .panel-link, .text-link, .task-detail-hint, .storage-summary > div:last-child strong, .history-stat.succeeded strong, .utilization-value, .th-metric:first-child strong) { color: var(--accent); }
 :root[data-theme="dark"] :is(.overview-task-gpu > [data-metric="gpu_memory"]:not(.is-stale) strong, .overview-task-metric.is-stale strong, .th-metric.is-stale strong) { color: var(--amber); }
@@ -261,7 +261,7 @@
 :root[data-theme="dark"] .status-symbol { background: #ffffff12; }
 :root[data-theme="dark"] .th-detail-metrics .th-metric:first-child { background: linear-gradient(125deg, #214636, #2b5e47); }
 :root[data-theme="dark"] .th-detail-metrics .th-metric:first-child strong { color: #fff; }
-:root[data-theme="dark"] .th-detail-metrics .th-metric-heading svg { background: var(--surface-raised); }
+:root[data-theme="dark"] .th-detail-metrics .th-metric-heading svg { background: transparent; }
 :root[data-theme="dark"] :is(#acp-template-config dd, .history-cluster, .task-history-table .history-duration, .th-spend-main > strong, .th-spend-range) { color: var(--ink); }
 :root[data-theme="dark"] :is(.acp-form select, .history-select, .storage-filters select, .logs-toolbar select, .th-select)::picker(select) { background: var(--surface); color: var(--ink); border-color: var(--line); }
 :root[data-theme="dark"] select option { color: var(--ink); background: var(--surface); }
@@ -297,7 +297,7 @@
 :root[data-theme="dark"] #tokenhub-metrics .th-metric:nth-child(2) { background: #29291f; border-color: #474535; }
 :root[data-theme="dark"] #tokenhub-metrics .th-metric:nth-child(2) .th-metric-heading { color: #d4c298; }
 :root[data-theme="dark"] #tokenhub-metrics .th-metric:nth-child(2) strong { color: #e8d3a6; }
-:root[data-theme="dark"] #tokenhub-metrics .th-metric:nth-child(2) .th-metric-heading svg { background: #3a3627; }
+:root[data-theme="dark"] #tokenhub-metrics .th-metric:nth-child(2) .th-metric-heading svg { background: transparent; }
 :root[data-theme="dark"] #tokenhub-metrics .th-metric.is-stale strong { color: var(--amber); }
 :root[data-theme="dark"] #tokenhub-group-status { color: #e8c583; }
 :root[data-theme="dark"] .th-quota progress { accent-color: #65d4ae; }

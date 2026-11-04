@@ -13,7 +13,7 @@
 #connection-log-dialog::backdrop { background: #07181066; backdrop-filter: blur(5px); }
 .connection-log-heading { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 22px 24px 18px; }
 #connection-log-title { display: flex; align-items: center; gap: 12px; margin: 0; font-size: 18px; font-weight: 650; letter-spacing: -.02em; }
-#connection-log-title::before { content: ''; width: 32px; height: 32px; border: 1px solid var(--accent-line); border-radius: 10px; background: linear-gradient(var(--accent), var(--accent)) 9px 10px / 14px 2px no-repeat, linear-gradient(var(--accent), var(--accent)) 9px 15px / 14px 2px no-repeat, linear-gradient(var(--accent), var(--accent)) 9px 20px / 9px 2px no-repeat, var(--accent-soft); }
+#connection-log-title::before { content: ''; flex: 0 0 20px; width: 20px; height: 22px; background: linear-gradient(var(--accent), var(--accent)) 1px 5px / 18px 1.5px no-repeat, linear-gradient(var(--accent), var(--accent)) 1px 10px / 18px 1.5px no-repeat, linear-gradient(var(--accent), var(--accent)) 1px 15px / 12px 1.5px no-repeat; }
 #connection-log-close { min-width: 56px; min-height: 36px; font-size: 12px; }
 .connection-log-overview { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0 24px 18px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-raised); font-size: 12px; color: var(--muted); }
 #connection-log-state { color: var(--ink); font-weight: 600; }

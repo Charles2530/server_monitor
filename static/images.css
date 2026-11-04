@@ -7,7 +7,7 @@
 #images-section .section-heading p { max-width: none; overflow-wrap: anywhere; color: var(--muted); }
 #images-section .image-registry-identity { display: flex; align-items: center; gap: 18px; }
 #images-section .image-registry-identity > div { min-width: 0; }
-#images-section .image-registry-icon { display: grid; place-items: center; flex: 0 0 56px; height: 56px; border: 1px solid var(--accent-line); border-radius: 16px; background: var(--surface); color: var(--accent); }
+#images-section .image-registry-icon { display: grid; place-items: center; flex: 0 0 28px; height: 32px; color: var(--accent); }
 #images-section .image-registry-icon svg { width: 28px; height: 28px; stroke-width: 1.5; }
 #images-section .image-eyebrow { display: block; margin-bottom: 7px; color: var(--accent); font: 10px/1.4 var(--font-code); letter-spacing: .12em; }
 #images-section .image-registry-card .section-heading h2 { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 0; border: 0; font-size: 19px; }
@@ -141,7 +141,7 @@
   #images-section #image-site-description { font-size: 11px; }
   #images-section .images-tabs { width: 100%; margin-bottom: 12px; }
   #images-section .images-tabs button { flex: 1; min-height: 44px; padding-inline: 12px; }
-  #images-section .image-catalog-actions { width: 100%; }
+  #images-section .image-catalog-actions { width: auto; margin-left: auto; }
   #images-section .image-catalog-actions .button { flex: 1; min-height: 44px; }
   #images-section select, #images-section input { min-height: 44px; font-size: 16px; }
   #images-section .history-search-control { height: 46px; }

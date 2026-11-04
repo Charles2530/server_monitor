@@ -20,6 +20,7 @@
 :root[data-theme] .count-badge { min-width: 24px; padding: 3px 7px; border-radius: 6px; font-variant-numeric: tabular-nums; vertical-align: middle; }
 :root[data-theme] .subtle-badge { font-size: 10px; letter-spacing: .08em; background: var(--surface-raised); }
 :root[data-theme] .button { border-radius: var(--radius-control); font-weight: 550; }
+:root[data-theme] .header-actions { min-width: 0; max-width: 100%; }
 :root[data-theme] :is(.header-actions, .storage-actions, .th-actions, .dialog-actions) .button { min-height: 40px; }
 :root[data-theme] #main .button-primary { background: #087d70; color: #fff; box-shadow: 0 2px 4px #087d7014; }
 :root[data-theme] #main .button-primary:hover:not(:disabled) { background: #07685d; }
@@ -39,13 +40,19 @@
   display: block; flex: 1 1 220px; min-width: 0; max-width: min(360px, 30vw);
   margin: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px;
   background: var(--surface-raised); color: var(--muted); font-size: 11px; line-height: 1.4;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-height: min(140px, 24dvh); overflow: auto; overflow-wrap: anywhere; white-space: pre-wrap;
 }
 :root[data-theme] .header-actions > #status-banner > div { display: flex; align-items: baseline; min-width: 0; max-height: none; overflow: hidden; }
 :root[data-theme] .header-actions > #status-banner strong { flex-shrink: 0; color: var(--ink); font-size: 11px; }
 :root[data-theme] .header-actions > #status-banner div > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
 :root[data-theme] .header-actions > #status-banner .status-symbol { width: 16px; height: 16px; font-size: 10px; }
 :root[data-theme] .header-actions > #status-banner time { margin-left: 2px; color: var(--muted); font-size: 10px; white-space: nowrap; }
+/* Keep failure details readable without letting long messages expand the page. */
+:root[data-theme] .header-actions:has(> #status-banner:is(.status-error, .status-warning, .status-disconnected)) { flex: 1 1 320px; flex-wrap: wrap; }
+:root[data-theme] .header-actions > #status-banner:is(.status-error, .status-warning, .status-disconnected) { flex: 1 1 100%; order: 4; max-width: none; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--warning-bg); align-items: flex-start; white-space: normal; }
+:root[data-theme] .header-actions > #status-banner.status-error { background: var(--danger-bg); }
+:root[data-theme] .header-actions > #status-banner:is(.status-error, .status-warning, .status-disconnected) > div { display: block; flex: 1; max-height: min(112px, 20dvh); overflow: auto; overflow-wrap: anywhere; }
+:root[data-theme] .header-actions > #status-banner:is(.status-error, .status-warning, .status-disconnected) div > span { position: static; display: block; width: auto; height: auto; margin: 4px 0 0; overflow: visible; clip: auto; clip-path: none; white-space: normal; }
 :root[data-theme] .status-ok { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-strong); }
 :root[data-theme] .summary-card { display: flex; flex-direction: column; padding: 20px; }
 :root[data-theme] a.summary-card { color: inherit; text-decoration: none; }
@@ -94,9 +101,14 @@
 :root[data-theme] #storage-section .storage-table td:last-child { width: 32%; }
 :root[data-theme] #storage-section .storage-overview-metric { background: var(--accent-soft); border-color: var(--accent-line); }
 :root[data-theme] #storage-section .storage-overview-metric strong { color: var(--accent-strong); }
+@media (max-width: 760px) {
+  :root[data-theme] #storage-section .storage-table td:is(:first-child, :last-child) { width: auto; }
+}
 @media (max-width: 620px) {
-  :root[data-theme] #storage-section .storage-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  :root[data-theme] #storage-section .storage-summary > div { padding: 10px; }
+  :root[data-theme] #storage-section .storage-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  :root[data-theme] #storage-section .storage-summary > div { padding: 10px 8px; box-shadow: none; }
+  :root[data-theme] #storage-section .storage-overview-metric { grid-column: 1 / -1; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+  :root[data-theme] #storage-section .storage-overview-metric small { margin-left: auto; }
   :root[data-theme] #storage-section .storage-summary strong { font-size: 18px; }
 }
 :root[data-theme] .task-card { border-radius: 12px; background: var(--surface); border-color: var(--line); box-shadow: var(--panel-shadow); }
@@ -183,8 +195,9 @@
 
 @media (min-width: 1101px) {
   :root[data-theme] .sidebar { padding-top: 30px; }
-  :root[data-theme] .sidebar nav { gap: 7px; }
-  :root[data-theme] .sidebar .nav-item { min-height: 46px; }
+  :root[data-theme] .sidebar nav { gap: 4px; }
+  :root[data-theme] .sidebar .nav-item { min-height: 44px; }
+  :root[data-theme] .page-header { min-height: 80px; padding-block: 14px; }
   :root[data-theme] .page-header h1 { font-size: 25px; }
   :root[data-theme] .summary-grid { gap: 16px; }
   :root[data-theme] .task-card { padding: 16px; }
