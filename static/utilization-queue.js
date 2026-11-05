@@ -2,7 +2,7 @@
 (() => {
   const $ = id => document.getElementById(id), site = window.MonitorSite;
   let active = false, timer = null, controller = null, serial = 0, snapshot = null;
-  let renderedSignature = null, renderedRows = new Map(), kind = "CCI";
+  let renderedSignature = null, renderedRows = new Map(), kind = "ACP";
   const node = (tag, text, className) => {
     const element = document.createElement(tag);
     if (text !== undefined) element.textContent = text;
@@ -28,18 +28,28 @@
       updated_at: source?.updated_at || snapshot.updated_at,
       status: source?.status === "error" ? "error" : snapshot.status === "error" ? "error" : "ok",
       warnings: (snapshot.warnings || []).filter(text => !text.startsWith(`${kind === "CCI" ? "ACP" : "CCI"} `)) };
-    const mineOnly = $("utilization-mine").checked;
-    const tasks = data.tasks.filter(task => !mineOnly || task.is_mine === true).sort((a, b) => Number(!known(a.gpu_utilization)) - Number(!known(b.gpu_utilization))
+    const clusterSelect = $("utilization-cluster"), selectedCluster = clusterSelect.value;
+    const clusters = [...new Set(data.tasks.map(task => task.cluster).filter(Boolean))].sort((a, b) => a.localeCompare(b, "zh-CN"));
+    const clusterSignature = JSON.stringify(clusters);
+    if (clusterSelect.dataset.signature !== clusterSignature) {
+      clusterSelect.replaceChildren(...["", ...clusters].map(value => {
+        const option = node("option", value || "全部集群"); option.value = value; return option;
+      }));
+      clusterSelect.value = clusters.includes(selectedCluster) ? selectedCluster : "";
+      clusterSelect.dataset.signature = clusterSignature;
+    }
+    const mineOnly = $("utilization-mine").checked, cluster = clusterSelect.value;
+    const tasks = data.tasks.filter(task => (!mineOnly || task.is_mine === true) && (!cluster || task.cluster === cluster)).sort((a, b) => Number(!known(a.gpu_utilization)) - Number(!known(b.gpu_utilization))
       || (known(a.gpu_utilization) && known(b.gpu_utilization) ? a.gpu_utilization - b.gpu_utilization : 0)
       || a.id.localeCompare(b.id));
-    $("utilization-count").textContent = data.updated_at ? (mineOnly ? `${tasks.length} / ${data.tasks.length}` : tasks.length) : "—";
+    $("utilization-count").textContent = data.updated_at ? (mineOnly || cluster ? `${tasks.length} / ${data.tasks.length}` : tasks.length) : "—";
     const valid = tasks.filter(task => known(task.gpu_utilization)).length;
     $("utilization-status").textContent = `${data.loading ? "正在读取实时 GPU 利用率，已取得的结果先显示" : data.status === "error" ? "读取失败 · 当前为旧列表" : "实时 GPU 利用率从低到高"} · ${mineOnly ? "仅我的任务 · " : ""}${valid} 个有效值 / ${tasks.length} 个 ${kind} 任务 · 列表更新 ${date(data.updated_at)}`;
     const showWarnings = !mineOnly || data.status === "error" || tasks.some(task => !["ok", "no_gpu"].includes(task.metric_status));
     $("utilization-warning").hidden = !showWarnings || !data.warnings?.length;
     $("utilization-warning").textContent = (data.warnings || []).join(" ");
     // Header-only updates must not rebuild unchanged task rows.
-    const signature = JSON.stringify([data.status, tasks.length ? null : data.loading, mineOnly, kind,
+    const signature = JSON.stringify([data.status, tasks.length ? null : data.loading, mineOnly, kind, cluster,
       tasks.map(task => [task.id, task.name, task.owner, task.cluster, task.gpu_count, task.replicas,
         task.is_mine, task.gpu_utilization, task.metric_status,
         task.created_at, task.started_at, task.duration_estimated, task.url, task.can_stop])]);
@@ -105,7 +115,7 @@
       row.append(...cells); fragment.append(row);
     }
     if (!tasks.length) {
-      const cell = node("td", data.loading ? `正在读取运行中的 ${kind} 任务…` : data.status === "error" ? `${kind} 列表暂不可用，请稍后重试` : mineOnly ? `当前没有我的运行中 ${kind} 任务（名称包含 charles）` : `当前没有运行中的 ${kind} 任务`, "table-empty");
+      const cell = node("td", data.loading ? `正在读取运行中的 ${kind} 任务…` : data.status === "error" ? `${kind} 列表暂不可用，请稍后重试` : cluster ? `当前集群中没有符合条件的运行中 ${kind} 任务` : mineOnly ? `当前没有我的运行中 ${kind} 任务（名称包含 charles）` : `当前没有运行中的 ${kind} 任务`, "table-empty");
       cell.colSpan = 7; const row = node("tr"); row.append(cell); fragment.append(row);
       renderedRows.clear();
     }
@@ -157,6 +167,7 @@
   document.addEventListener("visibilitychange", () => activate(location.hash.slice(1)));
   $("refresh-button").addEventListener("click", () => refresh(true));
   $("utilization-mine").addEventListener("change", render);
+  $("utilization-cluster").addEventListener("change", render);
   for (const button of document.querySelectorAll("[data-utilization-kind]")) button.addEventListener("click", () => {
     kind = button.dataset.utilizationKind;
     for (const item of document.querySelectorAll("[data-utilization-kind]")) {
