@@ -286,10 +286,10 @@
 :root[data-theme="dark"] .ssh-card { --ssh-primary-ink: #102b22; }
 .ssh-card:hover, .ssh-card:focus-within { border-color: var(--accent-line); box-shadow: 0 3px 14px color-mix(in srgb, var(--accent) 7%, transparent); }
 .ssh-card-heading { display: flex; align-items: center; gap: 11px; min-width: 0; }
-.ssh-server-icon { display: grid; place-items: center; flex: 0 0 24px; height: 28px; color: var(--accent-strong); }
+.ssh-server-icon { display: grid; place-items: center; align-self: flex-start; padding-top: 2px; flex: 0 0 24px; height: 28px; color: var(--accent-strong); }
 .ssh-server-icon svg { width: 21px; height: 21px; }
 .ssh-identity { flex: 1; min-width: 0; }
-.ssh-card h3 { margin: 0; overflow-wrap: anywhere; font-size: 18px; font-weight: 650; line-height: 1.3; letter-spacing: -.35px; }
+.ssh-card h3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 0; overflow-wrap: anywhere; font-size: 18px; font-weight: 650; line-height: 1.3; letter-spacing: -.35px; }
 .ssh-card .ssh-endpoint { margin: 4px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .ssh-online { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 4px 8px; border-radius: 999px; background: var(--surface-raised); color: var(--accent-strong); font-size: 11px; line-height: 1.5; white-space: nowrap; }
 .ssh-online[data-state="ready"] { background: var(--accent-soft); }
@@ -367,6 +367,122 @@ body:has(#ssh-view:not([hidden])) .refresh-cadence { display: none; }
 .ssh-transfer-actions { display: flex; gap: 3px; padding-left: 3px; border-left: 1px solid var(--line); }
 .ssh-transfer-launch { width: 30px; height: 30px; border-radius: 6px; color: var(--muted); }
 .ssh-transfer-launch:hover, .ssh-transfer-launch:focus-visible { color: var(--accent-strong); background: var(--accent-soft); border-color: var(--accent-line); }
+.ssh-card .ssh-health-launch { display: flex; align-items: center; gap: 7px; margin-top: 11px; min-height: 36px; padding: 10px 2px 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--accent-strong); font-family: inherit; font-size: 12px; line-height: 1.6; text-align: left; cursor: pointer; }
+.ssh-health-launch svg, .ssh-health-failure svg { width: 16px; height: 16px; flex-shrink: 0; }
+.ssh-health-launch svg:last-child { margin-left: auto; width: 13px; color: var(--muted); }
+.ssh-card .ssh-health-launch:hover { color: var(--accent); }
+.ssh-meta dt { display: inline-flex; align-items: center; gap: 4px; }
+.ssh-meta dt svg { width: 12px; height: 12px; flex-shrink: 0; }
+.ssh-health-failure { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; min-height: 32px; padding: 5px 12px; font-size: 12px; flex-shrink: 0; }
+.ssh-transfer-dialog.ssh-health-dialog { width: min(1080px, calc(100vw - 32px)); }
+.ssh-health-dialog .ssh-transfer-header p { overflow-wrap: anywhere; }
+.ssh-health-mark { color: var(--accent-strong); padding-top: 3px; }
+.ssh-health-mark svg { width: 25px; height: 25px; }
+.ssh-health-toolbar { display: flex; align-items: center; gap: 13px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-raised); }
+.ssh-health-status-icon { display: flex; flex-shrink: 0; color: var(--accent-strong); }
+.ssh-health-status-icon svg { width: 28px; height: 28px; }
+.ssh-health-toolbar:is([data-state="warning"], [data-state="unavailable"], [data-state="partial"]) .ssh-health-status-icon { color: var(--warning-ink); }
+.ssh-health-toolbar[data-state="unknown"] .ssh-health-status-icon { color: var(--muted); }
+.ssh-health-summary { flex: 1; min-width: 0; }
+.ssh-health-toolbar strong { color: var(--ink); font-size: 15px; line-height: 1.6; }
+.ssh-health-toolbar strong[data-state="healthy"] { color: var(--accent-strong); }
+.ssh-health-toolbar strong:is([data-state="warning"], [data-state="unavailable"]) { color: var(--warning-ink); }
+.ssh-health-toolbar .ssh-health-time { display: flex; align-items: flex-start; gap: 5px; margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.ssh-health-time > span:first-child { display: flex; padding-top: 3px; }
+.ssh-health-time svg { width: 13px; height: 13px; flex-shrink: 0; }
+.ssh-health-dialog [data-run] { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 7px; min-height: 38px; }
+.ssh-health-dialog [data-run] svg { width: 16px; height: 16px; flex-shrink: 0; }
+.ssh-health-message { color: var(--warning-ink); margin: 12px 0; font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
+.ssh-health-message:empty { display: none; }
+.ssh-health-layout { display: grid; grid-template-columns: minmax(250px, .9fr) minmax(0, 1.8fr); gap: 24px; margin-top: 24px; }
+.ssh-health-layout h3 { margin: 0 0 14px; color: var(--ink); font-size: 14px; }
+.ssh-health-heading { display: flex; align-items: center; gap: 8px; }
+.ssh-health-heading > svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--muted); }
+.ssh-health-heading > small { margin-left: auto; font-size: 11px; color: var(--muted); font-weight: 400; white-space: nowrap; }
+.ssh-health-diagnostics { border-right: 1px solid var(--line); padding-right: 20px; min-width: 0; }
+.ssh-health-steps { list-style: none; padding: 2px 0 0; margin: 0; }
+.ssh-health-steps li { display: flex; align-items: flex-start; gap: 10px; position: relative; padding-bottom: 21px; }
+.ssh-health-steps li:not(:last-child)::before { content: ""; position: absolute; left: 11px; top: 29px; bottom: 5px; width: 1px; background: var(--line); }
+.ssh-health-indicator { display: grid; place-items: center; flex: 0 0 24px; height: 27px; color: var(--muted); }
+.ssh-health-indicator svg { width: 20px; height: 20px; }
+.ssh-health-steps [data-state="ok"] .ssh-health-indicator { color: var(--accent-strong); }
+.ssh-health-steps [data-state="error"] :is(.ssh-health-indicator, .ssh-health-step-status) { color: var(--warning-ink); }
+.ssh-health-step-content { flex: 1; min-width: 0; }
+.ssh-health-step-title { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ssh-health-steps strong { color: var(--ink); font-size: 13px; line-height: 1.9; }
+.ssh-health-step-status { display: inline-flex; align-items: baseline; gap: 6px; flex-shrink: 0; color: var(--muted); font-size: 11px; line-height: 1.8; }
+.ssh-health-step-status small { font-size: 10px; font-variant-numeric: tabular-nums; }
+.ssh-health-steps [data-state="ok"] .ssh-health-step-status { color: var(--accent-strong); }
+.ssh-health-steps p { margin: 3px 0 0; color: var(--muted); font-size: 12px; line-height: 1.75; overflow-wrap: anywhere; }
+.ssh-health-metrics { min-width: 0; }
+.ssh-health-system { display: flex; flex-wrap: wrap; gap: 7px 16px; color: var(--muted); margin: 0 0 15px; font-size: 12px; line-height: 1.8; }
+.ssh-health-system > span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
+.ssh-health-system svg { width: 14px; height: 14px; flex-shrink: 0; }
+.ssh-health-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ssh-health-stats > div { padding: 14px; min-width: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.ssh-health-stat-label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.ssh-health-stat-label svg { width: 17px; height: 17px; flex-shrink: 0; }
+.ssh-health-stats strong { display: block; margin: 9px 0; color: var(--ink); font-size: 27px; line-height: 1.2; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+.ssh-health-stats small { display: block; color: var(--muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.ssh-health-stats > [data-state="warning"] strong { color: var(--warning-ink); }
+.ssh-health-meter { display: block; height: 4px; overflow: hidden; background: var(--surface-raised); border-radius: 4px; }
+.ssh-health-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.ssh-health-meter[data-state="warning"] > span { background: var(--warning-ink); }
+.ssh-health-stats .ssh-health-meter { margin: 2px 0 10px; }
+.ssh-health-percent { min-width: 55px; font-variant-numeric: tabular-nums; }
+.ssh-health-percent .ssh-health-meter { margin: 5px 0; max-width: 130px; }
+.ssh-health-percent small { color: var(--muted); font-size: 11px; }
+.ssh-health-section { margin-top: 23px; }
+.ssh-health-section h3 { margin-bottom: 10px; }
+.ssh-health-table-scroll { overflow-x: auto; overscroll-behavior-x: contain; border: 1px solid var(--line); border-radius: 9px; }
+.ssh-health-table { width: 100%; min-width: 440px; border-collapse: collapse; font-size: 12px; line-height: 1.75; color: var(--ink); text-align: left; font-variant-numeric: tabular-nums; }
+.ssh-health-table th { color: var(--muted); font-weight: 500; background: var(--surface-raised); }
+.ssh-health-table :is(th, td) { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.ssh-health-table tr:last-child td { border-bottom: 0; }
+.ssh-health-table td:first-child { min-width: 90px; max-width: 180px; overflow-wrap: anywhere; }
+.ssh-health-table td:not(:first-child) { white-space: nowrap; }
+.ssh-health-muted { color: var(--muted); font-size: 13px; line-height: 1.85; overflow-wrap: anywhere; }
+.ssh-health-empty { padding: 30px 18px; margin: 20px 0 0; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); text-align: center; }
+.ssh-health-empty > svg { width: 30px; height: 30px; margin-bottom: 12px; color: var(--accent-strong); }
+.ssh-health-empty > strong { display: block; color: var(--ink); font-size: 15px; font-weight: 600; }
+.ssh-health-empty p { max-width: 46ch; margin: 9px auto 0; font-size: 13px; line-height: 1.85; overflow-wrap: anywhere; }
+.ssh-health-metrics > .ssh-health-empty { margin: 0; }
+.ssh-health-scope { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px 20px; margin-top: 23px; font-size: 12px; }
+.ssh-health-scope > span { display: inline-flex; align-items: center; gap: 6px; }
+.ssh-health-scope svg { width: 16px; height: 16px; }
+.ssh-health-alert { display: flex; align-items: flex-start; gap: 9px; padding: 12px 14px; margin: 0 0 17px; border: 1px solid color-mix(in srgb, var(--warning-ink) 25%, var(--line)); border-radius: 9px; color: var(--warning-ink); background: var(--warning-bg, var(--surface-raised)); }
+.ssh-health-alert > svg { flex: 0 0 17px; width: 17px; height: 17px; margin-top: 3px; }
+.ssh-health-issues { padding: 0; margin: 0; list-style: none; font-size: 12px; line-height: 1.9; overflow-wrap: anywhere; }
+.ssh-health-issues li + li { margin-top: 5px; }
+.ssh-health-help { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.85; }
+.ssh-health-help p { margin: 10px 0 0; }
+.ssh-health-help summary, .ssh-health-io summary { display: flex; align-items: center; gap: 7px; padding: 4px 0; list-style: none; cursor: pointer; color: var(--ink); }
+.ssh-health-dialog summary::-webkit-details-marker { display: none; }
+.ssh-health-dialog summary > svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--muted); }
+.ssh-health-dialog summary > svg:last-child { margin-left: auto; width: 13px; transition: transform .15s; }
+.ssh-health-dialog details[open] > summary > svg:last-child { transform: rotate(90deg); }
+.ssh-health-io { margin-top: 18px; color: var(--muted); font-size: 12px; }
+.ssh-health-io .ssh-health-section { margin-top: 12px; }
+.ssh-health-dialog :is(button, summary, [tabindex]):focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+@media (max-width: 760px) {
+  .ssh-health-layout { grid-template-columns: minmax(0, 1fr); gap: 20px; margin-top: 20px; }
+  .ssh-health-diagnostics { border-right: 0; border-bottom: 1px solid var(--line); padding: 0 0 2px; }
+  .ssh-health-steps li { padding-bottom: 15px; }
+  .ssh-health-toolbar { display: grid; grid-template-columns: 23px minmax(0, 1fr) auto; align-items: start; padding: 12px; gap: 8px; }
+  .ssh-health-status-icon svg { width: 23px; height: 23px; }
+  .ssh-health-toolbar strong { font-size: 14px; }
+  .ssh-health-toolbar [data-run] { margin-left: auto; }
+  .ssh-health-stats > div { padding: 12px; }
+  .ssh-health-step-title { gap: 6px; }
+}
+@media (max-width: 380px) {
+  .ssh-health-toolbar { grid-template-columns: 20px minmax(0, 1fr); gap: 8px; padding: 10px; }
+  .ssh-health-status-icon svg { width: 20px; height: 20px; }
+  .ssh-health-dialog [data-run] { grid-column: 1 / -1; width: 100%; margin: 2px 0 0; padding: 8px; gap: 5px; font-size: 12px; }
+  .ssh-health-dialog [data-run] svg { width: 14px; height: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { .ssh-health-dialog summary > svg:last-child { transition: none; } }
+@media (pointer: coarse) { .ssh-card .ssh-health-launch, .ssh-health-failure, .ssh-health-dialog [data-run], .ssh-health-help summary, .ssh-health-io summary { min-height: 44px; } }
 .ssh-transfer-dialog { --transfer-error: #b0443b; box-sizing: border-box; width: min(720px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); padding: 24px; overflow: auto; scrollbar-gutter: stable; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--dialog-shadow); font-size: 13px; }
 :root[data-theme="dark"] .ssh-transfer-dialog { --transfer-error: #f0a49b; }
 .ssh-transfer-dialog::backdrop { background: #111b1966; backdrop-filter: blur(4px); }

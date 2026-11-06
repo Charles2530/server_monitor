@@ -3,6 +3,7 @@ import asyncio
 import errno
 import fcntl
 import glob
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -21,6 +22,7 @@ from .cci_ide import CCIEditor, SSHForward
 from .config import DATA
 from .ide_bootstrap import bootstrap_script
 from .terminal_bridge import TerminalBridge, Session, dimensions, MAX_SESSIONS, IDLE_SECONDS
+from .ssh_health import SSHHealth
 
 ALIAS = r'[A-Za-z0-9][A-Za-z0-9_.-]{0,100}'
 SSH_SITE = SimpleNamespace(id='ssh', data=DATA / 'ssh')
@@ -81,6 +83,7 @@ class SSHCatalog:
         self.host_lock = asyncio.Lock()
         self.host_cache = None
         self.host_read_at = 0
+        self.health = SSHHealth(self, command)
 
     def options(self):
         return ['-F', str(self.path), '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5',
@@ -103,7 +106,9 @@ class SSHCatalog:
                 fields = dict(line.split(None, 1) for line in output.decode(errors='replace').splitlines() if ' ' in line)
                 hostname = fields.get('hostname', alias)
                 if any(name in hostname.lower() for name in ('github', 'gitlab')): return None
-                return {'alias': alias, 'hostname': hostname, 'user': fields.get('user', ''), 'port': int(fields.get('port', 22))}
+                proxy = any(fields.get(key, 'none') not in ('none', '') for key in ('proxyjump', 'proxycommand'))
+                return {'alias': alias, 'hostname': hostname, 'user': fields.get('user', ''), 'port': int(fields.get('port', 22)),
+                        'route': 'proxy' if proxy else 'direct', 'config_id': hashlib.sha256(output).hexdigest()[:20]}
             self.host_cache = [host for host in await asyncio.gather(*(resolve(alias) for alias in aliases)) if host]
             self.host_read_at = time.monotonic()
             return self.host_cache
@@ -174,6 +179,7 @@ class SSHCatalog:
                 'checking': bool(self.task and not self.task.done())}
 
     async def close(self):
+        await self.health.close()
         if self.task:
             self.task.cancel()
             await asyncio.gather(self.task, return_exceptions=True)

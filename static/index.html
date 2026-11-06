@@ -153,6 +153,7 @@
         <div class="th-tabs" role="group" aria-label="TokenHub 详情分类">
           <button type="button" class="active" data-tokenhub-tab="dashboard" aria-pressed="true"><svg class="th-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>仪表板</button>
           <button type="button" data-tokenhub-tab="keys" aria-pressed="false"><svg class="th-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.5" cy="15.5" r="3.5"/><path d="m11 13 8-8m-3 3 2 2m-5 1 2 2"/></svg>API 密钥</button>
+          <button type="button" data-tokenhub-tab="sources" aria-pressed="false"><svg class="th-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="6" rx="2"/><rect x="3" y="15" width="18" height="6" rx="2"/><path d="M7 6h.01M7 18h.01M12 9v6"/></svg>API 来源</button>
           <button type="button" data-tokenhub-tab="quotas" aria-pressed="false"><svg class="th-tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19a8 8 0 1 1 16 0"/><path d="m12 13 3-3M6.5 17h.01M17.5 17h.01M8.7 11.2h.01M15.3 11.2h.01"/></svg>账号额度</button>
         </div>
         <div data-tokenhub-panel="dashboard">
@@ -182,6 +183,33 @@
           <p id="tokenhub-keys-status" class="th-section-status" role="status"></p><div class="th-table-scroll" role="region" aria-label="TokenHub API 密钥，可滚动查看" tabindex="0"><table class="th-table"><thead><tr><th scope="col">名称 / 分组</th><th scope="col">状态</th><th scope="col">当前并发</th><th scope="col">用量 USD</th><th scope="col">到期时间</th><th scope="col">最近使用</th></tr></thead><tbody id="tokenhub-keys-body"><tr><td colspan="6" class="th-empty">连接后查看 API 密钥</td></tr></tbody></table></div>
           <div class="th-pagination"><span id="tokenhub-keys-page">—</span><div><button id="tokenhub-keys-prev" class="button button-secondary" type="button" disabled>上一页</button><button id="tokenhub-keys-next" class="button button-secondary" type="button" disabled>下一页</button></div></div>
         </section>
+        <div data-tokenhub-panel="sources" hidden>
+          <div id="tokenhub-source-metrics" class="th-metrics th-detail-metrics"></div>
+          <section class="dashboard-panel th-section">
+            <div class="panel-heading"><div><h2>API 来源</h2><p>统一查看接入地址、密钥与实测结果 · 独立于 TokenHub 登录</p></div><button id="tokenhub-source-add" class="button button-primary" type="button">添加来源</button></div>
+            <div class="th-filters th-source-filters"><label>查找来源<input id="tokenhub-source-search" type="search" placeholder="名称、地址或模型"></label><label>检测状态<select id="tokenhub-source-filter" class="th-select"><option value="all">全部来源</option><option value="available">最近检测可用</option><option value="issues">需要关注</option><option value="untested">尚未检测</option></select></label><button id="tokenhub-source-check-all" class="button button-secondary" type="button">检测可用性</button></div>
+            <p id="tokenhub-source-status" class="th-section-status" role="status" aria-live="polite">打开页签后读取本机配置</p>
+            <div id="tokenhub-source-list" class="th-source-grid"></div>
+          </section>
+          <section class="dashboard-panel th-section th-source-guide" aria-labelledby="tokenhub-methods-title">
+            <div class="panel-heading"><div><h2 id="tokenhub-methods-title">检测方法与依据</h2><p>标准答案用于筛查能力，参考指纹用于审计模型一致性</p></div><span class="heading-tag">一手来源</span></div>
+            <div class="th-source-guide-grid">
+              <div><h3><span>01</span> 先确认能否使用</h3><p>对指定模型发起真实推理请求，记录耗时、返回模型名和检测时间。证书、权限、限流、输出截断分别展示；能读取模型列表不等于能推理。</p></div>
+              <div><h3><span>02</span> 再核对能力表现</h3><p>糖果组合推理、代码推演、指令遵循各 2 项，包含随机变式，严格核对 JSON 标准答案。通过、异常、未完成分别展示；无需官方 key 即可筛查明显异常。</p></div>
+              <div><h3><span>03</span> 身份需参考指纹</h3><p>单题答对、模型自报名称、reasoning token 数均不足以确认身份。KBF 等研究方法比较参考端与待测端的行为分布；协议、模型版本与推理配置必须核对。</p></div>
+            </div>
+            <div class="th-source-methods" aria-label="评测来源与适用范围">
+              <div class="th-source-method"><div><a href="https://github.com/haowang02/codex-candy-eval" target="_blank" rel="noopener noreferrer">糖果测试 ↗</a><small>组合推理 · 已用于筛查</small></div><p>保留原题并增加数量变式，明确可按形状挑选；答案由本机穷举配额验证。严格核对最终答案，不用“包含 21”作为通过条件。</p><span>已接入</span></div>
+              <div class="th-source-method"><div><a href="https://github.com/google-research/google-research/tree/master/instruction_following_eval" target="_blank" rel="noopener noreferrer">IFEval ↗</a><small>可验证的指令遵循</small></div><p>借鉴可程序校验约束的思路，检查结构、字段、排序、去重与计数。本页使用自建小题，不是官方 IFEval 评测分数。</p><span>方法参考</span></div>
+              <div class="th-source-method"><div><a href="https://github.com/Ooo0ption/KBF" target="_blank" rel="noopener noreferrer">KBF 模型指纹 ↗</a><small>模型替换审计 · 公开参考数据</small></div><p>项目包含 GPT-6-astra 的 538 个参考探针及自测记录。需要按其审计协议单独运行；本页的 6 项筛查不代表 KBF 结论。</p><span>独立审计</span></div>
+              <div class="th-source-method"><div><a href="https://simonwillison.net/2026/Jul/16/kimi-k3/" target="_blank" rel="noopener noreferrer">鹈鹕骑自行车 ↗</a><small>SVG 生成 · 适合人工观察</small></div><p>作者已明确提醒，不应再用鹈鹕图比较模型整体水平。可观察视觉与指令表现，不作为本页自动判定降智的依据。</p><span>观察样例</span></div>
+            </div>
+            <details class="th-source-notes"><summary>审计边界、配置与请求用量</summary><p>每次能力筛查最多 6 次真实请求，可能计费，输出预算每次 4096 tokens；请求失败与截断不计为能力答错。随机变式的单轮分数不能直接当作历史降幅。initial 配置只读，配置变化后旧检测失效，自定义来源和最近 10 次检测记录保存在本机。刷新不发起推理请求。</p><p>进一步阅读 <a href="https://arxiv.org/abs/2504.04715" target="_blank" rel="noopener noreferrer">LLM API 模型替换审计研究 ↗</a> · <a href="https://arxiv.org/abs/2610.37086" target="_blank" rel="noopener noreferrer">DFA 分布指纹研究 ↗</a>。统计不一致提示需要复核；未拒绝一致性也不等于证明模型身份。</p></details>
+          </section>
+        </div>
+        <dialog id="tokenhub-source-dialog" class="th-original-dialog th-source-dialog" aria-labelledby="tokenhub-source-title">
+          <form id="tokenhub-source-form"><h2 id="tokenhub-source-title">添加 API 来源</h2><div class="th-source-form-grid"><label>来源名称<input name="name" required maxlength="80" placeholder="例如 iLab"></label><label>API 协议<select name="protocol" class="th-select"><option value="responses">OpenAI Responses</option><option value="chat">OpenAI Chat Completions</option><option value="anthropic">Anthropic Messages</option></select></label><label class="th-source-wide">Base URL<input name="base_url" type="url" required maxlength="1000" placeholder="https://api.example.com/v1"></label><label class="th-source-wide">API key<input name="key" type="password" autocomplete="new-password" maxlength="16384" placeholder="仅保存在本机"></label><label>默认模型<input name="model" maxlength="200" placeholder="可稍后发现模型"></label><label>推理档位<select name="effort" class="th-select"><option value="">服务默认</option><option value="none">none</option><option value="minimal">minimal</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="xhigh">xhigh</option></select></label></div><p id="tokenhub-source-form-status" class="th-group-note" role="status">填写 API 根地址；Anthropic 协议会自动补 /v1。</p><div class="th-actions"><button class="button button-primary" type="submit">保存来源</button><button id="tokenhub-source-cancel" class="button button-secondary" type="button">取消</button></div></form>
+        </dialog>
         <div data-tokenhub-panel="quotas" hidden>
           <section class="dashboard-panel th-section"><div class="panel-heading"><div><h2>账号额度</h2><p>各周期使用率与重置时间 · 不同窗口的额度不合并计算</p></div><a class="panel-link" href="https://tokenhub.ilab.beer/account-quotas" target="_blank" rel="noopener noreferrer">原站额度 ↗</a></div><p id="tokenhub-account-quotas-status" class="th-section-status"></p><div id="tokenhub-account-quotas" class="th-quota-grid"></div></section>
         </div>

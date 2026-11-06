@@ -54,6 +54,197 @@
     return data;
   }
 
+  let sourceData = null, sourcesLoading = false, sourcesReload = false, sourceEdit = null, sourceBatch = false;
+  const sourceBusy = new Set(), sourceModels = new Map(), sourceMessages = new Map();
+  const sourceStatus = (value) => ({ available: "可用", auth_error: "认证失败", rate_limited: "限流 / 额度", model_error: "模型 / 接口错误", redirect: "重定向被阻止", upstream_error: "上游异常", network_error: "网络连接失败", tls_error: "证书校验失败", timeout: "请求超时", incomplete: "响应未完成", invalid_response: "响应异常" })[value] || "尚未检测";
+  const sourceProtocol = (value) => ({ responses: "Responses", chat: "Chat Completions", anthropic: "Anthropic Messages" })[value] || value;
+  const sourceIdentity = (item) => ({ source_id: item.id, fingerprint: item.fingerprint });
+  const sourceModel = (item) => sourceModels.get(item.id) ?? item.probe_model ?? item.model ?? "";
+  const sourceQuality = (score) => {
+    if (!score) return { label: "等待筛查", detail: "糖果推理 · 代码推演 · 指令遵循", tone: "unknown" };
+    if (score.verdict === "screen_passed") return { label: "本轮筛查通过", detail: "标准答案校验通过 · 模型身份需另行审计", tone: "passed" };
+    if (score.verdict === "review") return { label: "发现异常 · 建议复测", detail: "存在答题或格式错误，展开记录查看分项", tone: "warning" };
+    if (score.verdict === "incomplete") return { label: "筛查未完成", detail: "请求中断不算答错，请检查连接或输出预算", tone: "unknown" };
+    return { label: "旧版评测 · 请重新筛查", detail: "旧版简单题得分不作为本轮能力证据", tone: "unknown" };
+  };
+  const sourcePost = (path, body, signal) => request(`/api/tokenhub/source-${path}`, { method: "POST", headers: { "Content-Type": "application/json", "X-Monitor-Request": "1" }, body: JSON.stringify(body), signal });
+
+  async function copySourceText(text) {
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+    else if (!legacyCopy(text)) throw new Error("浏览器未允许复制，请重试。");
+  }
+
+  async function loadSources() {
+    if (route !== "tokenhub" || selectedTab !== "sources" || document.hidden) return;
+    if (sourcesLoading) { sourcesReload = true; return; }
+    sourcesLoading = true;
+    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 15000);
+    $("tokenhub-source-status").textContent = "正在读取本机来源…";
+    try {
+      const data = await request("/api/tokenhub/sources", { signal: controller.signal });
+      if (!Array.isArray(data.items)) throw new Error("来源数据格式无法识别。");
+      sourceData = data;
+      renderSources();
+      if (route === "tokenhub" && selectedTab === "sources") render();
+      $("tokenhub-source-status").textContent = [`${data.items.length} 个来源 · initial：${data.initial_dir}`, ...data.errors].join(" · ");
+    } catch (error) {
+      $("tokenhub-source-status").textContent = `${error.name === "AbortError" ? "读取超时" : error.message}${sourceData ? " · 保留上次数据" : ""}`;
+    } finally {
+      clearTimeout(timeout); sourcesLoading = false;
+      if (sourcesReload) { sourcesReload = false; void loadSources(); }
+    }
+  }
+
+  async function checkSource(item, mode) {
+    if (sourceBusy.has(item.id) || item.busy) return;
+    const model = sourceModel(item).trim();
+    if (mode !== "models" && !model) {
+      sourceMessages.set(item.id, "请先发现模型，或填写要检测的模型。"); renderSources(); return;
+    }
+    sourceBusy.add(item.id); sourceMessages.set(item.id, mode === "quality" ? "正在进行重复评测，最多 6 次请求…" : mode === "models" ? "正在读取模型列表…" : "正在检测推理可用性…");
+    renderSources();
+    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 85000);
+    try {
+      const result = await sourcePost("check", { ...sourceIdentity(item), mode, model }, controller.signal);
+      sourceMessages.set(item.id, mode === "models" ? result.models_status?.status === "available" ? `已发现 ${result.models?.length || 0} 个模型；请选择后检测。` : result.models_status?.message || "模型列表读取失败。" : result.availability?.message || "检测已结束。");
+      if (mode === "models" && !model && result.models?.length === 1) sourceModels.set(item.id, result.models[0]);
+    } catch (error) { sourceMessages.set(item.id, error.name === "AbortError" ? "请求超时，请刷新记录后再试。" : error.message); }
+    finally { clearTimeout(timeout); sourceBusy.delete(item.id); await loadSources(); renderSources(); }
+  }
+
+  function renderSources() {
+    if (!sourceData) return;
+    const items = sourceData.items, available = items.filter((item) => item.availability?.status === "available").length;
+    const needsAttention = (item) => !item.has_key || item.quality?.verdict === "review" || item.availability && item.availability.status !== "available" || !item.availability && item.models_status && item.models_status.status !== "available";
+    const issues = items.filter(needsAttention).length;
+    $("tokenhub-source-metrics").replaceChildren(
+      metric("API 来源", count(items.length), `${items.filter((item) => item.origin === "initial").length} 个来自 initial`, false, 2),
+      metric("最近检测可用", count(available), "仅代表所测模型和检测时刻", false, 3),
+      metric("需要关注", count(issues), `${items.filter((item) => !item.availability).length} 个尚未检测`, false, 1),
+      metric("能力筛查通过", count(items.filter((item) => item.quality?.verdict === "screen_passed").length), "标准答案校验 · 3 类共 6 项", false, 0));
+    $("tokenhub-source-add").hidden = !sourceData.can_manage;
+    $("tokenhub-source-check-all").disabled = sourceBatch || !items.some((item) => item.has_key && sourceModel(item) && !sourceBusy.has(item.id) && !item.busy);
+    const query = $("tokenhub-source-search").value.trim().toLowerCase(), filter = $("tokenhub-source-filter").value;
+    const visible = items.filter((item) => [item.name, item.base_url, item.client, sourceModel(item)].join(" ").toLowerCase().includes(query)
+      && (filter === "all" || filter === "available" && item.availability?.status === "available" || filter === "issues" && needsAttention(item) || filter === "untested" && !item.availability));
+    const container = $("tokenhub-source-list"), active = document.activeElement;
+    const focusId = active?.closest?.("[data-source-id]")?.dataset.sourceId;
+    const focusIndex = focusId ? [...active.closest("[data-source-id]").querySelectorAll("input, button, summary")].indexOf(active) : -1;
+    const selection = focusId && active.matches("input") ? [active.selectionStart, active.selectionEnd] : null;
+    const expanded = new Set([...container.querySelectorAll("details[open]")].map((element) => element.closest("[data-source-id]").dataset.sourceId));
+    container.replaceChildren();
+    for (const item of visible) {
+      const card = node("article", undefined, "th-source-card"), busy = sourceBusy.has(item.id) || item.busy;
+      card.dataset.sourceId = item.id;
+      const heading = node("div", undefined, "th-quota-heading"), identity = node("div");
+      identity.append(node("h3", item.name), node("small", `${item.client} · ${sourceProtocol(item.protocol)} · ${item.origin === "initial" ? "initial 导入" : "本机配置"}`));
+      const status = item.availability?.status;
+      heading.append(identity, node("span", busy ? "检测中…" : !item.has_key ? "缺少密钥" : sourceStatus(status), `th-badge${status === "available" ? "" : status || !item.has_key ? " is-warning" : " is-unknown"}`)); card.append(heading);
+      const button = (label, action, disabled = false) => {
+        const element = node("button", label, "button button-secondary"); element.type = "button"; element.disabled = disabled;
+        element.addEventListener("click", async () => {
+          try { await action(); }
+          catch (error) { sourceMessages.set(item.id, error.message); renderSources(); }
+        }); return element;
+      };
+      const url = node("div", undefined, "th-source-config"), key = node("div", undefined, "th-source-config");
+      url.append(node("small", "Base URL"), node("code", item.base_url), button("复制地址", async () => { await copySourceText(item.base_url); sourceMessages.set(item.id, "地址已复制。"); renderSources(); }));
+      key.append(node("small", "API key"), node("code", item.key_hint), button("复制密钥", async () => {
+        const data = await sourcePost("copy", sourceIdentity(item));
+        try {
+          if (typeof data.key !== "string" || !data.key) throw new Error("未获取到密钥。");
+          if (document.hidden || route !== "tokenhub" || selectedTab !== "sources") return;
+          await copySourceText(data.key); sourceMessages.set(item.id, "密钥已复制到剪贴板。"); renderSources();
+        } finally { delete data.key; }
+      }, !item.has_key)); card.append(url, key);
+      const label = node("label", undefined, "th-source-model"), input = node("input");
+      input.value = sourceModel(item); input.placeholder = "输入模型名称或点击发现模型"; input.maxLength = 200;
+      input.setAttribute("aria-label", `${item.name} ${item.client} 检测模型`); input.disabled = busy;
+      input.setAttribute("list", `source-models-${item.id}`);
+      const suggestions = node("datalist"); suggestions.id = `source-models-${item.id}`;
+      for (const model of item.models || []) { const option = node("option"); option.value = model; suggestions.append(option); }
+      input.addEventListener("input", () => { sourceModels.set(item.id, input.value); $("tokenhub-source-check-all").disabled = sourceBatch; });
+      label.append(node("span", `检测模型${item.effort ? " · reasoning " + item.effort : ""}`), input, suggestions); card.append(label);
+      const evidence = node("div", undefined, "th-source-evidence"), health = node("div"), quality = node("div"), check = item.availability, score = item.quality;
+      health.append(node("small", "可用性实测"), node("strong", check ? sourceStatus(check.status) : "等待检测"), node("small", check ? `${check.latency_ms ?? "—"} ms · ${date(check.checked_at)}` : "指定模型 · 1 次推理请求"));
+      if (check) health.append(node("small", `检测模型 ${check.model || "—"}${check.reported_model ? " · 返回 " + check.reported_model : ""}`));
+      if (!check && item.models_status) health.append(node("small", `模型发现：${item.models_status.status === "available" ? "列表已读取，推理尚未检测" : item.models_status.message} · ${date(item.models_status.checked_at)}`));
+      const verdict = sourceQuality(score); quality.dataset.tone = verdict.tone;
+      quality.append(node("small", "能力筛查"), node("strong", verdict.label));
+      if (score) {
+        quality.append(node("span", `${score.passed} / ${score.scored} 项通过`, "th-source-score"));
+        const progress = node("progress"); progress.max = score.planned || 6; progress.value = score.passed || 0;
+        progress.setAttribute("aria-label", `能力筛查：${score.planned || 6} 项中 ${score.passed || 0} 项通过`); quality.append(progress);
+      }
+      quality.append(node("small", verdict.detail));
+      if (score) quality.append(node("small", `${score.model} · ${date(score.checked_at)}`));
+      evidence.append(health, quality); card.append(evidence);
+      const actions = node("div", undefined, "th-source-actions");
+      actions.append(button("发现模型", () => checkSource(item, "models"), busy || !item.has_key), button("检测可用性", () => checkSource(item, "availability"), busy || !item.has_key), button("质量评测 · 最多6次", async () => {
+        if (confirm(`对 ${item.name} / ${sourceModel(item) || "未指定模型"} 进行最多 6 次真实 API 请求，可能产生费用。开始评测？`)) await checkSource(item, "quality");
+      }, busy || !item.has_key)); actions.lastElementChild.classList.add("th-source-quality"); card.append(actions);
+      const message = node("p", sourceMessages.get(item.id) || (check && check.status !== "available" ? check.message : check?.reasoning_tokens != null ? `上游报告 reasoning tokens：${check.reasoning_tokens}（仅供参考）` : "刷新不发起推理请求"), "th-source-message");
+      message.setAttribute("role", "status"); card.append(message);
+      const details = node("details", undefined, "th-source-history"); details.open = expanded.has(item.id);
+      details.append(node("summary", `配置与检测记录 · ${item.history.length} 次`), node("p", `${item.origin === "initial" ? "只读 · " : "本机 · "}${item.file}`));
+      if (score) {
+        details.append(node("p", `${score.suite} · ${sourceProtocol(score.protocol || item.protocol)} · reasoning ${score.effort || "服务默认"}${score.output_budget ? ` · 输出预算 ${score.output_budget} tokens` : ""}`));
+        const outcomes = node("div", undefined, "th-source-case-list");
+        for (const test of score.cases) outcomes.append(node("span", `${test.name} #${test.round} · ${test.passed === true ? "通过" : test.passed === false ? "未通过" : "未评分"}`, `th-badge${test.passed === true ? "" : test.passed === false ? " is-warning" : " is-unknown"}`));
+        details.append(outcomes);
+      }
+      for (const entry of item.history) details.append(node("p", `${date(entry.checked_at)} · ${{ models: "模型发现", availability: "可用性", quality: "质量评测" }[entry.mode]} · ${entry.model || "—"} · ${sourceStatus(entry.status)}${entry.scored != null ? ` · ${entry.passed}/${entry.scored} 题` : ""}${entry.latency_ms != null ? ` · ${entry.latency_ms} ms` : ""}`));
+      if (!item.history.length) details.append(node("p", "暂无检测记录，可先发现模型，再检查可用性。"));
+      if (item.origin === "custom" && sourceData.can_manage) {
+        const tools = node("div", undefined, "th-source-actions");
+        tools.append(button("编辑来源", () => openSourceDialog(item), busy), button("删除来源", async () => {
+          if (!confirm(`删除自定义来源 ${item.name}？此操作清除本机保存的配置，服务商密钥不会被撤销。`)) return;
+          await sourcePost("delete", sourceIdentity(item)); sourceModels.delete(item.id); await loadSources();
+        }, busy)); details.append(tools);
+      }
+      card.append(details); container.append(card);
+      if (item.id === focusId && focusIndex >= 0) {
+        const control = card.querySelectorAll("input, button, summary")[focusIndex];
+        if (control && !control.disabled) { control.focus({ preventScroll: true }); if (selection) control.setSelectionRange(...selection); }
+      }
+    }
+    if (!visible.length) container.append(node("p", items.length ? "没有匹配的来源，试试其他名称或状态。" : "尚无 API 来源。可从 initial 自动读取，或添加自定义来源。", "th-empty"));
+  }
+
+  function openSourceDialog(item = null) {
+    sourceEdit = item;
+    const form = $("tokenhub-source-form"); form.reset();
+    $("tokenhub-source-title").textContent = item ? "编辑 API 来源" : "添加 API 来源";
+    for (const name of ["name", "base_url", "protocol", "model", "effort"]) if (item) form.elements.namedItem(name).value = item[name] || "";
+    form.elements.namedItem("key").required = !item;
+    form.elements.namedItem("key").placeholder = item ? "留空保留当前密钥" : "仅保存在本机";
+    $("tokenhub-source-form-status").textContent = "填写 API 根地址；Anthropic 协议会自动补 /v1。";
+    $("tokenhub-source-dialog").showModal();
+  }
+
+  $("tokenhub-source-search").addEventListener("input", renderSources);
+  $("tokenhub-source-filter").addEventListener("change", renderSources);
+  $("tokenhub-source-add").addEventListener("click", () => openSourceDialog());
+  const closeSourceDialog = () => { $("tokenhub-source-dialog").close(); $("tokenhub-source-form").reset(); sourceEdit = null; };
+  $("tokenhub-source-cancel").addEventListener("click", closeSourceDialog);
+  $("tokenhub-source-dialog").addEventListener("cancel", (event) => { event.preventDefault(); closeSourceDialog(); });
+  $("tokenhub-source-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget, submit = form.querySelector('[type="submit"]'); submit.disabled = true;
+    try {
+      const body = Object.fromEntries(new FormData(form)); if (sourceEdit) body.source_id = sourceEdit.id;
+      await sourcePost("save", body); closeSourceDialog(); await loadSources();
+    } catch (error) { $("tokenhub-source-form-status").textContent = error.message; }
+    finally { submit.disabled = false; }
+  });
+  $("tokenhub-source-check-all").addEventListener("click", async () => {
+    const items = (sourceData?.items || []).filter((item) => item.has_key && sourceModel(item).trim() && !sourceBusy.has(item.id) && !item.busy);
+    if (!items.length || sourceBatch || !confirm(`检测 ${items.length} 个来源的推理可用性，每个来源 1 次请求，可能产生费用。未指定模型的来源将跳过。`)) return;
+    sourceBatch = true; renderSources();
+    try { for (let index = 0; index < items.length; index += 2) await Promise.allSettled(items.slice(index, index + 2).map((item) => checkSource(item, "availability"))); }
+    finally { sourceBatch = false; await loadSources(); renderSources(); }
+  });
+
   const metricIcons = [
     "M3 6.5h16a2 2 0 0 1 2 2V18H5a2 2 0 0 1-2-2V6.5Zm0 0V5a2 2 0 0 1 2-2h13v3.5M16 11h5v4h-5a2 2 0 0 1 0-4Z",
     "M4 17 10 11l4 4 6-9M15 6h5v5M4 4v16h16",
@@ -271,6 +462,13 @@
     }
     $("tokenhub-notice").textContent = stateError || snapshot?.login_error || (!connected ? "请在运行监控服务的电脑上连接。GitHub 登录完成后自动同步；若出现授权确认，请本人核对并完成。" : "");
     $("tokenhub-notice").hidden = !$("tokenhub-notice").textContent;
+    if (route === "tokenhub" && selectedTab === "sources") {
+      $("tokenhub-account").textContent = "API 来源管理";
+      $("tokenhub-status").textContent = "本机配置 · 来源与密钥独立管理 · 无需连接 TokenHub";
+      $("tokenhub-status").dataset.state = "ok";
+      $("tokenhub-notice").hidden = true;
+      for (const button of document.querySelectorAll('.th-page [data-tokenhub-connect]')) button.hidden = true;
+    }
     renderAccountQuotas();
   }
 
@@ -630,6 +828,7 @@
     stateSerial += 1; stateController?.abort(); stateController = null; $("tokenhub-refresh").disabled = false;
     for (const kind of Object.keys(lists)) cancelList(kind);
     if (relevant()) loadState();
+    if (relevant() && route === "tokenhub" && selectedTab === "sources") void loadSources();
   }
   function activate(nextRoute) {
     route = nextRoute; closeGroupDialog(); render(); updateActivity();
@@ -643,6 +842,7 @@
     for (const panel of document.querySelectorAll("[data-tokenhub-panel]")) panel.hidden = panel.dataset.tokenhubPanel !== selectedTab;
     for (const kind of Object.keys(lists)) if (selectedTab !== (kind === "keys" ? "keys" : "dashboard")) cancelList(kind);
     render();
+    if (selectedTab === "sources") void loadSources();
     if (selectedTab === "keys") loadList("keys");
     if (selectedTab === "dashboard") { drawTrend(); drawHourly(); loadTrend(); loadHourly(); if ($("tokenhub-usage-details").open) loadList("usage"); }
     else {
@@ -654,8 +854,8 @@
     $(`tokenhub-${kind}-${direction}`).addEventListener("click", () => loadList(kind, (lists[kind].data?.page || 1) + delta));
   }
   $("tokenhub-usage-filter").addEventListener("submit", (event) => { event.preventDefault(); loadList("usage", 1); });
-  $("tokenhub-refresh").addEventListener("click", () => loadState(true));
-  $("refresh-button").addEventListener("click", () => { if (relevant()) loadState(true); });
+  $("tokenhub-refresh").addEventListener("click", () => selectedTab === "sources" ? loadSources() : loadState(true));
+  $("refresh-button").addEventListener("click", () => { if (relevant()) route === "tokenhub" && selectedTab === "sources" ? loadSources() : loadState(true); });
   for (const button of document.querySelectorAll("[data-tokenhub-connect]")) button.addEventListener("click", async () => {
     button.disabled = true;
     try {

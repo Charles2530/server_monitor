@@ -1,10 +1,12 @@
 """Fixed TokenHub reads and explicit, validated key group edits."""
-from typing import Annotated, Optional
+import inspect
+from typing import Annotated, Literal, Optional
 from fastapi import Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from .tokenhub_auth import TokenHubError
+from .api_sources import ApiSources
 
 
 PositiveId = Annotated[StrictInt, Field(gt=0)]
@@ -24,10 +26,35 @@ class KeyCopyRequest(BaseModel):
     account_id: PositiveId
 
 
-def register_tokenhub_routes(app, hub):
+class SourceIdentity(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    source_id: str = Field(min_length=1, max_length=100)
+    fingerprint: str = Field(min_length=24, max_length=24)
+
+
+class SourceCheck(SourceIdentity):
+    mode: Literal['models', 'availability', 'quality']
+    model: str = Field(default='', max_length=200)
+
+
+class SourceSave(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    source_id: Optional[str] = Field(default=None, max_length=100)
+    name: str = Field(min_length=1, max_length=80)
+    base_url: str = Field(min_length=1, max_length=1000)
+    key: str = Field(default='', max_length=16384)
+    protocol: Literal['responses', 'chat', 'anthropic']
+    model: str = Field(default='', max_length=200)
+    effort: str = Field(default='', max_length=20)
+
+
+def register_tokenhub_routes(app, hub, sources=None):
+    sources = sources or ApiSources()
+
     async def perform(callback):
         try:
-            return JSONResponse(await callback())
+            result = callback()
+            return JSONResponse(await result if inspect.isawaitable(result) else result)
         except TokenHubError as exc:
             return JSONResponse({'error': str(exc), 'code': exc.code}, status_code=exc.status)
         except Exception:
@@ -36,6 +63,33 @@ def register_tokenhub_routes(app, hub):
     def local_login(request):
         if request.headers.get('x-monitor-device'):
             return JSONResponse({'error': '请在运行监控服务的电脑上连接 TokenHub。'}, status_code=403)
+
+    @app.get('/api/tokenhub/sources')
+    async def api_sources(request: Request):
+        return await perform(lambda: {**sources.snapshot(), 'can_manage': not bool(request.headers.get('x-monitor-device'))})
+
+    @app.post('/api/tokenhub/source-check')
+    async def source_check(body: SourceCheck):
+        return await perform(lambda: sources.check(**body.model_dump()))
+
+    @app.post('/api/tokenhub/source-copy')
+    async def source_copy(body: SourceIdentity):
+        return await perform(lambda: sources.copy_key(**body.model_dump()))
+
+    @app.post('/api/tokenhub/source-save')
+    async def source_save(request: Request, body: SourceSave):
+        if request.headers.get('x-monitor-device'):
+            return JSONResponse({'error': '请在本机管理来源配置。'}, status_code=403)
+        return await perform(lambda: sources.save_source(**body.model_dump()))
+
+    @app.post('/api/tokenhub/source-delete')
+    async def source_delete(request: Request, body: SourceIdentity):
+        if request.headers.get('x-monitor-device'):
+            return JSONResponse({'error': '请在本机管理来源配置。'}, status_code=403)
+        def remove():
+            sources.find(body.source_id, body.fingerprint)
+            return sources.delete_source(body.source_id)
+        return await perform(remove)
 
     @app.get('/api/tokenhub/state')
     async def state(request: Request, refresh: bool = False):

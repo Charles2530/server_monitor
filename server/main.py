@@ -236,6 +236,18 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     async def ssh_refresh():
         return ssh_catalog.refresh()
 
+    @app.get('/api/ssh/health')
+    async def ssh_health(alias: str):
+        return await perform(lambda: ssh_catalog.health.snapshot(alias))
+
+    @app.post('/api/ssh/health')
+    async def ssh_health_refresh(request: Request):
+        async def check():
+            data = await action_body(request, {'alias'})
+            if not isinstance(data['alias'], str): raise ActionError('SSH 服务器别名无效。')
+            return await ssh_catalog.health.refresh(data['alias'])
+        return await perform(check)
+
     @app.get('/api/images')
     async def images(refresh: bool=False, namespace: str="", runtime=Depends(current_site)):
         async def snapshot_response():
