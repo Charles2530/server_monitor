@@ -459,6 +459,18 @@ def _record_attempt(base):
             pass
 
 
+def extension_setup_status(base):
+    """Only a full, successful configuration can mark physical files as ready."""
+    try:
+        value = json.loads((base / 'extensions-setup.json').read_text())
+        if (isinstance(value, dict) and value.get('version') == EXTENSIONS_VERSION
+                and isinstance(value.get('locale'), str) and len(value['locale']) <= 64):
+            return {'version': value['version'], 'locale': value['locale']}
+    except (OSError, ValueError, TypeError):
+        pass
+    return None
+
+
 def prepare_extensions(base, env, binary, progress=None, *, install=True):
     progress = progress or (lambda *args: None)
     extensions = base / 'extensions'
@@ -479,6 +491,7 @@ def prepare_extensions(base, env, binary, progress=None, *, install=True):
         result['installed'] = result['installed'] and installed
     if install and result['installed']:
         try:
+            (base / 'extensions-setup.json').unlink(missing_ok=True)
             configure_python_service(base, env, binary)
             configure_python_formatter(base)
             configure_editor_performance(base)
@@ -492,4 +505,17 @@ def prepare_extensions(base, env, binary, progress=None, *, install=True):
     except (OSError, ValueError) as error:
         _append_install_log(base, '[language configuration] ' + str(error))
         result['installed'] = False
+    marker = base / 'extensions-setup.json'
+    if install:
+        try:
+            if result['installed']:
+                pending = marker.with_suffix('.tmp')
+                pending.write_text(json.dumps({'version': EXTENSIONS_VERSION, 'locale': result['locale']}))
+                pending.replace(marker)
+            else:
+                marker.unlink(missing_ok=True)
+        except OSError:
+            result['installed'] = False
+    else:
+        result['installed'] = result['installed'] and extension_setup_status(base) is not None
     return result

@@ -46,7 +46,22 @@
       setupFailures = 0;
     }
     const setup = connection.setup || {}, parts = [];
-    if (setup.optional_pending) parts.push('插件与外观正在后台准备');
+    if (setup.optional_pending) {
+      const stages = {download_codex:'下载 Codex', verify_codex:'校验 Codex', install_codex:'安装 Codex',
+        install_appearance:'安装外观', download_python:'下载 Python', install_python:'安装 Python',
+        download_debugpy:'下载 Python Debugger', download_basedpyright:'下载 basedpyright',
+        download_ruff:'下载 Ruff', 'download_vscode-python-envs':'下载 Python Environments',
+        'download_vscode-language-pack-zh-hans':'下载简体中文插件'};
+      const progress = setup.optional_progress || {}, stage = stages[progress.stage];
+      if (setup.optional_state === 'retrying') parts.push('插件准备未完成，稍后自动重试');
+      else if (stage) {
+        const received = progress.downloaded_bytes, total = progress.total_bytes;
+        const bytes = Number.isSafeInteger(received) && received >= 0 && received <= 250 * 1024 * 1024
+          ? ` ${(received / 1048576).toFixed(1)}${Number.isSafeInteger(total) && total >= received && total <= 250 * 1024 * 1024 ? '/' + (total / 1048576).toFixed(1) : ''} MiB` : '';
+        parts.push(stage + bytes);
+      } else if (setup.optional_state === 'checking') parts.push('正在核对容器内插件安装状态');
+      else parts.push('插件与外观正在后台准备');
+    } else if (setup.optional_state === 'failed') parts.push('插件准备已暂停，5 分钟后重新打开页面可重试');
     if (connection.codexPanel === 'ready') parts.push('Codex 面板已加载');
     else if (connection.codexPanel === 'loading') parts.push('Codex 面板加载中…');
     else if (setup.codex?.installed) parts.push('Codex 已安装，等待面板打开');

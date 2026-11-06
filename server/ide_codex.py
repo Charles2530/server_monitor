@@ -1,5 +1,6 @@
 """Container-local Codex setup; never read or copy credentials into the monitor."""
 import hashlib
+from http.client import HTTPException
 import json
 import platform
 import shlex
@@ -146,28 +147,41 @@ def download_size(response):
         return None
 
 
-def install_codex(base, binary, env, progress=None):
+def install_codex(base, binary, env, progress=None, *, allow_direct=False):
     progress = progress or (lambda *args: None)
     base.mkdir(parents=True, exist_ok=True, mode=0o700)
     temporary = Path(tempfile.mkdtemp(prefix='codex-install-', dir=str(base)))
     try:
         archive = temporary / ('openai.chatgpt-' + CODEX_VERSION + '.vsix')
-        digest = hashlib.sha256(); total = 0; started = time.monotonic()
-        progress('download_codex', 0)
+        started = time.monotonic()
         arm64 = platform.machine().lower() in ('aarch64', 'arm64')
         url = CODEX_URL.replace('linux-x64', 'linux-arm64') if arm64 else CODEX_URL
         checksum = 'ef38b36a93f7f3d9b8559d7add5c895cb38854f07b55806630ae150c85d7f198' if arm64 else CODEX_SHA256
-        with urllib.request.urlopen(url, timeout=45) as response, archive.open('wb') as output:
-            expected = download_size(response)
-            progress('download_codex', 0, expected)
-            while True:
-                chunk = response.read(1024 * 1024)
-                if not chunk: break
-                total += len(chunk)
-                if total > 250 * 1024 * 1024 or time.monotonic() - started > 240:
-                    raise RuntimeError('Codex 插件下载超出限制。')
-                digest.update(chunk); output.write(chunk)
-                progress('download_codex', total, expected)
+        for attempt in range(3):
+            digest = hashlib.sha256(); total = 0
+            progress('download_codex', 0)
+            # Only automatically discovered container proxies may fall back to
+            # direct access. Keep explicit proxies and the global opener intact.
+            open_url = (urllib.request.build_opener(urllib.request.ProxyHandler({})).open
+                        if allow_direct and attempt else urllib.request.urlopen)
+            try:
+                with open_url(url, timeout=45) as response, archive.open('wb') as output:
+                    expected = download_size(response)
+                    progress('download_codex', 0, expected)
+                    while True:
+                        chunk = response.read(1024 * 1024)
+                        if not chunk: break
+                        total += len(chunk)
+                        if total > 250 * 1024 * 1024 or time.monotonic() - started > 420:
+                            raise RuntimeError('Codex 插件下载超出限制。')
+                        digest.update(chunk); output.write(chunk)
+                        progress('download_codex', total, expected)
+                break
+            except (OSError, HTTPException) as error:
+                with (base / 'codex-install.log').open('ab') as log:
+                    log.write(('[download attempt %d] %s\n' % (attempt + 1, type(error).__name__)).encode())
+                if attempt == 2: raise
+                time.sleep(0.5)
         progress('verify_codex')
         if digest.hexdigest() != checksum:
             raise RuntimeError('Codex 插件下载校验失败。')
@@ -265,7 +279,7 @@ def configure_shared_codex(base, env, binary):
         return False
 
 
-def prepare_codex(base, env, binary, progress=None, *, install=True, configure_permissions=True):
+def prepare_codex(base, env, binary, progress=None, *, install=True, configure_permissions=True, allow_direct=False):
     home = Path(env.get('HOME') or str(Path.home()))
     configured = env.get('CODEX_HOME')
     codex_home = Path(configured).expanduser() if configured else home / '.codex'
@@ -280,8 +294,8 @@ def prepare_codex(base, env, binary, progress=None, *, install=True, configure_p
     if not codex_installed(base / 'extensions'):
         if not install: return {'configured': True, 'installed': False, 'full_access': full_access}
         try:
-            install_codex(base, binary, env, progress=progress)
-        except (OSError, RuntimeError, subprocess.TimeoutExpired):
+            install_codex(base, binary, env, progress=progress, allow_direct=allow_direct)
+        except (OSError, RuntimeError, HTTPException, subprocess.TimeoutExpired):
             return {'configured': True, 'installed': False, 'full_access': full_access}
     configure_shared_codex(base, env, binary)
     return {'configured': True, 'installed': True, 'full_access': full_access}

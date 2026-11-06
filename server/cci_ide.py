@@ -16,7 +16,7 @@ import zlib
 import httpx
 from .acp_actions import ActionError
 from .auth import AuthRequired
-from .ide_bootstrap import bootstrap_script
+from .ide_bootstrap import bootstrap_script, setup_status_script
 from .ide_appearance import APPEARANCE_VERSION
 from .ide_extensions import EXTENSIONS_VERSION
 from .ide_proxy import EditorProxy
@@ -73,6 +73,12 @@ PROGRESS_MESSAGES = {
     'ssh_connected': '已通过 SSH 连接。',
     'cloud_connected': '已通过云端通道连接。',
 }
+OPTIONAL_POLL_INTERVAL = 10
+OPTIONAL_RETRY_INTERVAL = 30
+OPTIONAL_EXTENSION_RETRY_INTERVAL = 300
+OPTIONAL_SETUP_TIMEOUT = 1800
+OPTIONAL_MAX_ATTEMPTS = 3
+
 TRANSPORT_STAGES = ('ssh_retry', 'ssh_failed', 'ssh_connected', 'cloud_connected')
 
 
@@ -461,6 +467,7 @@ class CCIEditor:
                     raise ActionError('编辑器连接无法自动恢复，请保留未保存内容后重新打开编辑器页面。')
                 await self.connect(session['address'], session['forward'].remote_port, session['password'], origin, notify, session, target=data)
             session['proxy'].touched = time.monotonic()
+            self.prepare_optional(identity, session, data)
             return self.details(data, origin)
 
     def details(self, data, origin):
@@ -469,7 +476,6 @@ class CCIEditor:
         session = self.sessions.get(identity)
         if not session:
             raise ActionError('编辑器会话已过期，请保留当前内容后重新打开。', 'ide_expired', 404)
-        job = self.optional_jobs.get(identity)
         codex, appearance = session.get('codex', {}), session.get('appearance', {})
         extensions = session.get('extensions', {})
         return {'site': self.site.id, **data, 'port': session['proxy'].port,
@@ -477,7 +483,7 @@ class CCIEditor:
                 'codex': {key: codex[key] for key in ('configured', 'installed') if key in codex},
                 'appearance': {key: appearance[key] for key in ('installed', 'version') if key in appearance},
                 'extensions': extensions,
-                'optional_pending': bool(job and not job.done())}
+                **self.optional_status(identity, session)}
 
     async def history(self, data, origin):
         """Read only filtered Codex session metadata from the active CCI container."""
@@ -513,31 +519,113 @@ class CCIEditor:
             caches[workspace] = {'created': time.monotonic(), 'result': result}
             return dict(result)
 
-    def prepare_optional(self, identity, session, data):
+    @staticmethod
+    def optional_needed(session):
         codex, appearance = session.get('codex', {}), session.get('appearance', {})
         extensions = session.get('extensions', {})
-        needed = ((codex.get('configured') and codex.get('installed') is False)
-                  or (appearance and (appearance.get('version') != APPEARANCE_VERSION
-                                      or appearance.get('installed') is False))
-                  or (extensions and (extensions.get('version') != EXTENSIONS_VERSION
-                                      or extensions.get('installed') is False)))
+        return bool((codex.get('configured') and codex.get('installed') is False)
+                    or (appearance and (appearance.get('version') != APPEARANCE_VERSION
+                                        or appearance.get('installed') is False))
+                    or (extensions and (extensions.get('version') != EXTENSIONS_VERSION
+                                        or extensions.get('installed') is False)))
+
+    def optional_status(self, identity, session):
         job = self.optional_jobs.get(identity)
-        if (not needed or (job and not job.done())
-                or time.monotonic() - session.get('optional_attempted', float('-inf')) < 300): return
-        session['optional_attempted'] = time.monotonic()
+        return {'optional_pending': bool(job and not job.done()),
+                'optional_state': session.get('optional_state', 'idle'),
+                'optional_attempts': session.get('optional_attempts', 0),
+                'optional_progress': safe_progress(session.get('optional_progress'))}
+
+    @staticmethod
+    def apply_setup(session, prepared):
+        for key in ('codex', 'appearance', 'extensions'):
+            if isinstance(prepared.get(key), dict): session[key] = prepared[key]
+        if prepared.get('workspace'): session['workspace'] = prepared['workspace']
+        if 'asset_roots' in prepared and session['proxy'].assets is not None:
+            roots = prepared['asset_roots']
+            session['proxy'].assets.resource_roots = roots if isinstance(roots, list) else []
+
+    def prepare_optional(self, identity, session, data, *, explicit=False):
+        job = self.optional_jobs.get(identity)
+        now = time.monotonic()
+        if (not self.optional_needed(session) or (job and not job.done())
+                or now - session.get('optional_attempted', float('-inf')) < 300): return
+        # Heartbeats can reconcile failed control channels, but cannot create an
+        # unbounded installation loop. Explicit reopen gets a new bounded cycle.
+        if explicit:
+            session['optional_attempts'] = session['optional_cycles'] = 0
+        if (session.get('optional_attempts', 0) >= OPTIONAL_MAX_ATTEMPTS
+                or session.get('optional_cycles', 0) >= OPTIONAL_MAX_ATTEMPTS): return
+        session['optional_cycles'] = session.get('optional_cycles', 0) + 1
+        session['optional_state'] = 'checking'
+        session['optional_progress'] = None
+
+        def progress(value):
+            if self.sessions.get(identity) is session:
+                session['optional_progress'] = safe_progress(value)
+
+        async def reconcile():
+            probe_failures = 0
+            while self.sessions.get(identity) is session:
+                session['optional_state'] = 'checking'
+                try:
+                    checked = await run_python(self.bridge, data, setup_status_script(data['instance']),
+                                               timeout=60, cleanup_jobs=self.cleanup_jobs)
+                    if not isinstance(checked, dict) or 'error' in checked:
+                        raise ActionError('插件状态暂不可用。')
+                except Exception:
+                    probe_failures += 1
+                    if probe_failures >= 3: return
+                    await asyncio.sleep(OPTIONAL_POLL_INTERVAL)
+                    continue
+                probe_failures = 0
+                self.apply_setup(session, checked)
+                progress(checked.get('progress'))
+                if checked.get('install_running'):
+                    # A disconnected control shell may leave a healthy installer.
+                    # Observe its lock and result rather than queueing another one.
+                    await asyncio.sleep(OPTIONAL_POLL_INTERVAL)
+                    continue
+                if not self.optional_needed(session):
+                    session['optional_state'] = 'ready'
+                    session['optional_progress'] = None
+                    return
+                if session.get('optional_attempts', 0) >= OPTIONAL_MAX_ATTEMPTS: return
+                if session.get('optional_attempts', 0):
+                    session['optional_state'] = 'retrying'
+                    delay = (OPTIONAL_EXTENSION_RETRY_INTERVAL if session.get('extensions', {}).get('installed') is False
+                             else OPTIONAL_RETRY_INTERVAL)
+                    await asyncio.sleep(delay)
+                    # The remote lock is authoritative; check it again after waiting.
+                    session['optional_state'] = 'checking'
+                    checked = await run_python(self.bridge, data, setup_status_script(data['instance']),
+                                               timeout=60, cleanup_jobs=self.cleanup_jobs)
+                    if not isinstance(checked, dict) or 'error' in checked: return
+                    self.apply_setup(session, checked)
+                    if checked.get('install_running') or not self.optional_needed(session): continue
+                session['optional_attempts'] = session.get('optional_attempts', 0) + 1
+                session['optional_state'] = 'installing'
+                session['optional_progress'] = None
+                try:
+                    prepared = await run_python(self.bridge, data, self.bootstrap(data, session['address']),
+                                                timeout=1200, on_progress=progress, cleanup_jobs=self.cleanup_jobs)
+                    if isinstance(prepared, dict) and 'error' not in prepared:
+                        self.apply_setup(session, prepared)
+                except Exception:
+                    pass  # Reconcile remote state even when the control channel failed.
+                if not self.optional_needed(session):
+                    session['optional_state'] = 'ready'
+                    session['optional_progress'] = None
+                    return
+
         async def prepare():
             try:
-                prepared = await run_python(self.bridge, data, self.bootstrap(data, session['address']), cleanup_jobs=self.cleanup_jobs)
-                if 'error' not in prepared and self.sessions.get(identity) is session:
-                    session.update(codex=prepared.get('codex', {}), appearance=prepared.get('appearance', {}),
-                                  extensions=prepared.get('extensions', {}),
-                                  workspace=prepared.get('workspace') or session.get('workspace'))
-                    if session['proxy'].assets is not None:
-                        roots = prepared.get('asset_roots', [])
-                        session['proxy'].assets.resource_roots = roots if isinstance(roots, list) else []
+                await asyncio.wait_for(reconcile(), OPTIONAL_SETUP_TIMEOUT)
             except Exception:
-                # Optional marketplace/setup failures must not break a usable editor.
-                pass
+                pass  # Optional setup must leave the usable editor intact.
+            finally:
+                session['optional_attempted'] = time.monotonic()
+                if session.get('optional_state') != 'ready': session['optional_state'] = 'failed'
         self.optional_jobs[identity] = asyncio.create_task(prepare())
 
     def bootstrap(self, data, address, *, install_optional=True):
@@ -551,15 +639,14 @@ class CCIEditor:
     def opened(self, identity, session, data, origin, notify):
         for stage in session.pop('connection_events', []): notify({'stage': stage})
         session['proxy'].repair = lambda failed_upstream: self.recover(data, origin, failed_upstream=failed_upstream)
-        self.prepare_optional(identity, session, data)
+        self.prepare_optional(identity, session, data, explicit=True)
         notify({'stage': 'reuse'})
         proxy = session['proxy']; proxy.touched = time.monotonic()
-        job = self.optional_jobs.get(identity)
         return {'site': self.site.id, **data, 'name': session.get('name', data['task_id']),
                 'port': proxy.port, 'ticket': proxy.ticket(), 'workspace': session.get('workspace'),
                 'codex': session.get('codex', {}), 'appearance': session.get('appearance', {}),
                 'extensions': session.get('extensions', {}),
-                'optional_pending': bool(job and not job.done())}
+                **self.optional_status(identity, session)}
 
     async def open(self, data, origin, progress=None):
         notify = progress or (lambda value: None)

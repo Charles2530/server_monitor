@@ -1,9 +1,8 @@
 """Pinned, user-local editor installation executed only in a verified CCI shell."""
+import ast
 import json
-import base64
 import io
 import tokenize
-import zlib
 from functools import lru_cache
 from pathlib import Path
 from . import ide_codex, ide_appearance, ide_extensions
@@ -18,10 +17,17 @@ def _packed_modules():
     source = (Path(ide_codex.__file__).read_bytes() + b'\n'
               + Path(ide_appearance.__file__).read_bytes() + b'\n'
               + Path(ide_extensions.__file__).read_bytes())
-    # Keep source comments locally without sending them over the control shell.
+    # Keep documentation locally without sending it over the control shell.
+    lines = source.decode().splitlines(keepends=True)
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            for line in range(node.lineno - 1, node.end_lineno): lines[line] = '\n'
+    source = ''.join(lines).encode()
     source = tokenize.untokenize(token for token in tokenize.tokenize(io.BytesIO(source).readline)
                                 if token.type != tokenize.COMMENT)
-    return repr(base64.b64encode(zlib.compress(source, 9)).decode())
+    # run_python compresses the entire payload once. Nesting an already
+    # compressed module here makes the control-shell transfer larger.
+    return repr(source.decode())
 
 
 @lru_cache(maxsize=1)
@@ -38,14 +44,71 @@ def bootstrap_script(instance, address, *, install_optional=True, download_proxy
     if not install_optional:
         bundle = {key: value for key, value in bundle.items() if key != 'payload'}
     packed = _packed_modules()
-    return ('import base64, zlib\nexec(compile(zlib.decompress(base64.b64decode(' + packed + ")), '<bootstrap-modules>', 'exec'))\n"
+    return ('exec(compile(' + packed + ", '<bootstrap-modules>', 'exec'))\n"
             + 'APPEARANCE_BUNDLE = ' + repr(bundle)
-            + '\nSETTINGS = ' + repr(settings) + '\n' + _SCRIPT)
+            + '\nSETTINGS = ' + repr(settings) + '\n' + _SETUP_CHECKS + _SCRIPT)
+
+
+def setup_status_script(instance):
+    bundle = {key: value for key, value in _appearance_bundle().items() if key != 'payload'}
+    return ('exec(compile(' + _packed_modules() + ", '<bootstrap-modules>', 'exec'))\n"
+            + 'APPEARANCE_BUNDLE = ' + repr(bundle) + '\nINSTANCE = ' + repr(instance)
+            + '\nEDITOR_VERSION = ' + repr(VERSION) + '\n' + _SETUP_CHECKS + r'''
+import socket
+if INSTANCE is not None and socket.gethostname() != INSTANCE:
+    raise RuntimeError('容器身份已变化，请刷新任务后重试。')
+arch = {'x86_64': 'amd64', 'amd64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}.get(platform.machine().lower())
+if platform.system() != 'Linux' or arch is None:
+    raise RuntimeError('当前编辑器仅支持 Linux x86_64 或 ARM64。')
+base = pathlib.Path.home() / '.local/share/ilab-cci-editor'
+if base.is_symlink() or (base.exists() and base.stat().st_uid != os.getuid()):
+    raise RuntimeError('编辑器目录权限异常。')
+RESULT = _ilab_setup_status(base, APPEARANCE_BUNDLE, base / ('code-server-' + EDITOR_VERSION + '-linux-' + arch))
+''')
+
+
+_SETUP_CHECKS = r'''
+import fcntl, json, os, pathlib, platform, time
+def _ilab_setup_status(base, bundle, folder, check_lock=True):
+    extensions = base / 'extensions'
+    codex_home = pathlib.Path(os.environ.get('CODEX_HOME') or str(pathlib.Path.home() / '.codex')).expanduser()
+    if not codex_home.is_absolute(): raise RuntimeError('CODEX_HOME 必须为绝对路径。')
+    codex = {'configured': any((codex_home / name).is_file() for name in ('config.toml', 'auth.json')),
+             'installed': codex_installed(extensions)}
+    appearance = {'version': bundle['version'], 'installed': appearance_installed(base, bundle)}
+    found = {spec['id']: extension_installed(extensions, spec) for spec in extension_specs()}
+    configured = extension_setup_status(base)
+    tools = {'version': EXTENSIONS_VERSION, 'installed': all(found.values()) and configured is not None,
+             'extensions': found, 'locale': configured['locale'] if configured else None}
+    roots = [str(folder / 'lib/vscode/extensions')]
+    roots.extend(str(extension / 'webview/assets') for extension in codex_extensions(extensions)
+                 if (extension / 'webview/assets').is_dir())
+    if appearance['installed']:
+        roots.append(str(extensions / ('ilab.workspace-appearance-' + bundle['version'])))
+    running = False
+    if check_lock:
+        try:
+            with (base / 'install.lock').open('r') as lock:
+                try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError: running = True
+        except FileNotFoundError: pass
+    result = {'codex': codex, 'appearance': appearance, 'extensions': tools,
+              'asset_roots': roots, 'install_running': running}
+    if running:
+        try:
+            path = base / 'setup-progress.json'
+            if path.stat().st_size <= 16384 and time.time() - path.stat().st_mtime < 1800:
+                record = json.loads(path.read_text())
+                result['progress'] = {key: record[key] for key in ('stage', 'downloaded_bytes', 'total_bytes') if key in record}
+        except (OSError, ValueError, TypeError): pass
+    return result
+'''
 
 
 _SCRIPT = r'''
 import fcntl, hashlib, json, os, pathlib, platform, secrets, shutil, socket, subprocess, tarfile, tempfile, time, urllib.request
 s = json.loads(SETTINGS)
+auto_download_proxy = False
 if (s.get('activate_proxy') and not s.get('download_proxy')
         and not any(os.environ.get(key) for key in ('http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'all_proxy', 'ALL_PROXY'))):
     # Only import download settings from the user's helper, without its mirror/SSH edits.
@@ -58,13 +121,28 @@ if (s.get('activate_proxy') and not s.get('download_proxy')
             for entry in proxy.stdout.decode(errors='replace').split('\0'):
                 key, separator, value = entry.partition('=')
                 if separator and key in ('http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY', 'all_proxy', 'ALL_PROXY', 'no_proxy', 'NO_PROXY'):
-                    if not os.environ.get(key): os.environ[key] = value
+                    if not os.environ.get(key):
+                        os.environ[key] = value
+                        if key.lower() != 'no_proxy' and value: auto_download_proxy = True
     except (OSError, subprocess.TimeoutExpired):
         pass  # Hosts with no helper can still download directly.
 if s.get('download_proxy'):
     urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHandler(
         {scheme: s['download_proxy'] for scheme in ('http', 'https')})))
 progress = globals().get('_ilab_report_progress', lambda *args: None)
+report_progress = progress
+def progress(stage, *counts):
+    downloaded_bytes = counts[0] if counts else None
+    total_bytes = counts[1] if len(counts) > 1 else None
+    if s['install_optional'] and globals().get('lock_acquired', False):
+        try:
+            pending = base / 'setup-progress.tmp'
+            pending.write_text(json.dumps({'stage': stage,
+                                          'downloaded_bytes': downloaded_bytes, 'total_bytes': total_bytes}))
+            pending.replace(base / 'setup-progress.json')
+        except OSError: pass
+    try: report_progress(stage, *counts)
+    except OSError: pass  # A lost control shell must not abort the installer.
 if s['instance'] is not None and socket.gethostname() != s['instance']:
     raise RuntimeError('容器身份已变化，请刷新任务后重试。')
 arch = {'x86_64': 'amd64', 'amd64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}.get(platform.machine().lower())
@@ -77,8 +155,16 @@ if base.is_symlink() or base.stat().st_uid != os.getuid():
     raise RuntimeError('编辑器目录权限异常。')
 os.chmod(base, 0o700)
 lock = (base / 'install.lock').open('a')
+lock_acquired = False
 progress('waiting_lock')
-fcntl.flock(lock, fcntl.LOCK_EX)
+if s['install_optional']:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    lock_acquired = True
+else:
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock_acquired = True
+    except BlockingIOError: pass
 progress('checking')
 version = s['version']
 folder = base / ('code-server-' + version + '-linux-' + arch)
@@ -89,13 +175,19 @@ for key in ('PASSWORD', 'HASHED_PASSWORD', 'CODE_SERVER_CONFIG', 'NODE_OPTIONS')
     env.pop(key, None)
 env['SHELL'] = '/bin/bash'
 def optional_setup():
-    codex = prepare_codex(base, env, binary, progress=progress, install=s['install_optional'], configure_permissions=s['instance'] is not None)
+    codex = prepare_codex(base, env, binary, progress=progress, install=s['install_optional'],
+                          configure_permissions=s['instance'] is not None,
+                          allow_direct=auto_download_proxy)
     appearance = (prepare_appearance(base, env, binary, APPEARANCE_BUNDLE, progress=progress)
                   if s['install_optional'] else {'version': APPEARANCE_BUNDLE['version'], 'installed': appearance_installed(base, APPEARANCE_BUNDLE)})
     # The fast bootstrap only checks optional extensions; full setup installs them in the background.
     extensions = prepare_extensions(base, env, binary, progress=progress, install=s['install_optional']) if binary.is_file() else None
     return codex, appearance, extensions
-codex, appearance, extensions = optional_setup() if binary.is_file() else (None, None, None)
+if binary.is_file() and not lock_acquired:
+    checked = _ilab_setup_status(base, APPEARANCE_BUNDLE, folder, check_lock=False)
+    codex, appearance, extensions = (checked[key] for key in ('codex', 'appearance', 'extensions'))
+else:
+    codex, appearance, extensions = optional_setup() if binary.is_file() else (None, None, None)
 
 def owned_process(state):
     try:
@@ -125,6 +217,7 @@ if owned_process(state):
 if healthy(state):
     RESULT = {k: state[k] for k in ('port', 'password', 'workspace')}
 else:
+    if not lock_acquired: raise RuntimeError('编辑器初始化仍在进行中，请稍后重试。')
     if not binary.is_file():
         temporary = pathlib.Path(tempfile.mkdtemp(prefix='install-', dir=str(base)))
         try:
