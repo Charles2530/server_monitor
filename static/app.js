@@ -40,6 +40,7 @@
   const timeFormat = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
   const chartClock = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   const chartDay = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" });
+  const seenConnectionEvents = new Set();
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -124,6 +125,27 @@
     connect.firstChild.textContent = snapshot?.connected ? "重新连接 " : "连接会话 ";
     connect.classList.toggle("button-primary", style !== "ok");
     connect.classList.toggle("button-secondary", style === "ok");
+  }
+
+  function updateConnectionLog(snapshot) {
+    const log = window.MonitorConnectionLog;
+    if (!log) return;
+    const state = snapshot?.connecting ? "reconnecting" : snapshot?.connected && snapshot.status === "ok" ? "ready"
+      : snapshot?.status === "error" ? "error" : snapshot?.connected ? "loading" : "offline";
+    const message = state === "ready" ? "后台监控连接已建立。" : state === "reconnecting" ? "正在恢复连接。"
+      : state === "error" ? "连接出现错误，请查看页面提示并重试。" : state === "offline" ? "连接已断开。" : "正在检查连接。";
+    log.update(state, message);
+    const events = Array.isArray(snapshot?.connection_log) ? snapshot.connection_log : [];
+    for (const event of events) {
+      const key = JSON.stringify(event);
+      if (!event || seenConnectionEvents.has(key)) continue;
+      seenConnectionEvents.add(key);
+      if (seenConnectionEvents.size > 80) seenConnectionEvents.delete(seenConnectionEvents.values().next().value);
+      const detail = event.result === "error" && event.reason === "TimeoutError" ? "连接超时，请重试。"
+        : event.result === "error" && ["authenticate", "renew"].includes(event.stage) ? "认证尚未完成，正在恢复连接。"
+        : event.result === "error" ? "连接暂不可用，将自动重试。" : event.result === "start" ? "正在检查连接。" : "后台采集已完成。";
+      log.note(detail, event.result === "error" ? "error" : state);
+    }
   }
 
   function renderSummary() {
@@ -619,7 +641,7 @@
       const previousSelection = model.selected;
       model.snapshot = snapshot;
       model.unavailable = false;
-      renderStatus(); renderSummary();
+      renderStatus(); updateConnectionLog(snapshot); renderSummary();
       document.dispatchEvent(new CustomEvent("monitor-snapshot", { detail: { snapshot, unavailable: false } }));
       if (taskDataChanged) { renderTasks(); renderDetail(); }
       if (clusterDataChanged) renderClusters();
@@ -627,6 +649,7 @@
       if (changed || previousSelection !== model.selected || (historyVisible() && !model.chart)) loadHistory();
     } catch {
       model.unavailable = true;
+      window.MonitorConnectionLog?.update("error", "本机监控请求连接失败。");
       document.dispatchEvent(new CustomEvent("monitor-snapshot", { detail: { snapshot: model.snapshot, unavailable: true } }));
       renderStatus();
       renderSummary();

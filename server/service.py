@@ -2,14 +2,16 @@ import asyncio
 import copy
 import logging
 import time
-from .auth import AuthRequired, connect_browser
+from .auth import AUTH_TIMEOUT, AuthRequired, connect_browser
 from .config import INTERVAL
 from .normalize import iso
 from .store import store_call
 from .runtime_profile import get_runtime_profile
 
-CONNECT_TIMEOUT = 90
-RENEW_TIMEOUT = 90
+RENEW_TIMEOUT = AUTH_TIMEOUT + 30
+CONNECT_TIMEOUT = AUTH_TIMEOUT + 60
+COLLECT_TIMEOUT = AUTH_TIMEOUT + 30
+CONNECTION_LOG_LIMIT = 40
 logger = logging.getLogger(__name__)
 
 class Monitor:
@@ -20,6 +22,8 @@ class Monitor:
         self.lock = asyncio.Lock()
         self.state = store.latest() or {'tasks':[], 'clusters':[], 'source_status':{},'updated_at':None,'connected':False}
         self.state.setdefault('waiting_tasks',[])
+        if not isinstance(self.state.get('connection_log'), list):
+            self.state['connection_log'] = []
         self.state['runtime_profile'] = get_runtime_profile()
         self.state.update(status='collecting',error=None,interval_seconds=INTERVAL,last_attempt_at=None,next_run_at=None,connecting=False)
         self.jobs = set()
@@ -34,11 +38,36 @@ class Monitor:
         task.add_done_callback(self.jobs.discard)
         return task
 
-    def log_failure(self, stage, error):
-        site = getattr(getattr(self.collector, 'site', None), 'id', 'default')
+    def site_id(self):
+        return getattr(getattr(self.collector, 'site', None), 'id', 'default')
+
+    def log_connection(self, stage, result, elapsed=None):
+        # Connection-stage trace for fault diagnosis. Only records the site id,
+        # stage, result and elapsed time; never credentials, tokens, URLs or
+        # upstream bodies. Reuses the same logger as log_failure below.
+        fields = {'site': self.site_id(), 'stage': stage, 'result': result}
+        if elapsed is not None:
+            fields['elapsed_ms'] = int(elapsed * 1000)
+        self.record_connection(stage, result, elapsed=elapsed)
+        logger.info('monitor_connection ' + ' '.join('%s=%s' % item for item in fields.items()))
+
+    def log_failure(self, stage, error, elapsed=None):
+        site = self.site_id()
         reason = 'timeout' if isinstance(error, asyncio.TimeoutError) else type(error).__name__
         # Exception messages/tracebacks may contain credentials or upstream bodies.
-        logger.warning('monitor_failure site=%s stage=%s reason=%s', site, stage, reason)
+        fields = {'site': site, 'stage': stage, 'reason': reason}
+        if elapsed is not None:
+            fields['elapsed_ms'] = int(elapsed * 1000)
+        self.record_connection(stage, 'error', reason=reason, elapsed=elapsed)
+        logger.warning('monitor_failure ' + ' '.join('%s=%s' % item for item in fields.items()))
+
+    def record_connection(self, stage, result, *, reason=None, elapsed=None):
+        event = {'at': iso(time.time()), 'stage': stage, 'result': result}
+        if reason: event['reason'] = reason
+        if elapsed is not None: event['elapsed_ms'] = int(max(0, elapsed) * 1000)
+        events = self.state.setdefault('connection_log', [])
+        events.append(event)
+        del events[:-CONNECTION_LOG_LIMIT]
 
     def request_refresh(self):
         if self.state.get('connecting'):
@@ -64,6 +93,7 @@ class Monitor:
             raise AuthRequired('上次登录仍在清理，请稍后重试。')
         self.state['connecting'] = True
         self.last_renewal = time.monotonic()
+        started = time.monotonic()
         task = self.renewing = self.spawn((self.renew or connect_browser)(headless=True, timeout=75))
         # Observe late cleanup failures without exposing exception text or leaving
         # an unhandled task. The login lock prevents overlapping browser sessions.
@@ -72,9 +102,10 @@ class Monitor:
             done, _ = await asyncio.wait({task}, timeout=RENEW_TIMEOUT)
             if not done:
                 raise asyncio.TimeoutError()
+            self.log_connection('renew', 'ok', time.monotonic() - started)
             return task.result()
         except (Exception, asyncio.CancelledError) as error:
-            self.log_failure('renew', error)
+            self.log_failure('renew', error, time.monotonic() - started)
             raise
         finally:
             if not task.done():
@@ -102,24 +133,27 @@ class Monitor:
             return False
         async with self.lock:
             self.state.update(status='collecting',last_attempt_at=iso(time.time()))
+            started = time.monotonic()
             stage = 'collect'
             try:
-                snapshot=await asyncio.wait_for(self.collect(),timeout=150)
+                self.log_connection('collect', 'start', 0)
+                snapshot=await asyncio.wait_for(self.collect(),timeout=COLLECT_TIMEOUT)
                 stage = 'save'
                 await self.store_call(self.store.save,snapshot,time.time())
                 self.state.update(snapshot)
+                self.log_connection('collect', 'ok', time.monotonic() - started)
             except asyncio.CancelledError as error:
-                self.log_failure(stage, error)
+                self.log_failure(stage, error, time.monotonic() - started)
                 self.state.update(status='error',error='采集已取消，保留上次快照，可重新刷新。')
                 raise
             except AuthRequired as error:
-                self.log_failure(stage, error)
+                self.log_failure(stage, error, time.monotonic() - started)
                 self.state.update(status='disconnected',connected=False,error='自动登录暂未成功，请检查本地登录配置与网络，或点击“重新连接”重试。')
             except asyncio.TimeoutError as error:
-                self.log_failure(stage, error)
+                self.log_failure(stage, error, time.monotonic() - started)
                 self.state.update(status='error',error='采集或自动重连超时，保留上次快照，将自动重试。')
             except Exception as error:
-                self.log_failure(stage, error)
+                self.log_failure(stage, error, time.monotonic() - started)
                 self.state.update(status='error',error='采集失败，保留上次快照。请检查网络或重新连接。')
             finally:
                 try:
@@ -143,7 +177,9 @@ class Monitor:
 
     async def connect(self):
         self.state['connecting']=True
+        started = time.monotonic()
         acquired = False
+        self.log_connection('connect', 'start', 0)
         async def login():
             nonlocal acquired
             async with self.lock:
@@ -154,19 +190,20 @@ class Monitor:
             # Includes waiting for the collector, browser startup and login cleanup.
             await asyncio.wait_for(login(), timeout=CONNECT_TIMEOUT)
             await self.refresh()
+            self.log_connection('connect', 'ok' if self.state.get('connected') else 'error', time.monotonic() - started)
         except asyncio.CancelledError as error:
-            self.log_failure('connect' if acquired else 'connect_wait', error)
+            self.log_failure('connect' if acquired else 'connect_wait', error, time.monotonic() - started)
             if acquired:
                 self.state.update(status='disconnected',connected=False,error='重连已取消，可重新连接。')
             raise
         except asyncio.TimeoutError as error:
-            self.log_failure('connect' if acquired else 'connect_wait', error)
+            self.log_failure('connect' if acquired else 'connect_wait', error, time.monotonic() - started)
             if acquired:
                 self.state.update(status='disconnected',connected=False,error='自动重连超时，保留上次快照，可重新连接。')
             else:
                 self.state['error']='等待当前采集结束超时，请稍后重试。'
         except Exception as error:
-            self.log_failure('connect', error)
+            self.log_failure('connect', error, time.monotonic() - started)
             self.state.update(status='disconnected',connected=False,error='自动 IAM 登录未完成，请检查本地凭据、网络或平台验证要求后重试。')
         finally:
             self.state['connecting']=False

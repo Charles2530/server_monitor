@@ -3,6 +3,8 @@ import asyncio
 import json
 import logging
 import os
+import re
+import time
 from urllib.parse import urlparse
 from playwright.async_api import async_playwright
 from .config import DATA, CONSOLE, SERVICES
@@ -12,6 +14,10 @@ SESSION = DATA / 'session.json'
 LOGIN_LOCKS = {}
 SIGNIN_ORIGIN = 'https://signin.ms-sc-01.maoshanwangtech.com'
 logger = logging.getLogger(__name__)
+AUTH_TIMEOUT = 180
+PAGE_NAVIGATION_TIMEOUT = 30000
+PAGE_RETRY_INTERVAL = 15
+SCRIPT_CHUNK_SIZE = 65536
 
 class AuthRequired(Exception):
     pass
@@ -64,7 +70,7 @@ async def submit_iam_login(page,values,site=None):
     await submit.click(timeout=10000)
 
 
-async def authenticate(context, credentials=None, timeout=75, site=None):
+async def authenticate(context, credentials=None, timeout=AUTH_TIMEOUT, site=None):
     allowed = {urlparse(url).netloc for url in (site.services if site else SERVICES).values()}
     headers = {}
     async def capture(response):
@@ -73,10 +79,83 @@ async def authenticate(context, credentials=None, timeout=75, site=None):
             value = await response.request.header_value('authorization')
             if value:headers['authorization'] = value
     context.on('response', capture)
+    route_page=None
+    route_handler=None
+    asset_tasks={}
     async def run():
+        nonlocal route_page, route_handler
         page=await context.new_page()
-        await page.goto((site.console if site else CONSOLE)+'/home',wait_until='domcontentloaded',timeout=60000)
+        route_page=page
+        home=(site.console if site else CONSOLE)+'/home'
+        asset_hosts={urlparse(site.console if site else CONSOLE).netloc,
+                     urlparse(site.signin if site else SIGNIN_ORIGIN).netloc}
+        async def curl_bytes(*args, timeout=20):
+            process=await asyncio.create_subprocess_exec(
+                '/usr/bin/curl','--noproxy','*','-skS','--http1.1',
+                '--connect-timeout','5','--max-time',str(timeout),*args,
+                stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE)
+            try:
+                output,error=await asyncio.wait_for(process.communicate(),timeout+2)
+            except BaseException:
+                process.kill()
+                await process.communicate()
+                raise
+            if process.returncode:
+                raise OSError(error.decode(errors='replace')[:120])
+            return output
+
+        async def download_script(url):
+            head=await curl_bytes('-I',url)
+            match=re.search(rb'(?im)^content-length:\s*(\d+)',head)
+            if match is None:
+                return await curl_bytes(url,timeout=30)
+            total=int(match.group(1))
+            if total <= SCRIPT_CHUNK_SIZE:
+                return await curl_bytes(url,timeout=20)
+            semaphore=asyncio.Semaphore(6)
+            async def piece(start):
+                end=min(total-1,start+SCRIPT_CHUNK_SIZE-1)
+                expected=end-start+1
+                async with semaphore:
+                    for attempt in range(4):
+                        try:
+                            body=await curl_bytes('-r',f'{start}-{end}',url)
+                            if len(body)==expected:
+                                return start,body
+                        except (OSError,asyncio.TimeoutError):
+                            pass
+                        await asyncio.sleep(.2*(attempt+1))
+                raise OSError('script range download failed')
+            parts=await asyncio.gather(*(piece(start) for start in range(0,total,SCRIPT_CHUNK_SIZE)))
+            return b''.join(body for _,body in sorted(parts))
+
+        async def local_script(url):
+            task=asset_tasks.get(url)
+            if task is None:
+                task=asset_tasks[url]=asyncio.create_task(download_script(url))
+            try:
+                return await task
+            finally:
+                if task.done(): asset_tasks.pop(url,None)
+
+        async def retry_script(route):
+            if urlparse(route.request.url).netloc not in asset_hosts:
+                try: await route.continue_()
+                except Exception: pass
+                return
+            try:
+                body=await local_script(route.request.url)
+                await route.fulfill(status=200,headers={'content-type':'application/javascript'},body=body)
+                return
+            except Exception:
+                pass
+            try: await route.continue_()
+            except Exception: pass
+        route_handler=retry_script
+        await page.route('**/*.js',route_handler)
+        await page.goto(home,wait_until='commit',timeout=PAGE_NAVIGATION_TIMEOUT)
         submitted=False
+        retry_at=time.monotonic()+PAGE_RETRY_INTERVAL
         while not headers:
             if page.is_closed():raise AuthRequired('自动登录窗口意外关闭。')
             parsed=urlparse(page.url)
@@ -88,6 +167,14 @@ async def authenticate(context, credentials=None, timeout=75, site=None):
                     values=credentials or (load_credentials(site) if site else load_credentials())
                     await submit_iam_login(page,values,site)
                     submitted=True
+            if not submitted and not asset_tasks and time.monotonic() >= retry_at:
+                # The console entry bundle can stall part-way through a download.
+                # Retry the document while keeping the overall auth window alive.
+                try:
+                    await page.reload(wait_until='commit',timeout=PAGE_NAVIGATION_TIMEOUT)
+                except Exception:
+                    pass
+                retry_at=time.monotonic()+PAGE_RETRY_INTERVAL
             await asyncio.sleep(.5)
         return {'storage_state':await context.storage_state(),'headers':headers}
     try:
@@ -98,16 +185,25 @@ async def authenticate(context, credentials=None, timeout=75, site=None):
         logger.warning('monitor_failure site=%s stage=authenticate reason=%s', site.id if site else 'default', reason)
         raise AuthRequired('自动 IAM 登录未完成，请检查本地凭据、网络或平台验证要求。') from None
     finally:
+        if route_page and route_handler:
+            try:
+                await route_page.unroute_all(behavior='ignoreErrors')
+            except Exception:
+                pass
+        pending=list(asset_tasks.values())
+        for task in pending: task.cancel()
+        if pending: await asyncio.gather(*pending,return_exceptions=True)
         context.remove_listener('response',capture)
 
 
-async def connect_browser(headless=True, timeout=75, site=None):
+async def connect_browser(headless=True, timeout=AUTH_TIMEOUT, site=None):
+    timeout=max(timeout, AUTH_TIMEOUT)
     key=str(site.data if site else DATA)
     async with LOGIN_LOCKS.setdefault(key,asyncio.Lock()):
         await _connect_browser(headless,timeout,site)
 
 
-async def _connect_browser(headless=True, timeout=75, site=None):
+async def _connect_browser(headless=True, timeout=AUTH_TIMEOUT, site=None):
     try:
         previous = load_session(site).get('storage_state')
     except AuthRequired:

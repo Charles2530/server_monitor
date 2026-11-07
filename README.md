@@ -23,6 +23,7 @@
 | 镜像管理 | 按名称、Tag、命名空间和环境版本筛选镜像，复制地址，生成传递与上传命令 |
 | 任务历史 | 按类型、状态与关键词筛选结束的任务，查看运行时长、跳转云控制台或重新启动 ACP 任务 |
 | TokenHub | 查看 USD 余额、实际消费趋势、API 密钥用量与并发，复制密钥、调整分组、查看账号额度 |
+| 实验追踪 | 通过 W&B API 查看项目、Runs、Summary 指标、History 曲线和最近训练日志，并关联 CCI / ACP 任务 |
 
 两站点的会话与数据分开管理。侧边栏切换站点，地址参数 `?site=sensecore` 可以直接选择 SenseCore；页面和站点支持浏览器前进、后退。SSH 使用运行服务的电脑上的配置，TokenHub 使用独立账号，两者都不随云站点切换。
 
@@ -145,6 +146,20 @@ chmod 600 .env
 此仓库按私有个人仓库维护，现有 `.env` 纳入版本管理，用于可信机器间同步。请保留仓库私有属性；如需公开或分享副本，应先处理配置及 Git 历史中的凭据。登录会话、运行数据库和临时输出保存在忽略版本控制的 `data/` 中。
 
 下载代理只作用于容器内安装过程，不改变日常编辑器流量。镜像页面生成的 `registry.sh` 命令需要在具备对应外部脚本、Docker 和仓库权限的客户端执行，网页不会自动执行上传或传递。
+
+### W&B 实验追踪
+
+实验追踪页面通过服务端官方 W&B Python SDK 读取配置好的 Entity。浏览器和手机端不会接触 W&B API Key。设置以下本机环境变量后重启服务：
+
+```bash
+export WANDB_BASE_URL=https://api.wandb.ai
+export WANDB_API_KEY='在 W&B 重新生成的 Key'
+export WANDB_ENTITY='你的 Entity 或团队'
+```
+
+如果使用 CoreWeave Forge 上的 W&B，Base URL 填写 `https://forge.coreweave.com/api/wandb`，例如 Entity `charles2530djy-beihang-university`；页面会再列出该 Entity 下的 Project。
+
+页面按需读取项目、Run 元数据、Summary、采样后的 History 和最近 2000 行 Console Logs；读取失败时保留本地缓存。W&B API Key 不应写入仓库、截图、日志或聊天记录。实验追踪使用说明见 [`docs/W&B实验追踪使用说明-1107-1232.md`](docs/W&B实验追踪使用说明-1107-1232.md)。
 
 ## 日常使用
 

@@ -12,6 +12,7 @@ from .http_assets import revalidatable_asset
 
 READ_PATHS=frozenset(('/', '/terminal', '/api/state','/api/history','/api/task-history','/api/storage',
     '/api/utilization-queue','/api/images',
+    '/api/wandb/status','/api/wandb/projects','/api/wandb/runs','/api/wandb/run','/api/wandb/history','/api/wandb/logs','/api/wandb/task-links',
     '/api/tokenhub/state','/api/tokenhub/keys','/api/tokenhub/usage','/api/tokenhub/trend','/api/tokenhub/key-groups','/api/tokenhub/sources',
     '/api/logs','/api/logs/targets','/api/cci/terminal-targets','/api/acp/terminal-targets',
     '/api/acp/options','/api/acp/task-config','/api/acp/restart-options','/api/acp/release-restart-options'))

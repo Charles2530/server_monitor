@@ -38,6 +38,8 @@ from .store import Store
 from .http_assets import StaticAssetCompression, revalidatable_asset
 from .runtime_profile import get_runtime_profile
 from .sites import SITES, MAOSHANWANG
+from .wandb_client import WandbClient, WandbError
+from .wandb_routes import register_wandb_routes
 
 
 READ_TIMEOUT_SECONDS = 50
@@ -61,8 +63,10 @@ class SiteRuntime:
     images: object = None
 
 
-def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=None, tokenhub=None):
+def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=None, tokenhub=None, wandb_client=None, wandb_store=None):
     tokenhub = tokenhub or TokenHub()
+    wandb_client = wandb_client or WandbClient()
+    wandb_store = wandb_store or Store(DATA/'wandb.sqlite3')
     ssh_catalog = SSHCatalog()
     ssh_transfers = SSHTransfers(ssh_catalog)
     data_transfers = TransferManager(ssh_catalog)
@@ -138,6 +142,8 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     app.state.monitor=runtimes["maoshanwang"].monitor
     app.state.runtimes=runtimes
     app.state.tokenhub=tokenhub
+    app.state.wandb=wandb_client
+    app.state.wandb_store=wandb_store
     app.state.ssh=ssh_catalog
     app.state.ssh_transfers=ssh_transfers
     app.state.transfers=data_transfers
@@ -211,6 +217,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
     async def perform(callback):
         try:return await callback()
         except ActionError as exc:return JSONResponse({'error':str(exc),'code':exc.code},status_code=exc.status)
+        except WandbError as exc:return JSONResponse({'error':str(exc),'code':exc.code},status_code=exc.status)
         except AuthRequired:return JSONResponse({'error':'请重新连接云会话。','code':'auth_required'},status_code=403)
         except Exception:return JSONResponse({'error':'操作暂不可用，请检查连接并核对云端任务状态。','code':'source_unavailable'},status_code=503)
 
@@ -222,6 +229,7 @@ def create_app(monitor=None, background=True, actions=None, logs=None, runtimes=
                 raise ActionError('云端读取超时，请稍后刷新。','source_timeout',504) from None
         return await perform(bounded)
 
+    register_wandb_routes(app, wandb_client, wandb_store, perform, read_only, action_body)
     register_terminal_routes(app,current_connection,perform,action_body,{**runtimes, 'ssh': ssh_runtime})
     register_ide_routes(app,current_connection,perform,action_body)
     register_tokenhub_routes(app,tokenhub)

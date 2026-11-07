@@ -21,11 +21,13 @@
     <link rel="stylesheet" href="/static/images.css">
     <link rel="stylesheet" href="/static/selects.css">
     <link rel="stylesheet" href="/static/workspace.css">
+    <link rel="stylesheet" href="/static/connection-log.css">
     <script src="/static/sites.js" defer></script>
     <script src="/static/task-context.js" defer></script>
     <script src="/static/navigation.js" defer></script>
     <script src="/static/images.js" defer></script>
     <script src="/static/chart-sampling.js" defer></script>
+    <script src="/static/connection-log.js" defer></script>
     <script src="/static/app.js" defer></script>
     <script src="/static/acp.js" defer></script>
     <script src="/static/logs.js" defer></script>
@@ -42,7 +44,9 @@
     <script src="/static/mobile.js" defer></script>
     <link rel="stylesheet" href="/static/typography.css">
     <link rel="stylesheet" href="/static/tokenhub.css">
+    <link rel="stylesheet" href="/static/wandb.css">
     <script src="/static/tokenhub.js" defer></script>
+    <script src="/static/wandb.js" defer></script>
     <script src="/static/ssh.js" defer></script>
     <link rel="stylesheet" href="/static/appearance.css">
   <link rel="stylesheet" href="/static/visual-tokens.css">
@@ -66,6 +70,7 @@
         <a class="nav-item" href="#storage"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/></svg>存储管理</a>
         <a class="nav-item" href="#images"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h4m-4 4h10m-10 0v2m4-2v2m4-2v2"/></svg>镜像管理</a>
         <a class="nav-item" href="#history"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v5l3 2"/></svg>任务历史</a>
+        <a class="nav-item" href="#experiments"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5m0 14h16M8 16v-5m4 5V7m4 9v-8m4 8V4"/></svg>实验追踪</a>
       </nav>
       <div class="sidebar-bottom">
         <button class="theme-toggle" id="theme-toggle" type="button" aria-label="深色模式" title="深色模式">
@@ -79,7 +84,7 @@
     <main id="main" class="main-content" tabindex="-1">
       <header class="page-header">
         <div><div class="eyebrow" id="page-eyebrow">WORKSPACE / OVERVIEW</div><h1><span id="page-title">资源总览</span><span class="heading-tag" data-site-label>maoshanwang</span></h1><p class="page-description" id="page-description">查看 charles 的任务与资源，支持 ACP 创建和停止。</p></div>
-        <div class="header-actions"><span class="refresh-cadence"><span class="pulse-dot"></span>每 60 秒采集</span><button class="button button-secondary" id="refresh-button" type="button"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-2l2 2M4 17l2 2a7 7 0 0 0 12-2"/></svg>立即刷新</button><button class="button button-primary" id="connect-button" type="button">连接会话<span aria-hidden="true">↗</span></button><div class="action-message" id="action-message" role="status" aria-live="polite" hidden></div><div class="status-banner status-loading" id="status-banner" role="status" aria-live="polite"><span class="status-symbol" id="status-symbol" aria-hidden="true">◌</span><div><strong id="status-title">正在读取监控状态</strong><span id="status-description">首次连接后，将开始采集你的任务与资源数据。</span></div><time id="last-updated">等待首次采集</time></div></div>
+        <div class="header-actions"><span class="refresh-cadence"><span class="pulse-dot"></span>每 60 秒采集</span><div data-connection-log></div><button class="button button-secondary" id="refresh-button" type="button"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 7a7 7 0 0 1 12-2l2 2M4 17l2 2a7 7 0 0 0 12-2"/></svg>立即刷新</button><button class="button button-primary" id="connect-button" type="button">连接会话<span aria-hidden="true">↗</span></button><div class="action-message" id="action-message" role="status" aria-live="polite" hidden></div><div class="status-banner status-loading" id="status-banner" role="status" aria-live="polite"><span class="status-symbol" id="status-symbol" aria-hidden="true">◌</span><div><strong id="status-title">正在读取监控状态</strong><span id="status-description">首次连接后，将开始采集你的任务与资源数据。</span></div><time id="last-updated">等待首次采集</time></div></div>
       </header>
       <div id="acp-message" class="acp-notice" role="status" aria-live="polite" hidden></div>
       <div class="acp-resume-actions"><button id="acp-create-resume" class="button button-secondary" type="button" hidden>核对此次创建结果</button><button id="acp-stop-resume" class="button button-secondary" type="button" hidden>核对此次停止结果</button></div>
@@ -474,6 +479,25 @@
         <div class="task-history-pagination"><label>每页<select id="task-history-size" class="history-select"><option value="20">20 条</option><option value="50">50 条</option><option value="100">100 条</option></select></label><span id="task-history-page">第 1 / 1 页</span><button id="task-history-prev" class="button button-secondary" type="button" disabled>上一页</button><button id="task-history-next" class="button button-secondary" type="button" disabled>下一页</button></div>
         <p id="task-history-excluded" class="history-excluded" hidden></p>
         <p id="task-history-filter-note" class="table-note">已停止任务仅保留有实际开始时间或本机曾观测到运行的记录。没有运行依据的旧 CCI 任务暂不列入；成功、失败按平台最终状态显示。不展示历史曲线。</p>
+      </section>
+      <section id="wandb-view" class="section-block workspace-view wandb-page" data-page="experiments" hidden>
+        <div class="wandb-toolbar">
+          <div class="wandb-toolbar-copy">
+            <div class="wandb-breadcrumb"><span class="wandb-brand-mark" aria-hidden="true">W</span><span>Weights &amp; Biases</span><span class="wandb-breadcrumb-separator">/</span><span>实验工作区</span></div>
+            <span class="wandb-eyebrow">EXPERIMENT TRACKING</span>
+            <h2>实验工作区 <span id="wandb-run-count" class="count-badge">—</span></h2>
+            <p id="wandb-status" role="status" aria-live="polite">读取 W&amp;B 配置…</p>
+          </div>
+          <div class="wandb-toolbar-actions"><span class="wandb-live-state"><i aria-hidden="true"></i>实时只读</span><button id="wandb-refresh" class="button button-secondary" type="button"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.9-4L3 10m0-4v4h4M4 13a8 8 0 0 0 14.9 4L21 14m0 4v-4h-4"/></svg>刷新数据</button></div>
+        </div>
+        <div class="wandb-context" aria-label="实验工作区选择">
+          <div class="wandb-context-heading"><span class="wandb-section-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5z"/><path d="M8 7h8M8 11h8M8 15h4"/></svg></span><div><strong>当前工作区</strong><small>选择账号与项目，Runs 会在下方同步</small></div></div>
+          <label class="wandb-context-field"><span>Workspace / Entity</span><select id="wandb-entity"><option value="">读取中</option></select></label>
+          <label class="wandb-context-field wandb-project-field"><span>Project <em>全局上下文</em></span><select id="wandb-project" disabled><option value="">选择项目</option></select></label>
+          <div class="wandb-context-meta"><span class="wandb-context-dot"></span><span id="wandb-context-meta-text">等待项目</span></div>
+        </div>
+        <div class="wandb-run-toolbar"><div class="wandb-view-switch" aria-label="当前视图"><span class="is-active"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM4 9h16M10 9v10"/></svg>Runs</span><span><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5m0 14h16M8 16v-5m4 5V7m4 9v-8m4 8V4"/></svg>指标</span></div><div class="wandb-run-tools"><label class="wandb-status-filter" title="按状态筛选"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10m-7 6h4"/></svg><span class="sr-only">状态筛选</span><select id="wandb-state" aria-label="状态筛选"><option value="">全部状态</option><option value="running">运行中</option><option value="finished">已完成</option><option value="failed">失败</option><option value="crashed">崩溃</option></select></label><label class="wandb-search" title="搜索 Run"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg><span class="sr-only">搜索 Run</span><input id="wandb-search" type="search" aria-label="搜索 Run" placeholder="搜索名称或 ID" autocomplete="off"></label></div></div>
+        <div class="wandb-layout"><section class="wandb-runs-panel" aria-labelledby="wandb-runs-heading"><div class="wandb-panel-heading"><div><span class="wandb-panel-kicker">RUNS</span><h3 id="wandb-runs-heading">实验运行记录</h3></div><span class="wandb-panel-count" id="wandb-visible-count">— 条</span></div><div class="wandb-compare-toolbar"><span><strong id="wandb-compare-count">0 个已选</strong><small>勾选多个 Run 比较曲线</small></span><button id="wandb-compare-apply" class="button button-secondary" type="button" disabled><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5m0 14h16M8 16v-5m4 5V7m4 9v-8m4 8V4"/></svg>比较选中 Runs</button></div><div class="wandb-run-list" id="wandb-runs" role="list" aria-label="W&B Runs"><p class="wandb-empty">选择项目后读取 Runs。</p></div></section><article class="wandb-detail" id="wandb-detail" aria-live="polite"><p class="wandb-empty">选择一个 Run 查看指标、配置和日志。</p></article></div>
       </section>
       <footer class="page-footer"><span>iLab Server Monitor<span class="footer-divider">/</span>运行监控：charles · 等待队列：所有用户</span><span>本地历史保留 7 天 · 60 秒采样</span></footer>
     </main>

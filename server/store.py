@@ -45,6 +45,31 @@ class Store:
                     display_name TEXT NOT NULL, status TEXT NOT NULL,
                     result TEXT, error TEXT, created REAL NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS wandb_projects (
+                    entity TEXT NOT NULL, name TEXT NOT NULL, payload TEXT NOT NULL,
+                    cached REAL NOT NULL, PRIMARY KEY(entity, name)
+                );
+                CREATE TABLE IF NOT EXISTS wandb_runs (
+                    entity TEXT NOT NULL, project TEXT NOT NULL, run_id TEXT NOT NULL,
+                    payload TEXT NOT NULL, cached REAL NOT NULL,
+                    PRIMARY KEY(entity, project, run_id)
+                );
+                CREATE TABLE IF NOT EXISTS wandb_history (
+                    entity TEXT NOT NULL, project TEXT NOT NULL, run_id TEXT NOT NULL,
+                    metric TEXT NOT NULL, payload TEXT NOT NULL, cached REAL NOT NULL,
+                    PRIMARY KEY(entity, project, run_id, metric)
+                );
+                CREATE TABLE IF NOT EXISTS wandb_logs (
+                    entity TEXT NOT NULL, project TEXT NOT NULL, run_id TEXT NOT NULL,
+                    payload TEXT NOT NULL, cached REAL NOT NULL,
+                    PRIMARY KEY(entity, project, run_id)
+                );
+                CREATE TABLE IF NOT EXISTS wandb_task_links (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, site_id TEXT NOT NULL,
+                    task_id TEXT NOT NULL, entity TEXT NOT NULL, project TEXT NOT NULL,
+                    run_id TEXT NOT NULL, created REAL NOT NULL, updated REAL NOT NULL,
+                    UNIQUE(site_id, task_id, entity, project, run_id)
+                );
             """)
             db.execute("INSERT OR IGNORE INTO task_runs SELECT DISTINCT task FROM samples")
         os.chmod(self.path, 0o600)
@@ -128,3 +153,73 @@ class Store:
             db.execute("DELETE FROM samples WHERE timestamp < ?", (now-days*86400,))
             db.execute("DELETE FROM snapshots WHERE captured < ? AND id != (SELECT MAX(id) FROM snapshots)",
                        (now-days*86400,))
+
+    def wandb_upsert_projects(self, items, now):
+        with self.connect() as db:
+            db.executemany("""INSERT INTO wandb_projects(entity,name,payload,cached) VALUES (?,?,?,?)
+                ON CONFLICT(entity,name) DO UPDATE SET payload=excluded.payload,cached=excluded.cached""",
+                [(item.get('entity') or '', item.get('name') or '', json.dumps(item, ensure_ascii=False), now) for item in items])
+
+    def wandb_projects(self, entity):
+        with self.connect() as db:
+            rows = db.execute("SELECT payload FROM wandb_projects WHERE entity=? ORDER BY name", (entity,)).fetchall()
+        return [json.loads(row[0]) for row in rows]
+
+    def wandb_upsert_runs(self, items, now):
+        with self.connect() as db:
+            db.executemany("""INSERT INTO wandb_runs(entity,project,run_id,payload,cached) VALUES (?,?,?,?,?)
+                ON CONFLICT(entity,project,run_id) DO UPDATE SET payload=excluded.payload,cached=excluded.cached""",
+                [(item.get('entity') or '', item.get('project') or '', item.get('id') or '', json.dumps(item, ensure_ascii=False), now) for item in items])
+
+    def wandb_runs(self, entity, project):
+        with self.connect() as db:
+            rows = db.execute("SELECT payload FROM wandb_runs WHERE entity=? AND project=? ORDER BY json_extract(payload, '$.created_at') DESC", (entity, project)).fetchall()
+        return [json.loads(row[0]) for row in rows]
+
+    def wandb_run(self, entity, project, run_id):
+        with self.connect() as db:
+            row = db.execute("SELECT payload FROM wandb_runs WHERE entity=? AND project=? AND run_id=?", (entity, project, run_id)).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def wandb_save_history(self, entity, project, run_id, series, now):
+        with self.connect() as db:
+            db.executemany("""INSERT INTO wandb_history(entity,project,run_id,metric,payload,cached) VALUES (?,?,?,?,?,?)
+                ON CONFLICT(entity,project,run_id,metric) DO UPDATE SET payload=excluded.payload,cached=excluded.cached""",
+                [(entity, project, run_id, item.get('metric') or '', json.dumps(item, ensure_ascii=False), now) for item in series])
+
+    def wandb_history(self, entity, project, run_id):
+        with self.connect() as db:
+            rows = db.execute("SELECT payload FROM wandb_history WHERE entity=? AND project=? AND run_id=? ORDER BY metric", (entity, project, run_id)).fetchall()
+        return [json.loads(row[0]) for row in rows]
+
+    def wandb_save_logs(self, entity, project, run_id, lines, now):
+        with self.connect() as db:
+            db.execute("""INSERT INTO wandb_logs(entity,project,run_id,payload,cached) VALUES (?,?,?,?,?)
+                ON CONFLICT(entity,project,run_id) DO UPDATE SET payload=excluded.payload,cached=excluded.cached""",
+                (entity, project, run_id, json.dumps(lines, ensure_ascii=False), now))
+
+    def wandb_logs(self, entity, project, run_id):
+        with self.connect() as db:
+            row = db.execute("SELECT payload FROM wandb_logs WHERE entity=? AND project=? AND run_id=?", (entity, project, run_id)).fetchone()
+        return json.loads(row[0]) if row else []
+
+    def wandb_add_link(self, site_id, task_id, entity, project, run_id, now):
+        with self.connect() as db:
+            db.execute("""INSERT INTO wandb_task_links(site_id,task_id,entity,project,run_id,created,updated)
+                VALUES (?,?,?,?,?,?,?) ON CONFLICT(site_id,task_id,entity,project,run_id)
+                DO UPDATE SET updated=excluded.updated""", (site_id, task_id, entity, project, run_id, now, now))
+            row = db.execute("SELECT * FROM wandb_task_links WHERE site_id=? AND task_id=? AND entity=? AND project=? AND run_id=?", (site_id, task_id, entity, project, run_id)).fetchone()
+            return dict(zip(('id', 'site_id', 'task_id', 'entity', 'project', 'run_id', 'created', 'updated'), row))
+
+    def wandb_links(self, site_id, task_id=None):
+        with self.connect() as db:
+            if task_id is None:
+                rows = db.execute("SELECT * FROM wandb_task_links WHERE site_id=? ORDER BY updated DESC", (site_id,)).fetchall()
+            else:
+                rows = db.execute("SELECT * FROM wandb_task_links WHERE site_id=? AND task_id=? ORDER BY updated DESC", (site_id, task_id)).fetchall()
+            columns = ('id', 'site_id', 'task_id', 'entity', 'project', 'run_id', 'created', 'updated')
+            return [dict(zip(columns, row)) for row in rows]
+
+    def wandb_delete_link(self, site_id, link_id):
+        with self.connect() as db:
+            db.execute("DELETE FROM wandb_task_links WHERE site_id=? AND id=?", (site_id, link_id))
